@@ -16,7 +16,7 @@
 2. **Add remote and push code:**
    ```bash
    cd C:\Users\Joanna\koki_foodhub3
-   git remote add origin https://github.com/benedictojiro58-gif/koki-foodhub1.git
+   git remote add origin https://github.com/benedictojiro58-gif/koki-foodhub.git
    git branch -M main
    git push -u origin main
    ```
