@@ -70,9 +70,11 @@ def dashboard(request):
     
     for product in all_products:
         inv = product.inventory_items.first() if product.inventory_items.exists() else None
+        # Normalize name display (replace underscores, title case)
+        pretty_name = product.name.replace('_', ' ').title()
         products_data.append({
             'id': product.id,
-            'name': product.name,
+            'name': pretty_name,
             'price': float(product.price),
             'category': product.category,
             'quantity': inv.quantity if inv else 0,

@@ -44,16 +44,16 @@
         {% endfor %}
       </div>
 
-      <!-- Product Grid - 3 columns -->
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; height: calc(100vh - 320px); overflow-y: auto; padding-right: 8px;" id="productGrid">
+      <!-- Product Grid - 6 columns -->
+      <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; height: calc(100vh - 320px); overflow-y: auto; padding-right: 8px;" id="productGrid">
         {% for product in all_products %}
         <div style="border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: #fff; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column;" class="product-card" data-category="{{ product.category }}" data-id="{{ product.id }}" data-name="{{ product.name }}" data-price="{{ product.price }}">
           {% if product.image %}
-          <div style="width: 100%; height: 220px; overflow: hidden; flex-shrink: 0; background: #f3f4f6;">
-            <img src="{{ product.image }}" style="width: 100%; height: 100%; object-fit: cover;">
+          <div style="width: 100%; height: 140px; overflow: hidden; flex-shrink: 0; background: #f3f4f6; border-bottom: 1px solid #f1f1f1;">
+            <img src="{{ product.image }}" style="width: 100%; height: 100%; object-fit: cover; display: block;">
           </div>
           {% else %}
-          <div style="width: 100%; height: 220px; background: linear-gradient(135deg, #e8d5f2 0%, #d4b5e8 100%); display: flex; align-items: center; justify-content: center; font-size: 60px; flex-shrink: 0;">🍽️</div>
+          <div style="width: 100%; height: 140px; background: linear-gradient(135deg, #e8d5f2 0%, #d4b5e8 100%); display: flex; align-items: center; justify-content: center; font-size: 40px; flex-shrink: 0; border-bottom: 1px solid #f1f1f1;">🍽️</div>
           {% endif %}
           <div style="padding: 16px;">
             <h3 style="margin: 0 0 12px 0; font-weight: 700; font-size: 15px; color: #1f2937; word-break: break-word; line-height: 1.4;">{{ product.name }}</h3>
@@ -74,10 +74,10 @@
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <select id="itemsPerPage" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; background: #fff;">
-            <option value="4">4 per page</option>
-            <option value="6">6 per page</option>
-            <option value="8">8 per page</option>
             <option value="12">12 per page</option>
+            <option value="24" selected>24 per page</option>
+            <option value="36">36 per page</option>
+            <option value="48">48 per page</option>
           </select>
         </div>
         <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600;" id="pageInfo">Page 1</div>
@@ -158,7 +158,7 @@
   <script>
     let cart = [];
     let currentPage = 1;
-    let itemsPerPage = 4;
+    let itemsPerPage = 24;
     let filteredProducts = [];
 
     // Build products object from Django template data
@@ -211,7 +211,7 @@
 
       // Show current page products
       filteredProducts.slice(startIndex, endIndex).forEach(card => {
-        card.style.display = 'grid';
+        card.style.display = 'flex';
       });
 
       // Update pagination info
