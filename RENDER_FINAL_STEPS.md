@@ -62,9 +62,9 @@ DEBUG=False
 ALLOWED_HOSTS=koki-foodhub.onrender.com
 
 POSTGRES_NAME=koki_foodhub
-POSTGRES_USER=koki_user
+POSTGRES_USER=admin
 POSTGRES_PASSWORD=[paste from database connection string]
-POSTGRES_HOST=[paste from database connection string]
+POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 ```
 
