@@ -16,11 +16,10 @@
 2. **Add remote and push code:**
    ```bash
    cd C:\Users\Joanna\koki_foodhub3
-   git remote add origin https://github.com/YOUR_USERNAME/koki-foodhub.git
+   git remote add origin https://github.com/benedictojiro58-gif/koki-foodhub1.git
    git branch -M main
    git push -u origin main
    ```
-   Replace `YOUR_USERNAME` with your GitHub username.
 
 ## Step 2: Create PostgreSQL Database on Render
 
