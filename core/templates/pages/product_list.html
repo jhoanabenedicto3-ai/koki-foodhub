@@ -1,0 +1,269 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Products - Koki's Foodhub{% endblock %}
+{% block nav_title %}Products{% endblock %}
+
+{% block content %}
+  <div style="margin-bottom: 28px;">
+    <h1 class="section-title">🍽️ Products</h1>
+    <p style="color: var(--text-secondary); margin: 0;">Browse and manage your menu items</p>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <button class="btn primary" onclick="openAddProductModal()">➕ Add Product</button>
+  </div>
+
+  {% if products %}
+    <div class="product-grid">
+      {% for p in products %}
+        <div class="product-card">
+          <div class="product-image">🍲</div>
+          <div class="product-info">
+            <h3 class="product-name">{{ p.name }}</h3>
+            <p class="product-category">{{ p.category }}</p>
+            <p class="product-price">₱{{ p.price }}</p>
+            <div style="margin-top: auto; display: flex; gap: 8px;">
+              <a class="btn" href="{% url 'product_update' p.id %}" style="flex: 1; font-size: 12px;">✏️ Edit</a>
+              <form method="post" action="{% url 'product_delete' p.id %}" style="flex: 1;" onsubmit="return confirm('Delete this product?');">
+                {% csrf_token %}
+                <button class="btn danger" type="submit" style="width: 100%; font-size: 12px;">🗑️</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card" style="text-align: center; padding: 48px 24px;">
+      <p style="color: var(--text-secondary); font-size: 16px; margin-bottom: 20px;">No products yet. Create your first product to get started.</p>
+      <button class="btn primary" onclick="openAddProductModal()">➕ Create Product</button>
+    </div>
+  {% endif %}
+
+  <!-- Add Product Modal -->
+  <div id="addProductModal" class="modal" style="display: none;">
+    <div class="modal-overlay" onclick="closeAddProductModal()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add New Item</h2>
+        <button class="modal-close" onclick="closeAddProductModal()">✕</button>
+      </div>
+      
+      <form id="productForm" method="post" action="{% url 'product_create' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="modal-body">
+          <!-- Name Field -->
+          <div class="form-group">
+            <label for="id_name">Name</label>
+            <input type="text" id="id_name" name="name" placeholder="Item name" required>
+          </div>
+
+          <!-- Category Field -->
+          <div class="form-group">
+            <label for="id_category">Category</label>
+            <select id="id_category" name="category" required>
+              <option value="">Select category</option>
+              <option value="Main">Main</option>
+              <option value="Appetizer">Appetizer</option>
+              <option value="Beverage">Beverage</option>
+              <option value="Dessert">Dessert</option>
+            </select>
+          </div>
+
+          <!-- Price Field -->
+          <div class="form-group">
+            <label for="id_price">Price (₱)</label>
+            <input type="number" id="id_price" name="price" placeholder="0.00" step="0.01" min="0" required>
+          </div>
+
+          <!-- Product Image -->
+          <div class="form-group">
+            <label>Product Image</label>
+            <div class="image-upload-area" id="imageUploadArea">
+              <div class="upload-icon">⬆️</div>
+              <p>Upload Image</p>
+              <input type="file" id="id_image" name="image" accept="image/*" style="display: none;" onchange="handleImageSelect()">
+            </div>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin: 12px 0;">Or enter URL</p>
+            <input type="url" id="id_image_url" placeholder="https://example.com/image.jpg" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn primary" style="width: 100%;">➕ Add Item</button>
+          <button type="button" class="btn" onclick="closeAddProductModal()" style="width: 100%; margin-top: 8px;">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+    }
+
+    .modal-content {
+      position: relative;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--muted);
+      color: var(--fg);
+    }
+
+    .modal-body {
+      padding: 28px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .form-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--fg);
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+
+    .image-upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: #fafafa;
+    }
+
+    .image-upload-area:hover {
+      border-color: var(--accent);
+      background: rgba(255, 87, 34, 0.05);
+    }
+
+    .upload-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .image-upload-area p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .modal-footer {
+      padding: 20px 28px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+
+  <script>
+    function openAddProductModal() {
+      document.getElementById('addProductModal').style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeAddProductModal() {
+      document.getElementById('addProductModal').style.display = 'none';
+      document.body.style.overflow = 'auto';
+      document.getElementById('productForm').reset();
+    }
+
+    function handleImageSelect() {
+      const fileInput = document.getElementById('id_image');
+      if (fileInput.files.length > 0) {
+        const fileName = fileInput.files[0].name;
+        const uploadArea = document.getElementById('imageUploadArea');
+        uploadArea.innerHTML = `<div class="upload-icon">✓</div><p>${fileName}</p>`;
+      }
+    }
+
+    document.getElementById('imageUploadArea').addEventListener('click', function() {
+      document.getElementById('id_image').click();
+    });
+
+    // Close modal when pressing Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeAddProductModal();
+      }
+    });
+  </script>
+{% endblock %}

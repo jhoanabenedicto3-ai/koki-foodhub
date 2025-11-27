@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}Koki's Foodhub{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Professional Food Hub Management System">
+  <link rel="stylesheet" href="/static/styles.css?v=2" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#ff5722">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--accent);">KOKI'S</h2>
+        <p style="margin: 0; font-size: 11px; color: var(--text-secondary);">Food Hub</p>
+      </div>
+      <nav class="sidebar-menu">
+        <div class="sidebar-menu-item">
+          <a href="{% url 'dashboard' %}" class="{% if request.path == '/' %}active{% endif %}">
+            <span class="sidebar-icon">📊</span>
+            <span>Dashboard</span>
+          </a>
+        </div>
+        <div class="sidebar-menu-item">
+          <a href="{% url 'inventory_list' %}" class="{% if '/inventory' in request.path %}active{% endif %}">
+            <span class="sidebar-icon">📦</span>
+            <span>Inventory</span>
+          </a>
+        </div>
+        <div class="sidebar-menu-item">
+          <a href="{% url 'sale_list' %}" class="{% if '/sales' in request.path %}active{% endif %}">
+            <span class="sidebar-icon">📋</span>
+            <span>Reports</span>
+          </a>
+        </div>
+        <div class="sidebar-menu-item">
+          <a href="{% url 'sales_dashboard' %}" class="{% if '/sales-dashboard' in request.path %}active{% endif %}">
+            <span class="sidebar-icon">📊</span>
+            <span> Sales </span>
+          </a>
+        </div>
+        <div class="sidebar-menu-item">
+          <a href="{% url 'forecast' %}" class="{% if '/forecast' in request.path %}active{% endif %}">
+            <span class="sidebar-icon">📈</span>
+            <span>Forecast</span>
+          </a>
+        </div>
+        <div class="sidebar-menu-item">
+          <a href="{% url 'product_list' %}" class="{% if '/products' in request.path %}active{% endif %}">
+            <span class="sidebar-icon">🛒</span>
+            <span>Products List</span>
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <!-- Top Header -->
+      <header class="header">
+        <div class="header-left">
+          <h1 class="header-title">Restaurant Management System</h1>
+          <p class="header-subtitle">Dashboard</p>
+        </div>
+        <div class="header-right">
+          <span class="user-info">👤 Admin User</span>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="container">
+        {% include "organisms/toast.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Service worker registration -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/static/service-worker.js")
+        .then(reg => console.log("Service Worker registered:", reg))
+        .catch(err => console.error("Service Worker failed:", err));
+    }
+  </script>
+</body>
+</html>
