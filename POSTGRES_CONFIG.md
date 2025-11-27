@@ -25,11 +25,11 @@ From that URL, you need:
 If your URL is: `postgresql://koki_user:abc123xyz@dpg-xyz.render.com:5432/koki_foodhub`
 
 Then your variables are:
-- POSTGRES_USER = `koki_user`
-- POSTGRES_PASSWORD = `abc123xyz`
-- POSTGRES_HOST = `dpg-xyz.render.com`
-- POSTGRES_NAME = `koki_foodhub`
-- POSTGRES_PORT = `5432`
+POSTGRES_USER = `koki_user`
+POSTGRES_PASSWORD = `abc123xyz`
+POSTGRES_HOST = `dpg-xyz.render.com`
+POSTGRES_NAME = `koki_foodhub`
+POSTGRES_PORT = `5432`
 
 ## 🌐 Step 3: Add Environment Variables to Web Service
 

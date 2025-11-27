@@ -66,6 +66,8 @@ def dashboard(request):
     # Get all products with inventory info
     all_products = Product.objects.all().prefetch_related('inventory_items')
     products_data = []
+    categories_set = set()
+    
     for product in all_products:
         inv = product.inventory_items.first() if product.inventory_items.exists() else None
         products_data.append({
@@ -77,11 +79,16 @@ def dashboard(request):
             'is_low_stock': inv.is_low_stock() if inv else False,
             'image': product.image.url if product.image else None
         })
+        categories_set.add(product.category)
+    
+    # Sort categories for consistent display
+    categories = sorted([c for c in categories_set if c])
     
     context = {
         "top_products": top_products,
         "low_stock": low_stock,
-        "all_products": products_data
+        "all_products": products_data,
+        "categories": categories
     }
     return render(request, "pages/dashboard.html", context)
 
