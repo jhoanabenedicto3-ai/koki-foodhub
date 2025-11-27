@@ -14,24 +14,48 @@ Your project is already configured for production deployment:
 - ✅ `settings.py` - Production settings configured
 - ✅ Git repository initialized locally
 
-## 🔐 GitHub Access Issue
+## 🔐 Push to GitHub
 
-You're getting a `403 Permission Denied` error because the local machine doesn't have GitHub authentication.
+You need to authenticate to push code to GitHub. Follow these steps:
 
-**Solution:** Push from a machine where you're logged into GitHub, or use GitHub CLI:
+### Using Personal Access Token (Recommended for CI/CD)
 
-```bash
-# Option 1: Using GitHub CLI (Recommended)
-gh auth login
-# Follow prompts to authenticate
-git push -u origin main
+1. **Create GitHub Personal Access Token:**
+   - Go to https://github.com/settings/tokens/new
+   - Select scopes: `repo` (all)
+   - Click "Generate token"
+   - Copy the token (you won't see it again!)
 
-# Option 2: Using Personal Access Token
-# 1. Go to https://github.com/settings/tokens
-# 2. Create new token with 'repo' scope
-# 3. Use token as password when prompted
-git push -u origin main
-```
+2. **Push with token:**
+   ```bash
+   git push -u origin main
+   # When prompted for password, paste your personal access token
+   ```
+
+### Using SSH (More Secure, Permanent)
+
+1. **Generate SSH key:**
+   ```bash
+   ssh-keygen -t ed25519 -C "your-email@github.com"
+   # Press Enter for default location
+   # Press Enter twice for no passphrase (or set one)
+   ```
+
+2. **Add public key to GitHub:**
+   - Go to https://github.com/settings/keys
+   - Click "New SSH key"
+   - Paste contents of `~/.ssh/id_ed25519.pub`
+   - Click "Add SSH key"
+
+3. **Update remote URL to SSH:**
+   ```bash
+   git remote set-url origin git@github.com:benedictojiro58-gif/koki-foodhub.git
+   ```
+
+4. **Push:**
+   ```bash
+   git push -u origin main
+   ```
 
 ## 📋 Steps to Deploy on Render
 
