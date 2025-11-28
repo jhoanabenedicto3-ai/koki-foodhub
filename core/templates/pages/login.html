@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  {% load static %}
   <meta charset="UTF-8">
   <title>Login – Koki's Foodhub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -54,17 +55,7 @@
   <div class="login-container">
     <div class="login-card">
       <div class="logo" style="text-align:center; margin-bottom: 18px;">
-        <!-- Simple text logo to match the mock; replace with image if available -->
-        <div style="display:inline-block; text-align:left; background:#FFD23F; padding:18px 28px; border-radius:10px;">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:56px; height:56px; background:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#222;">K</div>
-            <div style="line-height:1;">
-              <div style="font-weight:800; color:#D84315; font-size:20px;">KUYA</div>
-              <div style="font-weight:800; color:#D84315; font-size:20px; margin-top:-6px;">KOKI'S</div>
-              <div style="font-size:10px; color:#333; margin-top:4px;">FOOD HUB</div>
-            </div>
-          </div>
-        </div>
+        <img src="{% static 'images/kuya-koki-logo.png' %}" alt="Kuya Koki's" style="max-width:260px; width:100%; height:auto; display:block; margin:0 auto 12px;">
       </div>
 
       <h2 style="text-align:center; margin: 18px 0 8px 0; font-size: 28px; font-weight: 700;">Login</h2>
