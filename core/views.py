@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_http_methods
 import logging
+from django.http import JsonResponse
 
 from .models import Product, InventoryItem, Sale
 from .forms import ProductForm, InventoryForm, SaleForm
@@ -276,7 +277,11 @@ def sales_dashboard(request):
         category_sales.append({'category': c['product__category'] or 'Uncategorized', 'quantity': int(c['units'] or 0), 'revenue': float(c['revenue'] or 0)})
 
     # Daily totals (last 7 days)
-    today = timezone.now().date()
+    # Use server local date to match how dates are stored/displayed
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
     start_date = today - timedelta(days=6)
     try:
         daily_qs = (
@@ -326,13 +331,20 @@ def sales_dashboard(request):
         weekly_sales = []
 
     # Prepare context
-    # Compute explicit today totals so client can rely on server-defined "today"
-    today_entry = next((d for d in daily_sales if d.get('day') == today), None) if daily_sales else None
-    today_orders = int(today_entry['orders']) if today_entry else 0
-    today_revenue = float(today_entry['revenue']) if today_entry else 0.0
+    # Compute explicit today totals so client can rely on server-defined "today".
+    # Use a direct DB aggregate to avoid DB-function issues (e.g. TruncDate failing on SQLite).
+    try:
+        today_agg = Sale.objects.filter(date=today).aggregate(today_revenue=Sum('revenue'), today_orders=Count('id'))
+        today_orders = int(today_agg.get('today_orders') or 0)
+        today_revenue = float(today_agg.get('today_revenue') or 0.0)
+    except Exception:
+        # Fallback to daily_sales if the aggregate fails
+        today_entry = next((d for d in daily_sales if d.get('day') == today), None) if daily_sales else None
+        today_orders = int(today_entry['orders']) if today_entry else 0
+        today_revenue = float(today_entry['revenue']) if today_entry else 0.0
     today_label = str(today)
     # Provide a server-side ISO timestamp so the client can use the server's notion of "now"
-    server_today_iso = timezone.now().isoformat()
+    server_today_iso = timezone.localtime().isoformat()
     context = {
         'total_sales': float(total_sales),
         'total_orders': int(total_orders),
@@ -348,6 +360,29 @@ def sales_dashboard(request):
         'server_today_iso': server_today_iso,
     }
     return render(request, "pages/sales_dashboard.html", context)
+
+
+@login_required
+def sales_today_api(request):
+    """Return JSON with today's sales totals (orders, revenue) and server timestamp."""
+    from django.utils import timezone
+    from django.db.models import Sum, Count
+
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+
+    try:
+        agg = Sale.objects.filter(date=today).aggregate(today_revenue=Sum('revenue'), today_orders=Count('id'))
+        orders = int(agg.get('today_orders') or 0)
+        revenue = float(agg.get('today_revenue') or 0.0)
+    except Exception:
+        orders = 0
+        revenue = 0.0
+
+    server_today_iso = timezone.localtime().isoformat()
+    return JsonResponse({'orders': orders, 'revenue': revenue, 'server_today_iso': server_today_iso})
 
 # Forecast: Manager only
 @group_required("Manager")

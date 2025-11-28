@@ -118,6 +118,19 @@
       </div>
     </div>
   </div>
+  {# Server-side JSON payloads for the client script - use json_script to safely embed #}
+  {{ recent_sales|json_script:"recent-sales-data" }}
+  {{ top_items|json_script:"top-items-data" }}
+  {{ category_sales|json_script:"category-sales-data" }}
+  {{ total_sales|json_script:"total-sales-data" }}
+  {{ total_orders|json_script:"total-orders-data" }}
+  {{ avg_order|json_script:"avg-order-data" }}
+  {{ daily_sales|json_script:"daily-sales-data" }}
+  {{ weekly_sales|json_script:"weekly-sales-data" }}
+  {{ today_label|json_script:"today-label-data" }}
+  {{ today_orders|json_script:"today-orders-data" }}
+  {{ today_revenue|json_script:"today-revenue-data" }}
+  {{ server_today_iso|json_script:"server-today-iso" }}
 
   <script>
     /*
@@ -364,6 +377,22 @@
     }
     renderServerTimeLabel();
 
+    // Fetch today's totals from the new JSON endpoint as a fallback/refresh.
+    // Uses same-origin credentials so session auth (cookie) is sent.
+    function fetchTodayFromApi() {
+      if (!window.fetch) return Promise.resolve(null);
+      return fetch('/api/sales/today/', { credentials: 'same-origin' })
+        .then(r => {
+          if (!r.ok) throw new Error('api error ' + r.status);
+          return r.json();
+        })
+        .then(data => ({ orders: parseInt(data.orders || 0), revenue: parseFloat(data.revenue || 0), iso: data.server_today_iso }))
+        .catch(err => {
+          console.debug('fetchTodayFromApi failed', err);
+          return null;
+        });
+    }
+
     // Timeframe filter buttons
     function setActiveButton(id) {
       ['filterAll', 'filterDay', 'filterWeek'].forEach(b => {
@@ -412,13 +441,35 @@
             }
         }
         // Prefer server-provided explicit today totals when available
-        const orders = (typeof todayOrdersServer === 'number' && todayOrdersServer > 0) ? todayOrdersServer : (entry ? (entry.orders || entry.total_orders || 0) : 0);
-        const revenue = (typeof todayRevenueServer === 'number' && todayRevenueServer > 0) ? todayRevenueServer : (entry ? (entry.revenue || entry.total_revenue || 0) : 0);
+        let orders = (typeof todayOrdersServer === 'number' && todayOrdersServer > 0) ? todayOrdersServer : (entry ? (entry.orders || entry.total_orders || 0) : 0);
+        let revenue = (typeof todayRevenueServer === 'number' && todayRevenueServer > 0) ? todayRevenueServer : (entry ? (entry.revenue || entry.total_revenue || 0) : 0);
         document.getElementById('ordersTimeframe').textContent = 'Today';
         document.getElementById('totalOrders').textContent = orders;
         document.getElementById('totalSales').textContent = '₱' + (revenue || 0).toFixed(2);
         document.getElementById('avgOrderValue').textContent = '₱' + ((orders > 0) ? (revenue / orders).toFixed(2) : '0.00');
         setActiveButton('filterDay');
+
+        // Try a live fetch from the API to ensure we reflect the server's current totals
+        fetchTodayFromApi().then(api => {
+          if (!api) return; // keep current display
+          // If API reports values (or is more recent), update the UI
+          if (typeof api.orders === 'number') {
+            orders = api.orders;
+            document.getElementById('totalOrders').textContent = orders;
+          }
+          if (typeof api.revenue === 'number') {
+            revenue = api.revenue;
+            document.getElementById('totalSales').textContent = '₱' + (revenue || 0).toFixed(2);
+            document.getElementById('avgOrderValue').textContent = '₱' + ((orders > 0) ? (revenue / orders).toFixed(2) : '0.00');
+          }
+          // If API returned a server ISO, refresh the server time label
+          if (api.iso) {
+            try {
+              const dt = new Date(api.iso);
+              document.getElementById('serverTimeLabel').textContent = dt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+            } catch (err) { /* ignore */ }
+          }
+        });
         return;
       }
 
@@ -469,18 +520,6 @@
       }
     });
   </script>
+
   
-  {# Server-side JSON payloads for the client script - use json_script to safely embed #}
-  {{ recent_sales|json_script:"recent-sales-data" }}
-  {{ top_items|json_script:"top-items-data" }}
-  {{ category_sales|json_script:"category-sales-data" }}
-  {{ total_sales|json_script:"total-sales-data" }}
-  {{ total_orders|json_script:"total-orders-data" }}
-  {{ avg_order|json_script:"avg-order-data" }}
-  {{ daily_sales|json_script:"daily-sales-data" }}
-  {{ weekly_sales|json_script:"weekly-sales-data" }}
-  {{ today_label|json_script:"today-label-data" }}
-  {{ today_orders|json_script:"today-orders-data" }}
-  {{ today_revenue|json_script:"today-revenue-data" }}
-  {{ server_today_iso|json_script:"server-today-iso" }}
 {% endblock %}

@@ -81,7 +81,30 @@ WSGI_APPLICATION = 'koki_foodhub.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # DATABASE: SQLite default; set POSTGRES_* envs to switch
-if os.getenv("POSTGRES_NAME"):
+# Prefer explicit DATABASE_URL (Render provides this when using a managed Postgres)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    # Parse DATABASE_URL manually so we don't require extra packages in requirements
+    from urllib.parse import urlparse
+
+    url = urlparse(DATABASE_URL)
+    # url.path is '/dbname'
+    db_name = url.path[1:]
+    db_user = url.username
+    db_password = url.password
+    db_host = url.hostname
+    db_port = url.port
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db_name,
+            'USER': db_user,
+            'PASSWORD': db_password,
+            'HOST': db_host,
+            'PORT': db_port or '5432',
+        }
+    }
+elif os.getenv("POSTGRES_NAME"):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',

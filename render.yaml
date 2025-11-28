@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: koki-foodhub-web
+    env: python
+    branch: main
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn koki_foodhub.wsgi
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        value: "@secret_key"
+databases:
+  - name: koki-foodhub-db
+    plan: starter
+    # Render will expose DATABASE_URL for the web service when attached
