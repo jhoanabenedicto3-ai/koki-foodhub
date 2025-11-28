@@ -53,37 +53,56 @@
 <body>
   <div class="login-container">
     <div class="login-card">
-      <div class="login-header">
-        <h1>🍲 Koki's Foodhub</h1>
-        <p>Sign in to your account</p>
+      <div class="logo" style="text-align:center; margin-bottom: 18px;">
+        <!-- Simple text logo to match the mock; replace with image if available -->
+        <div style="display:inline-block; text-align:left; background:#FFD23F; padding:18px 28px; border-radius:10px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:56px; height:56px; background:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#222;">K</div>
+            <div style="line-height:1;">
+              <div style="font-weight:800; color:#D84315; font-size:20px;">KUYA</div>
+              <div style="font-weight:800; color:#D84315; font-size:20px; margin-top:-6px;">KOKI'S</div>
+              <div style="font-size:10px; color:#333; margin-top:4px;">FOOD HUB</div>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <form method="post" class="form">
+
+      <h2 style="text-align:center; margin: 18px 0 8px 0; font-size: 28px; font-weight: 700;">Login</h2>
+
+      <form method="post" class="form" style="padding: 0 24px 8px 24px;">
         {% csrf_token %}
-        
+
         {% if form.non_field_errors %}
-          <div class="alert alert-error">
+          <div class="alert alert-error" style="margin-bottom:8px; text-align:center; color:#b71c1c;">
             {% for error in form.non_field_errors %}
               <p style="margin: 0;">{{ error }}</p>
             {% endfor %}
           </div>
         {% endif %}
-        
+
         {% for field in form %}
-          <div class="field">
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
+          <div class="field" style="margin-bottom:12px;">
+            {# Pick sensible placeholders based on field name #}
+            {% if field.name == 'username' or field.name == 'email' %}
+              {{ field.as_widget(attrs={'placeholder':'Email', 'class':'input', 'style':'width:100%; padding:12px 14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08);'}) }}
+            {% elif field.name == 'password' %}
+              {{ field.as_widget(attrs={'placeholder':'Password', 'class':'input', 'style':'width:100%; padding:12px 14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08);'}) }}
+            {% else %}
+              {{ field }}
+            {% endif %}
             {% if field.errors %}
-              <div class="alert alert-error" style="margin: 0;">
+              <div class="alert alert-error" style="margin: 4px 0 0 0; color:#b71c1c; font-size:13px;">
                 {% for error in field.errors %}
-                  <p style="margin: 0; font-size: 13px;">{{ error }}</p>
+                  <p style="margin: 0;">{{ error }}</p>
                 {% endfor %}
               </div>
             {% endif %}
           </div>
         {% endfor %}
-        
-        <button class="btn primary block" type="submit" style="margin-top: 8px;">Sign In</button>
+
+        <button class="btn" type="submit" style="width:100%; padding:12px 14px; border-radius:8px; background:#D84315; color:white; font-weight:700; border:none;">Login</button>
+
+        <p style="text-align:center; margin:12px 0 0 0; font-size:13px; color:#333;">Don't have an account? <a href="{% url 'auth_signup' %}">Register</a></p>
       </form>
     </div>
   </div>
