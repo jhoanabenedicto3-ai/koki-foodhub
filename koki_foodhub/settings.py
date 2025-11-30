@@ -162,11 +162,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_URL = '/static/'
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Only add STATICFILES_DIRS if the directory exists
+_static_dir = BASE_DIR / 'static'
+if _static_dir.exists():
+    STATICFILES_DIRS = [_static_dir]
+else:
+    STATICFILES_DIRS = []
 
 # WhiteNoise storage for efficient static file serving (only in production)
 if not DEBUG:
