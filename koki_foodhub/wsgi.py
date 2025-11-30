@@ -25,28 +25,23 @@ print("="*70)
 try:
     from django.core.management import call_command
     from django.db import connection
+    from django.db.migrations.executor import MigrationExecutor
     
     # Test database connection
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
     print("✅ Database connection OK")
     
-    # Check if migrations table exists
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'django_migrations'
-            );
-        """)
-        migrations_table_exists = cursor.fetchone()[0]
+    # Check if migrations have been applied
+    executor = MigrationExecutor(connection)
+    plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
     
-    if not migrations_table_exists:
-        print("⚠️ Migrations table missing - running migrations...")
+    if plan:
+        print(f"⚠️ {len(plan)} pending migration(s) - running migrations...")
         call_command('migrate', verbosity=2)
         print("✅ Migrations completed")
     else:
-        print("✅ Migrations table exists - skipping migrations")
+        print("✅ Migrations already applied")
     
     # Ensure admin user exists
     from django.contrib.auth import get_user_model
@@ -59,7 +54,7 @@ try:
         User.objects.create_superuser('admin', email, password)
         print(f"✅ Admin user created!")
     
-    print(f"📊 Database ready - {User.objects.count()} users, migrations OK")
+    print(f"📊 Database ready - {User.objects.count()} users")
     
 except Exception as e:
     print(f"⚠️ Startup error (continuing anyway): {e}")
