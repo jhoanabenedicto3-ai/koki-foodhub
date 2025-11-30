@@ -1,2 +1,2 @@
 release: python manage.py migrate && python manage.py init_render
-web: gunicorn koki_foodhub.wsgi
+web: exec gunicorn --bind 0.0.0.0:${PORT:-10000} koki_foodhub.wsgi
