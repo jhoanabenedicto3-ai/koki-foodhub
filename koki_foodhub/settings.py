@@ -25,12 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-)jga_!4$t5n0ru46qh(ou(c1m*l&%u_4k@$onp@o8lqz9vfp7c')
+SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-change-me-in-production-now')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False") == "True"
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,.onrender.com").split(",")
 
 
 # Application definition
@@ -82,42 +82,48 @@ WSGI_APPLICATION = 'koki_foodhub.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # DATABASE: SQLite default; set POSTGRES_* envs to switch
 # Prefer explicit DATABASE_URL (Render provides this when using a managed Postgres)
-DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL:
-    # Parse DATABASE_URL manually so we don't require extra packages in requirements
-    from urllib.parse import urlparse
 
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+if DATABASE_URL:
+    # Parse DATABASE_URL manually for PostgreSQL connection
+    from urllib.parse import urlparse
     url = urlparse(DATABASE_URL)
-    # url.path is '/dbname'
-    db_name = url.path[1:]
-    db_user = url.username
-    db_password = url.password
-    db_host = url.hostname
-    db_port = url.port
+    db_name = url.path[1:] if url.path else 'koki_foodhub'
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': db_name,
-            'USER': db_user,
-            'PASSWORD': db_password,
-            'HOST': db_host,
-            'PORT': db_port or '5432',
+            'USER': url.username or 'postgres',
+            'PASSWORD': url.password or '',
+            'HOST': url.hostname or 'localhost',
+            'PORT': url.port or 5432,
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'connect_timeout': 10,
+            }
         }
     }
-elif os.getenv("POSTGRES_NAME"):
+elif os.getenv("POSTGRES_HOST"):
+    # Fallback to individual POSTGRES_* environment variables
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv("POSTGRES_NAME", "koki_foodhub"),
-            'USER': os.getenv("POSTGRES_USER", "admin"),
-            'PASSWORD': os.getenv("POSTGRES_PASSWORD", "jhoana123"),
+            'USER': os.getenv("POSTGRES_USER", "postgres"),
+            'PASSWORD': os.getenv("POSTGRES_PASSWORD", ""),
             'HOST': os.getenv("POSTGRES_HOST", "localhost"),
             'PORT': os.getenv("POSTGRES_PORT", "5432"),
+            'CONN_MAX_AGE': 600,
         }
     }
 else:
+    # SQLite fallback for development
     DATABASES = {
-        "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3"
+        }
     }
 
 
