@@ -19,7 +19,7 @@
 
       <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <div style="width: 16px; height: 16px; background: #10b981; border-radius: 2px;"></div>
+          <div style="width: 16px; height: 16px; background:#f59e0b ; border-radius: 2px;"></div>
           <span style="font-size: 13px; color: var(--text-secondary);">Actual Sales</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -211,15 +211,6 @@
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--fg);">📊 All Product Forecasts</h2>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">Items per page:</label>
-          <select id="itemsPerPage" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: #fff; cursor: pointer;">
-            <option value="6">6</option>
-            <option value="9" selected>9</option>
-            <option value="12">12</option>
-            <option value="20">20</option>
-          </select>
-        </div>
       </div>
 
       <!-- Forecast Grid Container -->
@@ -269,6 +260,17 @@
             {% endif %}
           </div>
         {% endfor %}
+      </div>
+
+      <!-- Items per page selector (moved out of header) -->
+      <div style="display:flex; justify-content:center; margin-top: 12px; margin-bottom: 6px;">
+        <label for="itemsPerPage" style="font-size:13px; color:var(--text-secondary); font-weight:600; margin-right:8px; align-self:center;">Items per page:</label>
+        <select id="itemsPerPage" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: #fff; cursor: pointer;">
+          <option value="6">6</option>
+          <option value="9" selected>9</option>
+          <option value="12">12</option>
+          <option value="20">20</option>
+        </select>
       </div>
 
       <!-- Pagination Controls -->

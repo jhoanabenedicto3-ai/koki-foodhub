@@ -5,10 +5,10 @@ from .models import Product, InventoryItem, Sale
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ["name", "category", "price", "is_active", "image"]
+        fields = ["name", "category", "price", "image"]
         widgets = {
-            "name": forms.TextInput(attrs={"class":"input"}),
-            "category": forms.TextInput(attrs={"class":"input"}),
+            "name": forms.TextInput(attrs={"class":"input", "placeholder":"Item name"}),
+            "category": forms.TextInput(attrs={"class":"input", "placeholder":"Select category"}),
             "price": forms.NumberInput(attrs={"class":"input","step":"0.01"}),
             "image": forms.FileInput(attrs={"class":"input"}),
         }

@@ -1,6 +1,5 @@
 from django.urls import path
 from . import views
-from django.contrib.auth.views import LogoutView   # 👈 import here
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -23,8 +22,16 @@ urlpatterns = [
     path("sales/<int:pk>/delete/", views.sale_delete, name="sale_delete"),
     path("sales-dashboard/", views.sales_dashboard, name="sales_dashboard"),
     path("api/sales/today/", views.sales_today_api, name="api_sales_today"),
+    path("sales/period/", views.record_sales_period, name="record_sales_period"),
+    path("api/sales/summary/", views.api_record_sales_summary, name="api_sales_summary"),
     # Forecast
     path("forecast/", views.forecast_view, name="forecast"),
+    # User management (avoid colliding with Django admin URL prefix)
+    path("users/manage/", views.admin_user_list, name="admin_user_list"),
+    path("users/manage/toggle/", views.admin_toggle_group, name="admin_toggle_group"),
+    path("users/pending/", views.pending_cashiers, name="pending_cashiers"),
+    path("users/pending/approve/", views.pending_cashier_approve, name="pending_cashier_approve"),
+    path("users/pending/reject/", views.pending_cashier_reject, name="pending_cashier_reject"),
     # Auth
-    path("logout/", LogoutView.as_view(next_page="/"), name="logout"),   # 👈 added logout
+    # Logout handled at project urls to centralize auth routes
 ]

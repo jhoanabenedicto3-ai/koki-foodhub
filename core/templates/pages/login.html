@@ -5,62 +5,49 @@
   <meta charset="UTF-8">
   <title>Login – Koki's Foodhub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/static/styles.css">
   <style>
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+    :root{--brand:#D84315;--accent:#FFD23F;--input-radius:14px}
+    html,body{height:100%;margin:0}
+    body{
+      background:var(--accent);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      display:flex;align-items:center;justify-content:center;padding:24px
     }
-    
-    .login-container {
-      width: 100%;
-      max-width: 420px;
-      padding: 20px;
-    }
-    
-    .login-card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 40px;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
-    }
-    
-    .login-header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-    
-    .login-header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin: 0;
-      color: var(--fg);
-    }
-    
-    .login-header p {
-      color: var(--text-secondary);
-      margin: 8px 0 0 0;
-      font-size: 14px;
-    }
-    
-    .login-card .form {
-      max-width: 100%;
-    }
+
+    .auth-wrap{width:100%;max-width:420px}
+
+
+    .brand-area{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px}
+    .brand-area img{width:300px;max-width:88%;height:auto;display:block}
+
+    .auth-card{background:transparent;border-radius:12px;padding:0}
+
+    h1.auth-title{font-size:46px;margin:8px 0 22px 0;text-align:center;font-weight:900;color:#111;letter-spacing:-1px}
+
+    form.auth-form{display:flex;flex-direction:column;gap:16px;padding:0}
+    .auth-input{background:rgba(255,255,255,1);border:none;padding:20px 22px;border-radius:14px;font-size:16px;box-shadow:0 8px 18px rgba(0,0,0,0.08);width:100%;outline:none}
+    .auth-input::placeholder{color:#9b9b9b}
+
+    .auth-cta{background:var(--brand);color:#fff;border:none;padding:18px;border-radius:14px;font-weight:900;font-size:18px;cursor:pointer;margin-top:8px;text-transform:uppercase;letter-spacing:1px}
+
+    .auth-footer{margin-top:12px;text-align:center;color:#111}
+    .auth-footer a{color:var(--brand);font-weight:700;text-decoration:none}
+
+    @media(max-width:420px){.brand-area img{max-width:220px}}
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <div class="login-card">
-      <div class="logo" style="text-align:center; margin-bottom: 18px;">
-        <img src="{% static 'images/kuya-koki-logo.svg' %}" alt="Kuya Koki's" style="max-width:260px; width:100%; height:auto; display:block; margin:0 auto 12px;">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="brand-area">
+        <img src="{% static 'images/kuya-koki-logo.svg' %}" alt="Kuya Koki's">
       </div>
 
-      <h2 style="text-align:center; margin: 18px 0 8px 0; font-size: 28px; font-weight: 700;">Login</h2>
+      <h1 class="auth-title">Login</h1>
 
-      <form method="post" class="form" style="padding: 0 24px 8px 24px;">
+      <form method="post" class="auth-form">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -71,29 +58,27 @@
           </div>
         {% endif %}
 
-        {% for field in form %}
-          <div class="field" style="margin-bottom:12px;">
-            {# Pick sensible placeholders based on field name #}
-            {% if field.name == 'username' or field.name == 'email' %}
-              {{ field.as_widget(attrs={'placeholder':'Email', 'class':'input', 'style':'width:100%; padding:12px 14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08);'}) }}
-            {% elif field.name == 'password' %}
-              {{ field.as_widget(attrs={'placeholder':'Password', 'class':'input', 'style':'width:100%; padding:12px 14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08);'}) }}
-            {% else %}
-              {{ field }}
-            {% endif %}
-            {% if field.errors %}
-              <div class="alert alert-error" style="margin: 4px 0 0 0; color:#b71c1c; font-size:13px;">
-                {% for error in field.errors %}
-                  <p style="margin: 0;">{{ error }}</p>
-                {% endfor %}
-              </div>
-            {% endif %}
-          </div>
-        {% endfor %}
+        <div>
+          <input name="username" placeholder="Email" required class="auth-input" value="{{ request.POST.username|default:'' }}">
+          {% if form.errors.username %}
+            <div class="alert alert-error" style="margin:4px 0 0 0; color:#b71c1c; font-size:13px;">
+              {% for err in form.errors.username %}<p style="margin:0;">{{ err }}</p>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
 
-        <button class="btn" type="submit" style="width:100%; padding:12px 14px; border-radius:8px; background:#D84315; color:white; font-weight:700; border:none;">Login</button>
+        <div>
+          <input type="password" name="password" placeholder="Password" required class="auth-input">
+          {% if form.errors.password %}
+            <div class="alert alert-error" style="margin:4px 0 0 0; color:#b71c1c; font-size:13px;">
+              {% for err in form.errors.password %}<p style="margin:0;">{{ err }}</p>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
 
-        <p style="text-align:center; margin:12px 0 0 0; font-size:13px; color:#333;">Don't have an account? <a href="{% url 'auth_signup' %}">Register</a></p>
+        <button class="auth-cta" type="submit">LOGIN</button>
+
+        <p class="auth-footer">Don't have an account? <a href="{% url 'auth_signup' %}">Register</a></p>
       </form>
     </div>
   </div>

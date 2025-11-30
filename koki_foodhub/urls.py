@@ -27,11 +27,11 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # Auth
     path("login/", auth_views.LoginView.as_view(template_name="pages/login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("logout/", core_views.logout_view, name="logout"),
     path("profile/", core_views.profile, name="profile"),
     # App
     path("", include("core.urls")),
-    path("logout/", auth_views.LogoutView.as_view(next_page="/"), name="logout"),
+    
 ]
 
 # Serve media files in development

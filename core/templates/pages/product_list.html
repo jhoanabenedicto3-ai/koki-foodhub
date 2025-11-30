@@ -9,14 +9,28 @@
     <p style="color: var(--text-secondary); margin: 0;">Browse and manage your menu items</p>
   </div>
 
-  <div style="margin-bottom: 20px;">
-    <button class="btn primary" onclick="openAddProductModal()">➕ Add Product</button>
+  <div style="margin-bottom: 20px; display:flex; gap:12px; align-items:center; justify-content:space-between;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <label for="productListDropdown" style="font-weight:600;color:var(--text-secondary);margin-right:6px;">View</label>
+      <select id="productListDropdown" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;font-weight:600;" onchange="location.search='?sort=' + this.value">
+        <option value="all" {% if sort == '' or sort == 'all' %}selected{% endif %}>All items</option>
+        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Sort: Newest</option>
+        <option value="price-asc" {% if sort == 'price-asc' %}selected{% endif %}>Price: Low → High</option>
+        <option value="price-desc" {% if sort == 'price-desc' %}selected{% endif %}>Price: High → Low</option>
+        <option value="name" {% if sort == 'name' %}selected{% endif %}>Sort: Name A → Z</option>
+      </select>
+    </div>
+
+    <div style="display:flex; gap:12px; align-items:center;">
+      <button class="btn primary" onclick="openAddProductModal()">➕ Add Product</button>
+      <button id="addCategoryBtn" class="btn" title="Add Category" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;font-weight:700;">🏷️ Add Category</button>
+    </div>
   </div>
 
   {% if products %}
-    <div class="product-grid">
+    <div id="productGrid" class="product-grid">
       {% for p in products %}
-        <div class="product-card">
+        <div class="product-card" data-price="{{ p.price }}" data-name="{{ p.name|escapejs }}" data-created="{% if p.created_at %}{{ p.created_at|date:'U' }}{% else %}{{ p.id }}{% endif %}">
           <div class="product-image">
             {% if p.image %}
               <img src="{{ p.image.url }}" alt="{{ p.name }}">
@@ -48,24 +62,24 @@
 
   <!-- Add Product Modal -->
   <div id="addProductModal" class="modal" style="display: none;">
-    <div class="modal-overlay" onclick="closeAddProductModal()"></div>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Add New Item</h2>
-        <button class="modal-close" onclick="closeAddProductModal()">✕</button>
-      </div>
-      
+    <div class="modal-overlay"></div>
+    <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
       <form id="productForm" method="post" action="{% url 'product_create' %}" enctype="multipart/form-data">
         {% csrf_token %}
         
+        <div class="modal-header">
+          <h2>Add New Item</h2>
+          <button class="modal-close" type="button">✕</button>
+        </div>
+        
         <div class="modal-body">
-          <!-- Name Field -->
           <div class="form-group">
             <label for="id_name">Name</label>
-            <input type="text" id="id_name" name="name" placeholder="Item name" required>
+            <input type="text" id="id_name" name="name" required>
           </div>
 
-          <!-- Category Field -->
+          <!-- Size selector removed per request -->
+
           <div class="form-group">
             <label for="id_category">Category</label>
             <select id="id_category" name="category" required>
@@ -77,32 +91,132 @@
             </select>
           </div>
 
-          <!-- Price Field -->
           <div class="form-group">
             <label for="id_price">Price (₱)</label>
-            <input type="number" id="id_price" name="price" placeholder="0.00" step="0.01" min="0" required>
+            <input type="number" id="id_price" name="price" step="0.01" required>
           </div>
 
-          <!-- Product Image -->
           <div class="form-group">
-            <label>Product Image</label>
-            <div class="image-upload-area" id="imageUploadArea">
-              <div class="upload-icon">⬆️</div>
-              <p>Upload Image</p>
-              <input type="file" id="id_image" name="image" accept="image/*" style="display: none;" onchange="handleImageSelect()">
-            </div>
-            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin: 12px 0;">Or enter URL</p>
-            <input type="url" id="id_image_url" placeholder="https://example.com/image.jpg" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;">
+            <label for="id_image">Product Image</label>
+            <input type="file" id="id_image" name="image" accept="image/*">
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="submit" class="btn primary" style="width: 100%;">➕ Add Item</button>
-          <button type="button" class="btn" onclick="closeAddProductModal()" style="width: 100%; margin-top: 8px;">Cancel</button>
+          <button type="button" class="btn modal-cancel" style="width: 100%; margin-top: 8px;">Cancel</button>
         </div>
       </form>
     </div>
   </div>
+
+  <script>
+    (function(){
+      function showTempBanner(text){
+        try{
+          var existing = document.getElementById('temp-sort-banner');
+          if(existing) existing.remove();
+          var el = document.createElement('div');
+          el.id = 'temp-sort-banner';
+          el.textContent = text;
+          el.style.position = 'fixed';
+          el.style.top = '84px';
+          el.style.left = '24px';
+          el.style.zIndex = 1200;
+          el.style.background = 'rgba(0,0,0,0.75)';
+          el.style.color = '#fff';
+          el.style.padding = '8px 12px';
+          el.style.borderRadius = '8px';
+          el.style.fontWeight = 700;
+          document.body.appendChild(el);
+          setTimeout(function(){ try{ el.remove(); }catch(e){} }, 1400);
+        }catch(e){ console.log('banner error', e); }
+      }
+
+      try{
+        var btn = document.getElementById('addCategoryBtn');
+        if(btn){
+          btn.addEventListener('click', function(e){
+            e.preventDefault();
+            try{
+              var name = prompt('Enter new category name:');
+              if(!name) return;
+              name = name.trim();
+              if(!name) return;
+              var sel = document.querySelector('#addProductModal #id_category') || document.getElementById('id_category');
+              if(!sel){
+                alert('Category selector not found. Open Add Product modal first.');
+                return;
+              }
+              var exists = Array.from(sel.options).some(function(o){ return o.value.toLowerCase() === name.toLowerCase(); });
+              if(exists){
+                for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value.toLowerCase()===name.toLowerCase()){ sel.selectedIndex = i; break; } }
+                return;
+              }
+              var opt = document.createElement('option');
+              opt.value = name;
+              opt.text = name;
+              sel.appendChild(opt);
+              sel.value = name;
+              var modal = document.getElementById('addProductModal');
+              if(modal && modal.style.display === 'none'){
+                if(typeof openAddProductModal === 'function'){
+                  openAddProductModal();
+                } else {
+                  // fallback: show modal element manually
+                  modal.style.display = 'flex';
+                }
+              }
+            }catch(ex){ console.error('addCategory error', ex); }
+          });
+        }
+      }catch(e){ console.error('addCategory init error', e); }
+
+      try{
+        var dropdown = document.getElementById('productListDropdown');
+        if(!dropdown) return;
+        dropdown.addEventListener('change', function(){
+          try{
+            var val = dropdown.value;
+            console.log('productListDropdown change ->', val);
+            var grid = document.getElementById('productGrid');
+            if(!grid){ console.warn('productGrid not found'); return; }
+            var cards = Array.from(grid.querySelectorAll('.product-card'));
+            if(val === 'all'){
+              showTempBanner('Showing: All items');
+              return;
+            }
+            if(val === 'newest'){
+              // sort by created/id descending
+              cards.sort(function(a,b){
+                var ia = parseInt(a.getAttribute('data-created')||0,10);
+                var ib = parseInt(b.getAttribute('data-created')||0,10);
+                return ib - ia; // newest first
+              });
+              showTempBanner('Sorted: Newest first');
+            }
+            if(val === 'price-asc' || val === 'price-desc'){
+              cards.sort(function(a,b){
+                var pa = parseFloat((a.getAttribute('data-price')||'').toString().replace(/[^0-9.\-]/g,'')) || 0;
+                var pb = parseFloat((b.getAttribute('data-price')||'').toString().replace(/[^0-9.\-]/g,'')) || 0;
+                return val === 'price-asc' ? pa - pb : pb - pa;
+              });
+              showTempBanner(val === 'price-asc' ? 'Sorted: Price Low → High' : 'Sorted: Price High → Low');
+            } else if(val === 'name'){
+              cards.sort(function(a,b){
+                var na = (a.getAttribute('data-name')||'').toLowerCase();
+                var nb = (b.getAttribute('data-name')||'').toLowerCase();
+                return na < nb ? -1 : (na > nb ? 1 : 0);
+              });
+              showTempBanner('Sorted: Name A → Z');
+            }
+            // re-append in new order
+            cards.forEach(function(c){ grid.appendChild(c); });
+          }catch(inner){ console.error('dropdown change error', inner); }
+        });
+      }catch(e){ console.error('dropdown init error', e); }
+    })();
+  </script>
 
   <style>
     /* Product grid and card styles to show uploaded images like the provided design */
@@ -303,22 +417,30 @@
     }
 
     function closeAddProductModal() {
-      document.getElementById('addProductModal').style.display = 'none';
-      document.body.style.overflow = 'auto';
-      document.getElementById('productForm').reset();
-    }
-
-    function handleImageSelect() {
-      const fileInput = document.getElementById('id_image');
-      if (fileInput.files.length > 0) {
-        const fileName = fileInput.files[0].name;
-        const uploadArea = document.getElementById('imageUploadArea');
-        uploadArea.innerHTML = `<div class="upload-icon">✓</div><p>${fileName}</p>`;
+      const modal = document.getElementById('addProductModal');
+      const form = document.getElementById('productForm');
+      
+      if (modal.style.display === 'flex') {
+        document.body.style.overflow = 'auto';
+        modal.style.display = 'none';
+        // Reset form for next use
+        form.reset();
       }
     }
 
-    document.getElementById('imageUploadArea').addEventListener('click', function() {
-      document.getElementById('id_image').click();
+    // Wire modal close button to reset form
+    document.querySelector('.modal-close').addEventListener('click', function() {
+      closeAddProductModal();
+    });
+
+    // Wire modal cancel button to reset form
+    document.querySelector('.modal-cancel').addEventListener('click', function() {
+      closeAddProductModal();
+    });
+
+    // Wire modal overlay click to close
+    document.querySelector('.modal-overlay').addEventListener('click', function() {
+      closeAddProductModal();
     });
 
     // Close modal when pressing Escape

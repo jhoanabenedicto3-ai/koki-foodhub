@@ -1,16 +1,22 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Sum
+from django.db.models.functions import Lower
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
+from django.contrib.auth import authenticate, login as auth_login
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
 import logging
+import json
 from django.http import JsonResponse
+from django.contrib.auth import logout as auth_logout
 
 from .models import Product, InventoryItem, Sale
 from .forms import ProductForm, InventoryForm, SaleForm
 from .services.forecasting import moving_average_forecast
 from .auth import group_required  # new: role guard
+from django.views.decorators.http import require_http_methods
 
 def signup(request):
     """User registration view"""
@@ -47,10 +53,56 @@ def signup(request):
             email=email,
             password=password
         )
-        messages.success(request, 'Account created successfully! Please login.')
-        return redirect('login')
+
+        # Assign selected role/group if provided. Allowed roles: Cashier and Owner.
+        role = request.POST.get('role', '').strip()
+        if role == 'Owner':
+            grp, _ = Group.objects.get_or_create(name='Owner')
+            user.groups.add(grp)
+            user.save()
+            # Owner accounts can login immediately
+            try:
+                auth_user = authenticate(request, username=username, password=password)
+                if auth_user:
+                    auth_login(request, auth_user)
+                    messages.success(request, 'Owner account created and logged in successfully!')
+                    return redirect('dashboard')
+            except Exception:
+                messages.success(request, 'Account created successfully! Please login.')
+                return redirect('login')
+
+        elif role == 'Cashier':
+            # Cashier registrations require Owner approval. Create user as inactive
+            # and add to a 'PendingCashier' group so owners can review and approve.
+            pending_grp, _ = Group.objects.get_or_create(name='PendingCashier')
+            user.groups.add(pending_grp)
+            user.is_active = False
+            user.save()
+            messages.success(request, 'Account created and is pending Owner approval. You will be notified when approved.')
+            return redirect('login')
+
+        else:
+            # No role selected or unknown role — create account without group and allow login
+            try:
+                auth_user = authenticate(request, username=username, password=password)
+                if auth_user:
+                    auth_login(request, auth_user)
+                    messages.success(request, 'Account created and logged in successfully!')
+                    return redirect('dashboard')
+            except Exception:
+                messages.success(request, 'Account created successfully! Please login.')
+                return redirect('login')
     
     return render(request, 'pages/signup.html')
+
+
+def logout_view(request):
+    """Log out the user on GET or POST and redirect to login."""
+    try:
+        auth_logout(request)
+    except Exception:
+        pass
+    return redirect('login')
 
 @login_required
 def profile(request):
@@ -72,13 +124,30 @@ def dashboard(request):
     
     for product in all_products:
         inv = product.inventory_items.first() if product.inventory_items.exists() else None
-        # Normalize name display (replace underscores, title case)
+        # Normalize name display (replace underscores, title case) - WITHOUT the size suffix
         pretty_name = product.name.replace('_', ' ').title()
+        
+        # Build size-price mapping with automatic multipliers
+        # Small: base - 5, Medium: Regular + 5, Large: base + 10
+        base_price = float(product.price)
+        size_prices = {}
+        if product.size:
+            size_prices = {
+                'S': max(0, base_price - 5),        # Small: -5
+                'M': base_price + 5,                 # Medium: Regular +5
+                'L': base_price + 10,                # Large: +10
+                'XL': base_price + 15,               # XL: +15 (bonus)
+                'XXL': base_price + 20,              # XXL: +20 (bonus)
+                'Regular': base_price,               # Regular: base
+            }
+        
         products_data.append({
             'id': product.id,
             'name': pretty_name,
-            'price': float(product.price),
+            'price': base_price,
             'category': product.category,
+            'size': product.size,
+            'size_prices': size_prices,
             'quantity': inv.quantity if inv else 0,
             'is_low_stock': inv.is_low_stock() if inv else False,
             'image': product.image.url if product.image else None
@@ -96,25 +165,45 @@ def dashboard(request):
     }
     return render(request, "pages/dashboard.html", context)
 
-# Products: Manager only
-@group_required("Manager")
+# Products: Admin only (read), Cashier can view
+@group_required("Admin", "Cashier")
 def product_list(request):
+    # Cashier can only view, not edit. Check in template if user is admin for edit buttons
+    # Support server-side sorting using ?sort=price-asc|price-desc|name|newest
+    sort = request.GET.get('sort', '')
     products = Product.objects.all()
-    return render(request, "pages/product_list.html", {"products": products})
+    if sort == 'price-asc':
+        products = products.order_by('price')
+    elif sort == 'price-desc':
+        products = products.order_by('-price')
+    elif sort == 'name':
+        # Case-insensitive alphabetical sort so lowercase names (e.g. "burger")
+        # appear in the expected A → Z order.
+        products = products.order_by(Lower('name'))
+    elif sort == 'newest':
+        # uses created_at for accurate ordering
+        products = products.order_by('-created_at')
 
-@group_required("Manager")
+    return render(request, "pages/product_list.html", {"products": products, "sort": sort})
+
+@group_required("Admin", "Cashier")
 def product_create(request):
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
+            product = form.save(commit=False)
+            # Ensure created_at is set
+            if not product.created_at:
+                from django.utils import timezone
+                product.created_at = timezone.now()
+            product.save()
             messages.success(request, "Product created.")
             return redirect("product_list")
     else:
         form = ProductForm()
     return render(request, "pages/product_form.html", {"form": form, "title": "Create Product"})
 
-@group_required("Manager")
+@group_required("Admin", "Cashier")
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == "POST":
@@ -127,7 +216,7 @@ def product_update(request, pk):
         form = ProductForm(instance=product)
     return render(request, "pages/product_form.html", {"form": form, "title": "Edit Product"})
 
-@group_required("Manager")
+@group_required("Admin", "Cashier")
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == "POST":
@@ -136,13 +225,13 @@ def product_delete(request, pk):
         return redirect("product_list")
     return render(request, "pages/product_form.html", {"form": None, "title": "Delete Product", "confirm": True})
 
-# Inventory: Manager only
-@group_required("Manager")
+# Inventory: Admin only
+@group_required("Admin")
 def inventory_list(request):
     items = InventoryItem.objects.select_related("product").all()
     return render(request, "pages/inventory_list.html", {"items": items})
 
-@group_required("Manager")
+@group_required("Admin")
 def inventory_create(request):
     if request.method == "POST":
         form = InventoryForm(request.POST)
@@ -154,7 +243,7 @@ def inventory_create(request):
         form = InventoryForm()
     return render(request, "pages/inventory_form.html", {"form": form, "title": "Create Inventory Item"})
 
-@group_required("Manager")
+@group_required("Admin")
 def inventory_update(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     if request.method == "POST":
@@ -167,7 +256,7 @@ def inventory_update(request, pk):
         form = InventoryForm(instance=item)
     return render(request, "pages/inventory_form.html", {"form": form, "title": "Edit Inventory Item"})
 
-@group_required("Manager")
+@group_required("Admin")
 def inventory_delete(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     if request.method == "POST":
@@ -176,32 +265,19 @@ def inventory_delete(request, pk):
         return redirect("inventory_list")
     return render(request, "pages/inventory_form.html", {"form": None, "title": "Delete Inventory Item", "confirm": True})
 
-# Sales: Cashier or Manager
-@group_required("Cashier", "Manager")
+# Sales: Admin only (Cashier should not access sales list page)
+@group_required("Admin")
 def sale_list(request):
     sales = Sale.objects.select_related("product").all()
     return render(request, "pages/sale_list.html", {"sales": sales})
 
-@group_required("Cashier", "Manager")
+@group_required("Admin")
+@group_required("Admin", "Cashier")
 def sale_create(request):
-    if request.method == "POST":
-        form = SaleForm(request.POST)
-        if form.is_valid():
-            sale = form.save()
-            # decrement inventory if exists
-            try:
-                inv = InventoryItem.objects.get(product=sale.product)
-                inv.quantity = max(inv.quantity - sale.units_sold, 0)
-                inv.save()
-            except InventoryItem.DoesNotExist:
-                pass
-            messages.success(request, "Sale recorded.")
-            return redirect("sale_list")
-    else:
-        form = SaleForm()
-    return render(request, "pages/sale_form.html", {"form": form, "title": "Record Sale"})
+    # Redirect to the sales period form for automatic reporting
+    return redirect('record_sales_period')
 
-@group_required("Cashier", "Manager")
+@group_required("Admin")
 def sale_update(request, pk):
     sale = get_object_or_404(Sale, pk=pk)
     if request.method == "POST":
@@ -214,7 +290,7 @@ def sale_update(request, pk):
         form = SaleForm(instance=sale)
     return render(request, "pages/sale_form.html", {"form": form, "title": "Edit Sale"})
 
-@group_required("Cashier", "Manager")
+@group_required("Admin")
 def sale_delete(request, pk):
     sale = get_object_or_404(Sale, pk=pk)
     if request.method == "POST":
@@ -229,7 +305,6 @@ def sales_dashboard(request):
     from django.db.models import Sum, Count
     from django.utils import timezone
     from datetime import timedelta
-    from django.db.models.functions import TruncDate
 
     # Total sales and orders
     total_sales = Sale.objects.aggregate(total_revenue=Sum('revenue'))['total_revenue'] or 0
@@ -284,20 +359,23 @@ def sales_dashboard(request):
         today = timezone.now().date()
     start_date = today - timedelta(days=6)
     try:
-        daily_qs = (
-            Sale.objects.filter(date__gte=start_date)
-            .annotate(day=TruncDate('date'))
-            .values('day')
-            .annotate(total_revenue=Sum('revenue'), total_orders=Count('id'))
-            .order_by('day')
-        )
+        # Avoid DB-specific TruncDate by aggregating in Python which is portable across backends
+        sales_for_days = Sale.objects.filter(date__gte=start_date).values('date', 'revenue')
+        day_map = {}
+        for rec in sales_for_days:
+            d = rec.get('date')
+            if d is None:
+                continue
+            # ensure d is a date
+            if hasattr(d, 'date'):
+                d = d.date()
+            entry = day_map.setdefault(d, {'revenue': 0.0, 'orders': 0})
+            entry['revenue'] += float(rec.get('revenue') or 0)
+            entry['orders'] += 1
+
         daily_sales = [
-            {
-                'day': d['day'],
-                'revenue': float(d['total_revenue'] or 0),
-                'orders': int(d['total_orders'] or 0)
-            }
-            for d in daily_qs
+            {'day': day, 'revenue': data['revenue'], 'orders': data['orders']}
+            for day, data in sorted(day_map.items())
         ]
     except Exception as e:
         logging.getLogger(__name__).exception('Failed to compute daily_sales: %s', e)
@@ -384,8 +462,8 @@ def sales_today_api(request):
     server_today_iso = timezone.localtime().isoformat()
     return JsonResponse({'orders': orders, 'revenue': revenue, 'server_today_iso': server_today_iso})
 
-# Forecast: Manager only
-@group_required("Manager")
+# Forecast: Admin only
+@group_required("Admin")
 def forecast_view(request):
     from .services.forecasting import get_csv_forecast
     from datetime import datetime, timedelta
@@ -463,7 +541,213 @@ def forecast_view(request):
             pass
     return render(request, "pages/forecast.html", {"data": data})
 
-@login_required
+
+# Admin: user management (Admin only)
+@group_required("Admin")
+def admin_user_list(request):
+    users = User.objects.all().prefetch_related('groups')
+    users_info = []
+    for u in users:
+        users_info.append({
+            'user': u,
+            'is_admin': u.groups.filter(name='Admin').exists(),
+            'is_cashier': u.groups.filter(name='Cashier').exists(),
+        })
+    return render(request, 'pages/admin_user_list.html', {'users': users_info})
+
+
+@group_required("Admin")
+@require_http_methods(["POST"])
+def admin_toggle_group(request):
+    user_id = request.POST.get('user_id')
+    group_name = request.POST.get('group')
+    action = request.POST.get('action')  # 'add' or 'remove'
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        group = Group.objects.get(name=group_name)
+    except Group.DoesNotExist:
+        messages.error(request, f"Group '{group_name}' does not exist.")
+        return redirect('admin_user_list')
+
+    # Perform the requested action
+    if action == 'add':
+        user.groups.add(group)
+        msg = f"Added {user.username} to {group.name}."
+        messages.success(request, msg)
+    else:
+        user.groups.remove(group)
+        msg = f"Removed {user.username} from {group.name}."
+        messages.success(request, msg)
+
+    # If AJAX request, return JSON for client-side updates
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'ok',
+            'message': msg,
+            'user_id': user.id,
+            'group': group.name,
+            'is_admin': user.groups.filter(name='Admin').exists(),
+            'is_cashier': user.groups.filter(name='Cashier').exists(),
+        })
+
+    return redirect('admin_user_list')
+
+
+# Record sales by period (week/month) - Auto-summarize and printable
+@group_required("Admin")
+def record_sales_period(request):
+    """Record sales summary for a week or month with printable option"""
+    from datetime import timedelta
+    
+    if request.method == 'POST':
+        # Get period from form and determine action
+        period = request.POST.get('period', 'week')
+        action = request.POST.get('action', 'view')  # 'view' or 'print'
+        
+        # Get the date range
+        today = timezone.now().date()
+        if period == 'week':
+            start_date = today - timedelta(days=today.weekday())  # Monday of this week
+            end_date = start_date + timedelta(days=6)  # Sunday
+        else:  # month
+            start_date = today.replace(day=1)
+            if today.month == 12:
+                end_date = start_date.replace(year=today.year + 1, month=1) - timedelta(days=1)
+            else:
+                end_date = start_date.replace(month=today.month + 1) - timedelta(days=1)
+        
+        # Get sales for the period
+        sales = Sale.objects.filter(date__gte=start_date, date__lte=end_date)
+        
+        # Calculate totals
+        total_units = sales.aggregate(Sum('units_sold'))['units_sold__sum'] or 0
+        total_revenue = sales.aggregate(Sum('revenue'))['revenue__sum'] or 0
+        
+        # Group by product
+        sales_by_product = sales.values('product__name').annotate(
+            units=Sum('units_sold'),
+            revenue=Sum('revenue')
+        ).order_by('-revenue')
+        
+        context = {
+            'period': period,
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_units': total_units,
+            'total_revenue': total_revenue,
+            'sales_by_product': list(sales_by_product),
+            'sales_count': sales.count(),
+            'now': timezone.now(),
+        }
+        
+        if action == 'print':
+            # Return printable version
+            return render(request, 'pages/sales_report_print.html', context)
+        else:
+            return render(request, 'pages/sales_report.html', context)
+    
+    return render(request, 'pages/sales_period_form.html')
+
+@group_required("Admin")
+def api_record_sales_summary(request):
+    """API endpoint to record sales summary and return as JSON for printing"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            period = data.get('period', 'week')  # 'week' or 'month'
+            
+            from datetime import timedelta
+            today = timezone.now().date()
+            if period == 'week':
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+            else:  # month
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = start_date.replace(year=today.year + 1, month=1) - timedelta(days=1)
+                else:
+                    end_date = start_date.replace(month=today.month + 1) - timedelta(days=1)
+            
+            sales = Sale.objects.filter(date__gte=start_date, date__lte=end_date)
+            
+            total_units = sales.aggregate(Sum('units_sold'))['units_sold__sum'] or 0
+            total_revenue = sales.aggregate(Sum('revenue'))['revenue__sum'] or 0
+            
+            sales_by_product = list(sales.values('product__name').annotate(
+                units=Sum('units_sold'),
+                revenue=Sum('revenue')
+            ).order_by('-revenue'))
+            
+            return JsonResponse({
+                'success': True,
+                'period': period,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'total_units': total_units,
+                'total_revenue': float(total_revenue),
+                'sales_by_product': sales_by_product,
+                'sales_count': sales.count(),
+            })
+        except Exception as e:
+            logging.error('Error in api_record_sales_summary: %s', str(e))
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+# Owner: Approve/Reject pending cashier signups
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_approve(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        pending = Group.objects.get(name='PendingCashier')
+    except Group.DoesNotExist:
+        pending = None
+    cashier_grp, _ = Group.objects.get_or_create(name='Cashier')
+    # Move user from pending to cashier and activate
+    if pending:
+        user.groups.remove(pending)
+    user.groups.add(cashier_grp)
+    user.is_active = True
+    user.save()
+    messages.success(request, f"Approved cashier: {user.username}")
+    return redirect('pending_cashiers')
+
+
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_reject(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    # Delete the user (reject)
+    username = user.username
+    user.delete()
+    messages.success(request, f"Rejected and removed user: {username}")
+    return redirect('pending_cashiers')
+
+@group_required("Admin", "Cashier")
 def create_sale(request):
     """API endpoint to create a sale transaction"""
     from django.http import JsonResponse
@@ -480,7 +764,19 @@ def create_sale(request):
             if not items:
                 return JsonResponse({'error': 'No items in cart'}, status=400)
             
-            # Create sale records for each item
+            # First, validate all items have sufficient inventory
+            for item in items:
+                product = Product.objects.get(pk=item['id'])
+                inv = product.inventory_items.first()
+                
+                if inv and inv.quantity < item['quantity']:
+                    return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
+                
+                # Validate quantity is positive
+                if item['quantity'] <= 0:
+                    return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
+            
+            # All validations passed, create sale records for each item
             for item in items:
                 product = Product.objects.get(pk=item['id'])
                 sale = Sale.objects.create(
@@ -499,6 +795,50 @@ def create_sale(request):
         except Product.DoesNotExist:
             return JsonResponse({'error': 'Product not found'}, status=404)
         except Exception as e:
+            logging.error('Error in create_sale: %s', str(e))
             return JsonResponse({'error': str(e)}, status=400)
     
     return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+# Owner: Approve/Reject pending cashier signups
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_approve(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        pending = Group.objects.get(name='PendingCashier')
+    except Group.DoesNotExist:
+        pending = None
+    cashier_grp, _ = Group.objects.get_or_create(name='Cashier')
+    # Move user from pending to cashier and activate
+    if pending:
+        user.groups.remove(pending)
+    user.groups.add(cashier_grp)
+    user.is_active = True
+    user.save()
+    messages.success(request, f"Approved cashier: {user.username}")
+    return redirect('pending_cashiers')
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_reject(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    # Delete the user (reject)
+    username = user.username
+    user.delete()
+    messages.success(request, f"Rejected and removed user: {username}")
+    return redirect('pending_cashiers')
