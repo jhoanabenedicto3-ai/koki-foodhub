@@ -5,31 +5,37 @@ echo "=========================================="
 echo "🚀 RENDER DEPLOYMENT INITIALIZATION"
 echo "=========================================="
 
-# Change to project directory
+# Change to project directory  
 cd /opt/render/project/src
 
-# Run migrations
+# Run migrations with explicit verbose output
 echo ""
 echo "→ Running migrations..."
-python manage.py migrate --verbosity 1 2>&1 || {
-    echo "⚠️  Migration failed, but continuing..."
-}
+python manage.py migrate --verbosity 2
 
 # Create admin user
 echo ""
 echo "→ Checking/creating admin user..."
-python manage.py shell << END
+python << END
+import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'koki_foodhub.settings')
+django.setup()
+
 from django.contrib.auth import get_user_model
 User = get_user_model()
-import os
 
-if not User.objects.filter(username='admin').exists():
+admin_user = User.objects.filter(username='admin').first()
+if admin_user:
+    print("✅ Admin user already exists")
+else:
     password = os.getenv('ADMIN_PASSWORD', 'admin123')
     email = os.getenv('ADMIN_EMAIL', 'admin@koki-foodhub.com')
     User.objects.create_superuser('admin', email, password)
-    print(f"✅ Admin user created!")
-else:
-    print("ℹ️  Admin user already exists")
+    print("✅ Admin user created!")
+
+print(f"📊 Total users in database: {User.objects.count()}")
 END
 
 echo ""
