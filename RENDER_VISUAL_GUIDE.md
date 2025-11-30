@@ -88,34 +88,34 @@ a$w4x!z@q#r1t-p%y_u&v^o*i(j)k-l+m=n
 ```
 👆 Copy and paste this in SECRET_KEY field
 
-### STEP 5: Create Database
+### STEP 5: Connect Existing Database
 
-While still building:
-
-```
-1. Click "+ New" button
-2. Select "PostgreSQL"
-3. Configure:
-   ├─ Name: koki-foodhub-db
-   ├─ Region: Same as web service
-   ├─ PostgreSQL Version: 15
-   └─ Plan: Free or Starter
-
-4. Click "Create Database"
-```
-
-### STEP 6: Connect Database to Service
+Since you already have a free PostgreSQL database on Render:
 
 ```
-1. Back to Web Service
-2. Click "Environment" tab
-3. Click "Add from Render Resources"
-4. Select "koki-foodhub-db"
-5. This auto-sets DATABASE_URL
-6. Click "Save"
+1. Go to https://render.com/dashboard
+2. Click on your existing PostgreSQL database
+3. Copy the Internal Database URL (starts with postgresql://)
+   (It looks like: postgresql://user:pass@host:5432/dbname)
+4. Go back to Web Service
+5. Click "Environment" tab
+6. Add new variable:
+   Key: DATABASE_URL
+   Value: [paste the connection string]
+7. Click "Save"
 ```
 
-### STEP 7: Wait for Build ⏳
+✅ Your web service will now use your existing database!
+
+**If you need to delete old database first:**
+```
+1. Go to dashboard
+2. Find any old/unused database
+3. Click it → Click "Delete" button
+4. Then come back to web service and add DATABASE_URL
+```
+
+### STEP 6: Wait for Build ⏳
 
 ```
 Watch the Logs tab for:
@@ -128,7 +128,7 @@ Watch the Logs tab for:
 Expected time: 2-5 minutes
 ```
 
-### STEP 8: Initialize Database
+### STEP 7: Initialize Database
 
 After "Service is running":
 
