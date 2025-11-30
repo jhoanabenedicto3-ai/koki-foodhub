@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: koki-foodhub-web
+    name: koki-foodhub-app
     env: python
     branch: main
     plan: free
@@ -11,7 +11,9 @@ services:
         value: "False"
       - key: SECRET_KEY
         value: "@secret_key"
+      - key: ALLOWED_HOSTS
+        value: "*.onrender.com,localhost,127.0.0.1"
 databases:
   - name: koki-foodhub-db
     plan: starter
-    # Render will expose DATABASE_URL for the web service when attached
+    region: oregon
