@@ -166,16 +166,25 @@ STATIC_URL = '/static/'
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Only add STATICFILES_DIRS if the directory exists
+# Always include static directory if it exists
+STATICFILES_DIRS = []
 _static_dir = BASE_DIR / 'static'
 if _static_dir.exists():
-    STATICFILES_DIRS = [_static_dir]
-else:
-    STATICFILES_DIRS = []
+    STATICFILES_DIRS.append(_static_dir)
 
-# WhiteNoise storage for efficient static file serving (only in production)
+# Also include core app static files
+_core_static = BASE_DIR / 'core' / 'static'
+if _core_static.exists():
+    STATICFILES_DIRS.append(_core_static)
+
+# WhiteNoise configuration for production static file serving
 if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Configure WhiteNoise to serve files with caching
+WHITENOISE_COMPRESS = True
+WHITENOISE_COMPRESSION_QUALITY = 80
+WHITENOISE_MAX_AGE = 31536000  # 1 year in seconds
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'

@@ -47,34 +47,17 @@
 
       <h1 class="auth-title">Login</h1>
 
+      {% if messages %}
+        <div style="margin-bottom: 16px;">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" style="padding: 12px; border-radius: 8px; text-align: center; {% if message.tags == 'error' %}background: #ffebee; color: #b71c1c;{% else %}background: #e8f5e9; color: #2e7d32;{% endif %} font-size: 14px; margin-bottom: 8px;">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       <form method="post" class="auth-form">
-        {% csrf_token %}
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-error" style="margin-bottom:8px; text-align:center; color:#b71c1c;">
-            {% for error in form.non_field_errors %}
-              <p style="margin: 0;">{{ error }}</p>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        <div>
-          <input name="username" placeholder="Email" required class="auth-input" value="{{ request.POST.username|default:'' }}">
-          {% if form.errors.username %}
-            <div class="alert alert-error" style="margin:4px 0 0 0; color:#b71c1c; font-size:13px;">
-              {% for err in form.errors.username %}<p style="margin:0;">{{ err }}</p>{% endfor %}
-            </div>
-          {% endif %}
-        </div>
-
-        <div>
-          <input type="password" name="password" placeholder="Password" required class="auth-input">
-          {% if form.errors.password %}
-            <div class="alert alert-error" style="margin:4px 0 0 0; color:#b71c1c; font-size:13px;">
-              {% for err in form.errors.password %}<p style="margin:0;">{{ err }}</p>{% endfor %}
-            </div>
-          {% endif %}
-        </div>
 
         <button class="auth-cta" type="submit">LOGIN</button>
 

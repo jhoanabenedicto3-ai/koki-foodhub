@@ -43,6 +43,15 @@ try:
     else:
         print("✅ Migrations already applied")
     
+    # Collect static files in production
+    if not os.getenv('DEBUG', 'True') == 'True':
+        print("\n→ Collecting static files...")
+        try:
+            call_command('collectstatic', verbosity=1, interactive=False)
+            print("✅ Static files collected")
+        except Exception as e:
+            print(f"⚠️ Static file collection warning: {e}")
+    
     # Ensure admin user exists
     from django.contrib.auth import get_user_model
     User = get_user_model()
