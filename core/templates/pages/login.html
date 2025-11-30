@@ -58,6 +58,7 @@
       {% endif %}
 
       <form method="post" class="auth-form">
+        {% csrf_token %}
 
         <button class="auth-cta" type="submit">LOGIN</button>
 
