@@ -192,3 +192,21 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
+# CSRF and Session Configuration
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.onrender.com',
+    'https://koki-foodhub-app.onrender.com',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]
+
+# Session Configuration
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax' if not DEBUG else 'None'
+
+# CSRF Configuration
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax' if not DEBUG else 'None'
