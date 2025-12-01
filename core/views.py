@@ -204,21 +204,28 @@ def dashboard(request):
 def product_list(request):
     # Cashier can only view, not edit. Check in template if user is admin for edit buttons
     # Support server-side sorting using ?sort=price-asc|price-desc|name|newest
-    sort = request.GET.get('sort', '')
-    products = Product.objects.all()
-    if sort == 'price-asc':
-        products = products.order_by('price')
-    elif sort == 'price-desc':
-        products = products.order_by('-price')
-    elif sort == 'name':
-        # Case-insensitive alphabetical sort so lowercase names (e.g. "burger")
-        # appear in the expected A → Z order.
-        products = products.order_by(Lower('name'))
-    elif sort == 'newest':
-        # uses created_at for accurate ordering
-        products = products.order_by('-created_at')
+    logger = logging.getLogger(__name__)
+    try:
+        sort = request.GET.get('sort', '')
+        products = Product.objects.all()
+        if sort == 'price-asc':
+            products = products.order_by('price')
+        elif sort == 'price-desc':
+            products = products.order_by('-price')
+        elif sort == 'name':
+            # Case-insensitive alphabetical sort so lowercase names (e.g. "burger")
+            # appear in the expected A → Z order.
+            products = products.order_by(Lower('name'))
+        elif sort == 'newest':
+            # uses created_at for accurate ordering
+            products = products.order_by('-created_at')
 
-    return render(request, "pages/product_list.html", {"products": products, "sort": sort})
+        return render(request, "pages/product_list.html", {"products": products, "sort": sort})
+    except Exception as e:
+        # Log traceback explicitly so Render or other hosting logs capture the error
+        logger.exception('Unhandled exception in product_list: %s', str(e))
+        # Return a friendly 500 page (keeps same status so hosting shows an error)
+        return HttpResponse('Server Error (500) - An unexpected error occurred while listing products.', status=500)
 
 @group_required("Admin", "Cashier")
 def product_create(request):
