@@ -34,6 +34,14 @@ DEBUG = os.getenv("DEBUG", "True") == "True"
 FILE_CHARSET = 'utf-8'
 DEFAULT_CHARSET = 'utf-8'
 
+# Security settings for production (Render has HTTPS)
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,.onrender.com").split(",")
 
 
