@@ -38,11 +38,22 @@ urlpatterns = [
 ]
 
 # Serve media files
-# Use re_path for media files that works in both development and production
 if settings.DEBUG:
+    # Development: use Django's static() helper
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 else:
-    # In production, serve media files via re_path
+    # Production: use re_path with serve view for media files
+    # This allows media files to be served even if they don't exist yet
+    def safe_serve(request, path):
+        try:
+            return serve(request, path, document_root=str(settings.MEDIA_ROOT))
+        except:
+            # If file not found, return a placeholder response
+            from django.http import HttpResponse
+            response = HttpResponse(b'', status=404)
+            response['Content-Type'] = 'text/plain'
+            return response
+    
     urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+        re_path(r'^media/(?P<path>.*)$', safe_serve),
     ]

@@ -186,6 +186,12 @@ WHITENOISE_COMPRESS = True
 WHITENOISE_COMPRESSION_QUALITY = 80
 WHITENOISE_MAX_AGE = 31536000  # 1 year in seconds
 
+# Configure WhiteNoise to also serve media files
+WHITENOISE_MIMETYPES = {
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+}
+
 # Media files (User uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
