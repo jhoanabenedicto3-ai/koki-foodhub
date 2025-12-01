@@ -202,6 +202,7 @@
     let itemsPerPage = 6;
     let filteredProducts = [];
     let orderCounter = 0;  // Counter for order numbers
+    let currentOrderItems = [];  // Store current order items for kitchen print
 
     // Build products object from Django template data
     const products = {};
@@ -731,9 +732,6 @@
 
     // Initialize - show empty order history
     displayRecentTransaction([]);
-
-    // Store current order items for kitchen print
-    let currentOrderItems = [];
 
     // Print Kitchen Order Functionality
     document.getElementById('printOrderBtn').addEventListener('click', function() {
