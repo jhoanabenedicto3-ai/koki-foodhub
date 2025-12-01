@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login as auth_login
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 import logging
 import json
@@ -747,12 +748,12 @@ def pending_cashier_reject(request):
     messages.success(request, f"Rejected and removed user: {username}")
     return redirect('pending_cashiers')
 
+@csrf_exempt
 @group_required("Admin", "Cashier")
 def create_sale(request):
     """API endpoint to create a sale transaction"""
     from django.http import JsonResponse
     from django.views.decorators.http import require_http_methods
-    from django.views.decorators.csrf import ensure_csrf_cookie
     import json
     import traceback
     
