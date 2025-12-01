@@ -206,11 +206,19 @@ body {
 }
 
 .product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
-  margin-bottom: 24px;
-  width: 100%;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 20px !important;
+  margin-bottom: 24px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#productGrid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 20px !important;
+  width: 100% !important;
 }
 
 .product-card {
@@ -243,10 +251,11 @@ body {
 }
 
 .product-info {
-  padding: 14px;
+  padding: 16px;
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 }
 
 .product-name {
