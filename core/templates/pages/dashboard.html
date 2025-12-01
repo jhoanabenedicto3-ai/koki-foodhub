@@ -657,11 +657,11 @@
           document.querySelector('input[placeholder="Customer name (Optional)"]').value = '';
           updateCart();
 
-          // Refresh order history from database
-          loadRecentOrders();
-
-          // Generate and print receipt
+          // Generate and print receipt first
           generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
+
+          // Refresh order history from database (non-blocking)
+          loadRecentOrders().catch(err => console.error('Failed to refresh order history:', err));
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }

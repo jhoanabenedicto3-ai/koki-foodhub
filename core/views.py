@@ -869,7 +869,7 @@ def pending_cashier_reject(request):
     messages.success(request, f"Rejected and removed user: {username}")
     return redirect('pending_cashiers')
 
-@group_required("Admin", "Cashier")
+@login_required
 def recent_orders_api(request):
     """Return recent sales (last 50 orders) with product details, ordered by most recent first."""
     try:
@@ -891,8 +891,10 @@ def recent_orders_api(request):
         return JsonResponse({'success': True, 'orders': orders})
     except Exception as e:
         import traceback
+        logger = logging.getLogger(__name__)
+        logger.error('Error in recent_orders_api: %s', str(e))
+        logger.error('Traceback:\n%s', traceback.format_exc())
         return JsonResponse({
             'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
+            'error': str(e)
         }, status=500)
