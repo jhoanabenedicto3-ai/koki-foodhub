@@ -466,89 +466,222 @@
     }
 
     function generateAndPrintReceipt(customerName, items, total, amountPaid, change) {
+      const receiptNum = Math.floor(Math.random() * 1000000);
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
       const receiptContent = `
+        <!DOCTYPE html>
         <html>
-          <head>
-            <style>
-              body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: white; }
-              .receipt { width: 300px; margin: 0 auto; border: 1px solid #000; padding: 20px; }
-              .receipt-header { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-              .receipt-title { font-size: 14px; font-weight: bold; }
-              .receipt-subtitle { font-size: 11px; color: #666; }
-              .receipt-date { font-size: 11px; color: #666; margin: 5px 0; text-align: center; }
-              .receipt-divider { border-top: 1px dashed #000; margin: 10px 0; }
-              .receipt-items { margin: 10px 0; }
-              .receipt-item { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
-              .receipt-item-name { flex: 1; }
-              .receipt-item-qty { width: 40px; text-align: right; }
-              .receipt-item-price { width: 60px; text-align: right; }
-              .receipt-totals { margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px; }
-              .receipt-total-line { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
-              .receipt-total-amount { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 10px; border-top: 2px solid #000; padding-top: 10px; }
-              .receipt-payment { font-size: 11px; margin-top: 10px; }
-              .receipt-footer { text-align: center; font-size: 10px; margin-top: 15px; color: #666; border-top: 1px dashed #000; padding-top: 10px; }
-              .customer-name { text-align: center; font-size: 12px; font-weight: bold; margin: 5px 0; }
-            </style>
-          </head>
-          <body>
-            <div class="receipt">
-              <div class="receipt-header">
-                <div class="receipt-title">KOKI'S FOODHUB</div>
-                <div class="receipt-subtitle">Restaurant Management System</div>
+        <head>
+          <meta charset="UTF-8">
+          <title>Receipt #${receiptNum}</title>
+          <style>
+            * { margin: 0; padding: 0; }
+            body { 
+              font-family: 'Courier New', 'Monaco', monospace; 
+              background: white; 
+              color: black;
+              padding: 0;
+              line-height: 1.2;
+            }
+            .container {
+              width: 80mm;
+              max-width: 100%;
+              margin: 0 auto;
+              padding: 10px 0;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid black;
+              padding-bottom: 10px;
+              margin-bottom: 10px;
+            }
+            .store-name {
+              font-size: 18px;
+              font-weight: bold;
+              letter-spacing: 1px;
+            }
+            .store-tagline {
+              font-size: 9px;
+              margin-top: 2px;
+              color: #333;
+            }
+            .receipt-number {
+              font-size: 10px;
+              margin-top: 5px;
+            }
+            .separator {
+              border-bottom: 1px dashed black;
+              margin: 8px 0;
+            }
+            .separator-solid {
+              border-bottom: 2px solid black;
+              margin: 8px 0;
+            }
+            .info {
+              font-size: 10px;
+              margin-bottom: 8px;
+            }
+            .info-line {
+              display: flex;
+              justify-content: space-between;
+              margin: 2px 0;
+            }
+            .items-header {
+              display: flex;
+              justify-content: space-between;
+              font-weight: bold;
+              font-size: 10px;
+              margin-bottom: 5px;
+              border-bottom: 1px solid black;
+              padding-bottom: 3px;
+            }
+            .items-header span:nth-child(1) { flex: 1; }
+            .items-header span:nth-child(2) { width: 30px; text-align: center; }
+            .items-header span:nth-child(3) { width: 50px; text-align: right; }
+            .item {
+              display: flex;
+              justify-content: space-between;
+              font-size: 10px;
+              margin: 3px 0;
+              border-bottom: 1px dotted #ccc;
+              padding-bottom: 2px;
+            }
+            .item-name {
+              flex: 1;
+              word-break: break-word;
+            }
+            .item-qty {
+              width: 30px;
+              text-align: center;
+              font-weight: bold;
+            }
+            .item-price {
+              width: 50px;
+              text-align: right;
+              font-weight: bold;
+            }
+            .totals {
+              margin: 10px 0;
+              font-size: 11px;
+            }
+            .total-line {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+            }
+            .total-label {
+              flex: 1;
+            }
+            .total-value {
+              width: 70px;
+              text-align: right;
+              font-weight: bold;
+            }
+            .grand-total {
+              display: flex;
+              justify-content: space-between;
+              font-size: 13px;
+              font-weight: bold;
+              margin-top: 5px;
+              padding-top: 5px;
+              border-top: 2px solid black;
+            }
+            .payment {
+              font-size: 10px;
+              margin: 8px 0;
+            }
+            .payment-line {
+              display: flex;
+              justify-content: space-between;
+              margin: 2px 0;
+            }
+            .footer {
+              text-align: center;
+              font-size: 9px;
+              margin-top: 10px;
+              padding-top: 10px;
+              border-top: 1px dashed black;
+            }
+            .footer p {
+              margin: 2px 0;
+            }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .container { width: 100%; max-width: 100%; }
+              * { background: white !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="store-name">🍕 KOKI'S FOODHUB</div>
+              <div class="store-tagline">Fresh Delicious Pizza</div>
+              <div class="receipt-number">RECEIPT #${receiptNum}</div>
+            </div>
+
+            <div class="info">
+              <div class="info-line">
+                <span>${dateStr}</span>
+                <span>${timeStr}</span>
               </div>
-              
-              <div class="receipt-date">${new Date().toLocaleString()}</div>
-              <div class="customer-name">Customer: ${customerName}</div>
-              
-              <div class="receipt-divider"></div>
-              
-              <div class="receipt-items">
-                <div style="display: flex; font-size: 11px; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 5px;">
-                  <span style="flex: 1;">Item</span>
-                  <span style="width: 40px; text-align: right;">Qty</span>
-                  <span style="width: 60px; text-align: right;">Price</span>
-                </div>
-                ${items.map(item => `
-                  <div class="receipt-item">
-                    <div class="receipt-item-name">${item.name}</div>
-                    <div class="receipt-item-qty">${item.quantity}</div>
-                    <div class="receipt-item-price">₱${(item.price * item.quantity).toFixed(2)}</div>
-                  </div>
-                `).join('')}
-              </div>
-              
-              <div class="receipt-divider"></div>
-              
-              <div class="receipt-totals">
-                <div class="receipt-total-line">
-                  <span>Subtotal:</span>
-                  <span>₱${total.toFixed(2)}</span>
-                </div>
-                <div class="receipt-total-amount">
-                  <span>TOTAL:</span>
-                  <span>₱${total.toFixed(2)}</span>
-                </div>
-              </div>
-              
-              <div class="receipt-payment">
-                <div class="receipt-total-line">
-                  <span>Amount Paid:</span>
-                  <span>₱${amountPaid.toFixed(2)}</span>
-                </div>
-                <div class="receipt-total-line">
-                  <span>Change:</span>
-                  <span>₱${change.toFixed(2)}</span>
-                </div>
-              </div>
-              
-              <div class="receipt-footer">
-                Thank you for your purchase!<br>
-                Please come again!<br>
-                <br>
-                Receipt #${Math.floor(Math.random() * 1000000)}
+              <div class="info-line">
+                <span>Customer:</span>
+                <span style="font-weight: bold;">${customerName}</span>
               </div>
             </div>
-          </body>
+
+            <div class="separator"></div>
+
+            <div>
+              <div class="items-header">
+                <span>ITEM</span>
+                <span>QTY</span>
+                <span>PRICE</span>
+              </div>
+              ${items.map(item => `
+                <div class="item">
+                  <div class="item-name">${item.name}</div>
+                  <div class="item-qty">${item.quantity}</div>
+                  <div class="item-price">₱${(item.price * item.quantity).toFixed(2)}</div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="separator-solid"></div>
+
+            <div class="totals">
+              <div class="total-line">
+                <span class="total-label">Subtotal:</span>
+                <span class="total-value">₱${total.toFixed(2)}</span>
+              </div>
+              <div class="grand-total">
+                <span>TOTAL:</span>
+                <span>₱${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="payment">
+              <div class="payment-line">
+                <span>Amount Paid:</span>
+                <span style="font-weight: bold;">₱${amountPaid.toFixed(2)}</span>
+              </div>
+              <div class="payment-line">
+                <span>Change:</span>
+                <span style="font-weight: bold;">₱${change.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p style="font-weight: bold;">THANK YOU!</p>
+              <p>Please come again</p>
+              <p style="margin-top: 5px; font-size: 8px;">Powered by Koki's Foodhub System</p>
+            </div>
+          </div>
+        </body>
         </html>
       `;
       
@@ -556,10 +689,9 @@
       printWindow.document.write(receiptContent);
       printWindow.document.close();
       
-      // Wait a moment for the page to load, then print
       setTimeout(() => {
         printWindow.print();
-      }, 250);
+      }, 300);
     }
 
     function processPayment() {
@@ -744,8 +876,10 @@
       const orderHistoryDiv = document.getElementById('orderHistory');
       const orderNumberMatch = orderHistoryDiv.innerHTML.match(/ORDER #(\d+)/);
       const orderNumber = orderNumberMatch ? orderNumberMatch[1] : '?';
+      const totalItems = currentOrderItems.reduce((sum, item) => sum + item.quantity, 0);
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-      // Generate kitchen order ticket
+      // Generate kitchen order ticket optimized for 80mm thermal printer
       const kitchenHTML = `
         <!DOCTYPE html>
         <html>
@@ -753,78 +887,114 @@
           <meta charset="UTF-8">
           <title>Kitchen Order #${orderNumber}</title>
           <style>
+            * { margin: 0; padding: 0; }
             body { 
-              font-family: 'Courier New', monospace; 
-              padding: 20px; 
+              font-family: 'Courier New', 'Monaco', monospace; 
               background: white;
-              margin: 0;
+              color: black;
+              line-height: 1.3;
             }
             .container { 
-              max-width: 400px; 
-              margin: 0 auto; 
-              border: 3px solid #000; 
-              padding: 20px; 
+              width: 80mm;
+              max-width: 100%;
+              margin: 0 auto;
+              padding: 15px 0;
             }
             .header {
               text-align: center;
-              border-bottom: 2px solid #000;
-              margin-bottom: 20px;
-              padding-bottom: 10px;
+              border-bottom: 3px double #000;
+              margin-bottom: 15px;
+              padding-bottom: 12px;
+            }
+            .kitchen-label {
+              font-size: 14px;
+              font-weight: bold;
+              letter-spacing: 2px;
+              margin-bottom: 5px;
             }
             .order-number {
-              font-size: 28px;
+              font-size: 32px;
               font-weight: bold;
               color: #000;
-              margin: 10px 0;
+              margin: 8px 0;
+              letter-spacing: 3px;
             }
             .time {
-              font-size: 12px;
-              color: #666;
+              font-size: 11px;
+              margin-top: 5px;
             }
-            .items {
-              margin: 20px 0;
+            .items-section {
+              margin: 15px 0;
               border-bottom: 2px solid #000;
-              padding-bottom: 20px;
+              padding-bottom: 15px;
             }
             .item {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              margin: 15px 0;
-              font-size: 16px;
+              margin: 8px 0;
+              font-size: 12px;
               font-weight: bold;
+              padding: 5px 0;
+              border-bottom: 1px dotted #ccc;
             }
             .item-name {
               flex: 1;
+              word-break: break-word;
             }
             .item-qty {
-              background: #FFD700;
-              padding: 5px 10px;
-              border-radius: 4px;
-              min-width: 40px;
+              background: #000;
+              color: white;
+              padding: 4px 12px;
+              border-radius: 3px;
+              min-width: 45px;
               text-align: center;
+              font-size: 14px;
+              font-weight: bold;
+              margin-left: 10px;
+            }
+            .summary {
+              margin: 15px 0;
+              text-align: center;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 10px;
+            }
+            .summary-line {
+              font-size: 11px;
+              margin: 3px 0;
+            }
+            .total-items {
+              font-size: 13px;
+              font-weight: bold;
+              margin-top: 8px;
             }
             .footer {
               text-align: center;
-              margin-top: 20px;
+              margin-top: 15px;
+              padding-top: 10px;
               font-size: 12px;
-              color: #666;
+              font-weight: bold;
+              letter-spacing: 1px;
+            }
+            .footer p {
+              margin: 3px 0;
             }
             @media print { 
-              body { background: white; }
-              .container { box-shadow: none; border: 1px solid #000; }
+              body { margin: 0; padding: 0; background: white; }
+              .container { width: 100%; margin: 0; }
+              * { background: white !important; color: black !important; }
             }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
-              <div>🍕 KITCHEN ORDER</div>
-              <div class="order-number">#${orderNumber}</div>
-              <div class="time">${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div class="kitchen-label">🍕 KITCHEN TICKET</div>
+              <div class="order-number">ORDER #${orderNumber}</div>
+              <div class="time">${timeStr}</div>
             </div>
             
-            <div class="items">
+            <div class="items-section">
               ${currentOrderItems.map(item => `
                 <div class="item">
                   <div class="item-name">${item.name}</div>
@@ -833,9 +1003,14 @@
               `).join('')}
             </div>
 
+            <div class="summary">
+              <div class="summary-line">TOTAL ITEMS:</div>
+              <div class="total-items">${totalItems}</div>
+            </div>
+
             <div class="footer">
               <p>PREPARE & SERVE</p>
-              <p>Total Items: ${currentOrderItems.reduce((sum, item) => sum + item.quantity, 0)}</p>
+              <p style="margin-top: 8px; font-size: 10px;">---END OF ORDER---</p>
             </div>
           </div>
         </body>
