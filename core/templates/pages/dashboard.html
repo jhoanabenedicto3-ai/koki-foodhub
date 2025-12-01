@@ -191,7 +191,7 @@
 
       <!-- Process Button -->
       <button id="checkoutBtn" type="button" style="width: 100%; padding: 14px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
-        <span>✓</span>PROCESS
+        <span>🖨️</span>PRINT RECEIPT
       </button>
     </div>
   </div>
@@ -463,6 +463,103 @@
       document.getElementById('change').textContent = '₱' + change.toFixed(2);
     }
 
+    function generateAndPrintReceipt(customerName, items, total, amountPaid, change) {
+      const receiptContent = `
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: white; }
+              .receipt { width: 300px; margin: 0 auto; border: 1px solid #000; padding: 20px; }
+              .receipt-header { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+              .receipt-title { font-size: 14px; font-weight: bold; }
+              .receipt-subtitle { font-size: 11px; color: #666; }
+              .receipt-date { font-size: 11px; color: #666; margin: 5px 0; text-align: center; }
+              .receipt-divider { border-top: 1px dashed #000; margin: 10px 0; }
+              .receipt-items { margin: 10px 0; }
+              .receipt-item { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
+              .receipt-item-name { flex: 1; }
+              .receipt-item-qty { width: 40px; text-align: right; }
+              .receipt-item-price { width: 60px; text-align: right; }
+              .receipt-totals { margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px; }
+              .receipt-total-line { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
+              .receipt-total-amount { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 10px; border-top: 2px solid #000; padding-top: 10px; }
+              .receipt-payment { font-size: 11px; margin-top: 10px; }
+              .receipt-footer { text-align: center; font-size: 10px; margin-top: 15px; color: #666; border-top: 1px dashed #000; padding-top: 10px; }
+              .customer-name { text-align: center; font-size: 12px; font-weight: bold; margin: 5px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="receipt">
+              <div class="receipt-header">
+                <div class="receipt-title">KOKI'S FOODHUB</div>
+                <div class="receipt-subtitle">Restaurant Management System</div>
+              </div>
+              
+              <div class="receipt-date">${new Date().toLocaleString()}</div>
+              <div class="customer-name">Customer: ${customerName}</div>
+              
+              <div class="receipt-divider"></div>
+              
+              <div class="receipt-items">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 5px;">
+                  <span>Item</span>
+                  <span>Qty</span>
+                  <span>Price</span>
+                </div>
+                ${items.map(item => `
+                  <div class="receipt-item">
+                    <div class="receipt-item-name">${item.name}</div>
+                    <div class="receipt-item-qty">${item.quantity}</div>
+                    <div class="receipt-item-price">₱${(item.price * item.quantity).toFixed(2)}</div>
+                  </div>
+                `).join('')}
+              </div>
+              
+              <div class="receipt-divider"></div>
+              
+              <div class="receipt-totals">
+                <div class="receipt-total-line">
+                  <span>Subtotal:</span>
+                  <span>₱${total.toFixed(2)}</span>
+                </div>
+                <div class="receipt-total-amount">
+                  <span>TOTAL:</span>
+                  <span>₱${total.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              <div class="receipt-payment">
+                <div class="receipt-total-line">
+                  <span>Amount Paid:</span>
+                  <span>₱${amountPaid.toFixed(2)}</span>
+                </div>
+                <div class="receipt-total-line">
+                  <span>Change:</span>
+                  <span>₱${change.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              <div class="receipt-footer">
+                Thank you for your purchase!<br>
+                Please come again!<br>
+                <br>
+                Receipt #${Math.floor(Math.random() * 1000000)}
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(receiptContent);
+      printWindow.document.close();
+      
+      // Wait a moment for the page to load, then print
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    }
+
     function processPayment() {
       if (cart.length === 0) {
         alert('Please add items to cart first');
@@ -525,8 +622,8 @@
       .then(data => {
         if (data && data.success) {
           const change = amountPaid - total;
-          alert(`Payment processed!\nTotal: ₱${total.toFixed(2)}\nChange: ₱${change.toFixed(2)}`);
-
+          const customerName = document.querySelector('input[placeholder="Customer name (Optional)"]').value || 'Customer';
+          
           // Persist sale to localStorage so Sales Dashboard (which reads localStorage) updates
           const saleRecord = {
             timestamp: new Date().toLocaleString(),
@@ -543,9 +640,15 @@
             console.warn('Failed to persist salesHistory to localStorage', e);
           }
 
+          // Clear cart and inputs
+          const itemsCopy = [...cart];
           cart = [];
           document.getElementById('amountPaid').value = '';
+          document.querySelector('input[placeholder="Customer name (Optional)"]').value = '';
           updateCart();
+
+          // Generate and print receipt
+          generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
