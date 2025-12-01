@@ -752,11 +752,16 @@ def create_sale(request):
     """API endpoint to create a sale transaction"""
     from django.http import JsonResponse
     from django.views.decorators.http import require_http_methods
+    from django.views.decorators.csrf import ensure_csrf_cookie
     import json
     import traceback
     
     logger = logging.getLogger(__name__)
-    logger.info('create_sale called by user: %s, method: %s', getattr(request,'user',None), request.method)
+    logger.info('='*60)
+    logger.info('create_sale endpoint called')
+    logger.info(f'User: {request.user}')
+    logger.info(f'Method: {request.method}')
+    logger.info(f'Headers: {dict(request.headers)}')
     
     if request.method == 'POST':
         try:
@@ -806,10 +811,16 @@ def create_sale(request):
             return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
         except json.JSONDecodeError as e:
             logger.error('create_sale: JSON decode error: %s', str(e))
+            logger.error(f'Request body: {request.body}')
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
         except Exception as e:
-            logger.error('Error in create_sale: %s\n%s', str(e), traceback.format_exc())
-            return JsonResponse({'error': f'Error: {str(e)}'}, status=500)
+            logger.error('='*60)
+            logger.error('UNHANDLED EXCEPTION in create_sale')
+            logger.error('Error: %s', str(e))
+            logger.error('Traceback:\n%s', traceback.format_exc())
+            logger.error('='*60)
+            # Return error without exposing internals in production
+            return JsonResponse({'error': f'Server error: {str(e)[:100]}'}, status=500)
     
     logger.warning('create_sale: Method not allowed')
     return JsonResponse({'error': 'Method not allowed'}, status=405)
