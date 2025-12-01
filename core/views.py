@@ -23,7 +23,6 @@ from .services.forecasting import moving_average_forecast
 from .auth import group_required  # new: role guard
 from django.views.decorators.http import require_http_methods
 
-@login_required
 def product_image(request, product_id):
     """Serve product image - handles missing files gracefully"""
     try:
