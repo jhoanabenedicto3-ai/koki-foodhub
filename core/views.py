@@ -203,12 +203,19 @@ def product_create(request):
                 os.makedirs(media_root, exist_ok=True)
                 logger.info(f'Created media directory: {media_root}')
             
+            # Also ensure products subdirectory exists
+            products_dir = os.path.join(media_root, 'products')
+            if not os.path.exists(products_dir):
+                os.makedirs(products_dir, exist_ok=True)
+                logger.info(f'Created products directory: {products_dir}')
+            
             if form.is_valid():
                 product = form.save(commit=False)
                 # Ensure created_at is set
                 if not product.created_at:
                     product.created_at = timezone.now()
                 product.save()
+                logger.info(f'Product created successfully: {product.name} (ID: {product.id})')
                 messages.success(request, "Product created successfully.")
                 return redirect("product_list")
             else:
@@ -771,16 +778,8 @@ def pending_cashier_reject(request):
 @csrf_exempt
 def create_sale(request):
     """API endpoint to create a sale transaction"""
-    import json
-    import traceback
-    
     logger = logging.getLogger(__name__)
     
-    # Log request details for debugging
-    logger.info(f'create_sale: Method={request.method}, User={request.user}, Authenticated={request.user.is_authenticated}')
-    
-    # For now, allow unauthenticated requests to proceed if POST data is valid
-    # This is acceptable for this endpoint since we're using CSRF exemption
     if request.method != 'POST':
         logger.warning(f'create_sale: Invalid method {request.method}')
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -794,62 +793,58 @@ def create_sale(request):
         data = json.loads(request.body)
         logger.info('create_sale payload: %s', data)
         items = data.get('items', [])
-            
-            if not items:
-                logger.warning('create_sale: No items in cart')
-                return JsonResponse({'error': 'No items in cart'}, status=400)
-            
-            # First, validate all items have sufficient inventory
-            for item in items:
-                try:
-                    product = Product.objects.get(pk=item['id'])
-                    inv = product.inventory_items.first()
-                    
-                    if inv and inv.quantity < item['quantity']:
-                        logger.warning(f'create_sale: Insufficient inventory for {product.name}')
-                        return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
-                    
-                    # Validate quantity is positive
-                    if item['quantity'] <= 0:
-                        logger.warning(f'create_sale: Invalid quantity for {product.name}')
-                        return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
-                except Product.DoesNotExist:
-                    logger.error(f'create_sale: Product not found with id {item["id"]}')
-                    return JsonResponse({'error': f'Product not found (id: {item["id"]})'}, status=404)
-            
-            # All validations passed, create sale records for each item
-            for item in items:
+        
+        if not items:
+            logger.warning('create_sale: No items in cart')
+            return JsonResponse({'error': 'No items in cart'}, status=400)
+        
+        # First, validate all items have sufficient inventory
+        for item in items:
+            try:
                 product = Product.objects.get(pk=item['id'])
-                sale = Sale.objects.create(
-                    product=product,
-                    units_sold=item['quantity'],
-                    revenue=float(item['price']) * item['quantity']
-                )
-                
-                # Update inventory
                 inv = product.inventory_items.first()
-                if inv:
-                    inv.quantity -= item['quantity']
-                    inv.save()
-                    logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
+                
+                if inv and inv.quantity < item['quantity']:
+                    logger.warning(f'create_sale: Insufficient inventory for {product.name}')
+                    return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
+                
+                # Validate quantity is positive
+                if item['quantity'] <= 0:
+                    logger.warning(f'create_sale: Invalid quantity for {product.name}')
+                    return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
+            except Product.DoesNotExist:
+                logger.error(f'create_sale: Product not found with id {item["id"]}')
+                return JsonResponse({'error': f'Product not found (id: {item["id"]})'}, status=404)
+        
+        # All validations passed, create sale records for each item
+        for item in items:
+            product = Product.objects.get(pk=item['id'])
+            sale = Sale.objects.create(
+                product=product,
+                units_sold=item['quantity'],
+                revenue=float(item['price']) * item['quantity']
+            )
             
-            logger.info('create_sale: Sale recorded successfully')
-            return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
-        except json.JSONDecodeError as e:
-            logger.error('create_sale: JSON decode error: %s', str(e))
-            logger.error(f'Request body: {request.body}')
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        except Exception as e:
-            logger.error('='*60)
-            logger.error('UNHANDLED EXCEPTION in create_sale')
-            logger.error('Error: %s', str(e))
-            logger.error('Traceback:\n%s', traceback.format_exc())
-            logger.error('='*60)
-            # Return error without exposing internals in production
-            return JsonResponse({'error': f'Server error: {str(e)[:100]}'}, status=500)
-    
-    logger.warning('create_sale: Method not allowed')
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
+            # Update inventory
+            inv = product.inventory_items.first()
+            if inv:
+                inv.quantity -= item['quantity']
+                inv.save()
+                logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
+        
+        logger.info('create_sale: Sale recorded successfully')
+        return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
+    except json.JSONDecodeError as e:
+        logger.error('create_sale: JSON decode error: %s', str(e))
+        logger.error(f'Request body: {request.body}')
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error('='*60)
+        logger.error('UNHANDLED EXCEPTION in create_sale')
+        logger.error('Error: %s', str(e))
+        logger.error('Traceback:\n%s', traceback.format_exc())
+        logger.error('='*60)
+        return JsonResponse({'error': f'Server error: {str(e)[:100]}'}, status=500)
 
 
 # Owner: Approve/Reject pending cashier signups

@@ -23,6 +23,8 @@ from core.login_view import login
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
+from django.urls import re_path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -35,6 +37,12 @@ urlpatterns = [
     
 ]
 
-# Serve media files in development
+# Serve media files
+# Use re_path for media files that works in both development and production
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # In production, serve media files via re_path
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    ]
