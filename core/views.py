@@ -13,14 +13,44 @@ import logging
 import json
 import traceback
 import os
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse, HttpResponse
 from django.contrib.auth import logout as auth_logout
+import base64
 
 from .models import Product, InventoryItem, Sale
 from .forms import ProductForm, InventoryForm, SaleForm
 from .services.forecasting import moving_average_forecast
 from .auth import group_required  # new: role guard
 from django.views.decorators.http import require_http_methods
+
+@login_required
+def product_image(request, product_id):
+    """Serve product image - handles missing files gracefully"""
+    try:
+        product = get_object_or_404(Product, pk=product_id)
+        
+        if not product.image:
+            # Return a 404 so client can show placeholder
+            return HttpResponse(status=404)
+        
+        # Try to read the image file
+        try:
+            with open(product.image.path, 'rb') as f:
+                image_data = f.read()
+            
+            # Determine content type
+            import mimetypes
+            content_type = mimetypes.guess_type(product.image.name)[0] or 'image/jpeg'
+            
+            response = HttpResponse(image_data, content_type=content_type)
+            response['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
+            return response
+        except FileNotFoundError:
+            # Image record exists but file doesn't - return 404
+            return HttpResponse(status=404)
+    except Exception as e:
+        logging.error(f'Error serving product image {product_id}: {str(e)}')
+        return HttpResponse(status=500)
 
 def signup(request):
     """User registration view"""
