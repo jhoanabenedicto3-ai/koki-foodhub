@@ -190,25 +190,41 @@ def product_list(request):
 
 @group_required("Admin", "Cashier")
 def product_create(request):
+    logger = logging.getLogger(__name__)
+    
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES)
         try:
+            # Ensure media directory exists before attempting to save image
+            import os
+            from django.conf import settings
+            media_root = settings.MEDIA_ROOT
+            if not os.path.exists(media_root):
+                os.makedirs(media_root, exist_ok=True)
+                logger.info(f'Created media directory: {media_root}')
+            
             if form.is_valid():
                 product = form.save(commit=False)
                 # Ensure created_at is set
                 if not product.created_at:
                     product.created_at = timezone.now()
+                
+                # Log image upload info for debugging
+                if request.FILES.get('image'):
+                    logger.info(f'Uploading image for product: {product.name}')
+                
                 product.save()
-                messages.success(request, "Product created.")
+                messages.success(request, "Product created successfully.")
                 return redirect("product_list")
             else:
                 # Form invalid - render with errors
+                logger.warning(f'Form validation failed: {form.errors}')
                 messages.error(request, "Please correct the errors below.")
         except Exception as e:
             # Log full traceback and show friendly message instead of 500
-            logging.getLogger(__name__).error('Error in product_create: %s', str(e))
-            logging.getLogger(__name__).error('\n' + traceback.format_exc())
-            messages.error(request, "An unexpected error occurred while creating the product. Please try again and contact support if it persists.")
+            logger.error('Error in product_create: %s', str(e))
+            logger.error('Traceback:\n%s', traceback.format_exc())
+            messages.error(request, f"Error creating product: {str(e)[:100]}")
     else:
         form = ProductForm()
     return render(request, "pages/product_form.html", {"form": form, "title": "Create Product"})
