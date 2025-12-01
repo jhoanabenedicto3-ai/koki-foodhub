@@ -659,9 +659,6 @@
 
           // Generate and print receipt first
           generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
-
-          // Refresh order history from database (non-blocking)
-          loadRecentOrders().catch(err => console.error('Failed to refresh order history:', err));
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
@@ -722,8 +719,8 @@
       }
     }
 
-    // Load recent orders on page load
-    loadRecentOrders();
+    // Load recent orders on page load (commented for now - feature disabled)
+    // loadRecentOrders();
 
     // Print Report Functionality
     document.getElementById('printOrderBtn').addEventListener('click', async function() {
