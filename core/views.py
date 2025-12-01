@@ -748,12 +748,10 @@ def pending_cashier_reject(request):
     messages.success(request, f"Rejected and removed user: {username}")
     return redirect('pending_cashiers')
 
-@csrf_exempt
 @group_required("Admin", "Cashier")
+@csrf_exempt
 def create_sale(request):
     """API endpoint to create a sale transaction"""
-    from django.http import JsonResponse
-    from django.views.decorators.http import require_http_methods
     import json
     import traceback
     
