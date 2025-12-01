@@ -659,6 +659,15 @@
 
           // Generate and print receipt first
           generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
+          
+          // Refresh order history in background (after a short delay to ensure DB is updated)
+          setTimeout(() => {
+            loadRecentOrders().then(() => {
+              console.log('Order history refreshed after payment');
+            }).catch(err => {
+              console.warn('Failed to refresh order history after payment:', err);
+            });
+          }, 1000);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
@@ -682,45 +691,66 @@
     // Load recent orders from database
     async function loadRecentOrders() {
       try {
-        const response = await fetch('/sales/api/recent/');
+        const response = await fetch('/sales/api/recent/', {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
         if (!response.ok) {
-          console.error('Failed to fetch recent orders:', response.status);
-          return;
+          console.warn('Failed to fetch recent orders, status:', response.status);
+          return false;
         }
+        
         const data = await response.json();
+        
         if (data.success && data.orders && data.orders.length > 0) {
           const orderHistoryDiv = document.getElementById('orderHistory');
           let html = '';
           
           // Display up to 10 most recent orders
           data.orders.slice(0, 10).forEach(order => {
-            const dateObj = new Date(order.date);
-            const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            
-            html += `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e0e0e0; gap: 8px;">
-                <div style="flex: 1; min-width: 0;">
-                  <p style="margin: 0; font-weight: 600; color: var(--fg); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${order.product_name}</p>
-                  <p style="margin: 2px 0 0 0; font-size: 10px; color: var(--text-secondary);">${dateStr} ${timeStr}</p>
+            try {
+              const dateObj = new Date(order.date);
+              const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+              const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              
+              html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e0e0e0; gap: 8px;">
+                  <div style="flex: 1; min-width: 0;">
+                    <p style="margin: 0; font-weight: 600; color: var(--fg); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${order.product_name}</p>
+                    <p style="margin: 2px 0 0 0; font-size: 10px; color: var(--text-secondary);">${dateStr} ${timeStr}</p>
+                  </div>
+                  <div style="text-align: right; white-space: nowrap;">
+                    <p style="margin: 0; font-weight: 700; color: var(--fg); font-size: 11px;">x${order.units_sold}</p>
+                    <p style="margin: 2px 0 0 0; font-size: 10px; color: #16a34a; font-weight: 600;">₱${order.revenue.toFixed(2)}</p>
+                  </div>
                 </div>
-                <div style="text-align: right; white-space: nowrap;">
-                  <p style="margin: 0; font-weight: 700; color: var(--fg); font-size: 11px;">x${order.units_sold}</p>
-                  <p style="margin: 2px 0 0 0; font-size: 10px; color: #16a34a; font-weight: 600;">₱${order.revenue.toFixed(2)}</p>
-                </div>
-              </div>
-            `;
+              `;
+            } catch (itemErr) {
+              console.warn('Error rendering order item:', itemErr);
+            }
           });
           
-          orderHistoryDiv.innerHTML = html;
+          if (html) {
+            orderHistoryDiv.innerHTML = html;
+            console.log('Order history loaded successfully with', data.orders.length, 'orders');
+            return true;
+          }
+        } else {
+          console.warn('No orders found in response');
         }
+        return false;
       } catch (error) {
-        console.error('Error loading recent orders:', error);
+        console.warn('Error loading recent orders:', error.message);
+        return false;
       }
     }
 
-    // Load recent orders on page load (commented for now - feature disabled)
-    // loadRecentOrders();
+    // Load recent orders on page load
+    loadRecentOrders();
 
     // Print Report Functionality
     document.getElementById('printOrderBtn').addEventListener('click', async function() {
