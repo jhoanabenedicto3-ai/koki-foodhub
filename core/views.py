@@ -8,9 +8,11 @@ from django.contrib.auth import authenticate, login as auth_login
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.conf import settings
 import logging
 import json
 import traceback
+import os
 from django.http import JsonResponse
 from django.contrib.auth import logout as auth_logout
 
@@ -196,8 +198,6 @@ def product_create(request):
         form = ProductForm(request.POST, request.FILES)
         try:
             # Ensure media directory exists before attempting to save image
-            import os
-            from django.conf import settings
             media_root = settings.MEDIA_ROOT
             if not os.path.exists(media_root):
                 os.makedirs(media_root, exist_ok=True)
@@ -208,11 +208,6 @@ def product_create(request):
                 # Ensure created_at is set
                 if not product.created_at:
                     product.created_at = timezone.now()
-                
-                # Log image upload info for debugging
-                if request.FILES.get('image'):
-                    logger.info(f'Uploading image for product: {product.name}')
-                
                 product.save()
                 messages.success(request, "Product created successfully.")
                 return redirect("product_list")
