@@ -25,6 +25,23 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from django.urls import re_path
+from django.http import HttpResponse
+import os
+
+def media_file_view(request, path):
+    """Safely serve media files, return 404 if not found"""
+    media_root = str(settings.MEDIA_ROOT)
+    file_path = os.path.join(media_root, path)
+    
+    # Security check: ensure the file is within MEDIA_ROOT
+    if not os.path.abspath(file_path).startswith(os.path.abspath(media_root)):
+        return HttpResponse(status=403)
+    
+    # Try to serve the file
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return serve(request, path, document_root=media_root)
+    else:
+        return HttpResponse(status=404)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -42,18 +59,7 @@ if settings.DEBUG:
     # Development: use Django's static() helper
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 else:
-    # Production: use re_path with serve view for media files
-    # This allows media files to be served even if they don't exist yet
-    def safe_serve(request, path):
-        try:
-            return serve(request, path, document_root=str(settings.MEDIA_ROOT))
-        except:
-            # If file not found, return a placeholder response
-            from django.http import HttpResponse
-            response = HttpResponse(b'', status=404)
-            response['Content-Type'] = 'text/plain'
-            return response
-    
+    # Production: use custom view that handles missing files gracefully
     urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', safe_serve),
+        re_path(r'^media/(?P<path>.*)$', media_file_view),
     ]
