@@ -753,28 +753,38 @@ def create_sale(request):
     from django.http import JsonResponse
     from django.views.decorators.http import require_http_methods
     import json
-    logging.getLogger(__name__).info('create_sale called by user: %s, method: %s', getattr(request,'user',None), request.method)
+    import traceback
+    
+    logger = logging.getLogger(__name__)
+    logger.info('create_sale called by user: %s, method: %s', getattr(request,'user',None), request.method)
     
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            logging.getLogger(__name__).info('create_sale payload: %s', data)
+            logger.info('create_sale payload: %s', data)
             items = data.get('items', [])
             
             if not items:
+                logger.warning('create_sale: No items in cart')
                 return JsonResponse({'error': 'No items in cart'}, status=400)
             
             # First, validate all items have sufficient inventory
             for item in items:
-                product = Product.objects.get(pk=item['id'])
-                inv = product.inventory_items.first()
-                
-                if inv and inv.quantity < item['quantity']:
-                    return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
-                
-                # Validate quantity is positive
-                if item['quantity'] <= 0:
-                    return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
+                try:
+                    product = Product.objects.get(pk=item['id'])
+                    inv = product.inventory_items.first()
+                    
+                    if inv and inv.quantity < item['quantity']:
+                        logger.warning(f'create_sale: Insufficient inventory for {product.name}')
+                        return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
+                    
+                    # Validate quantity is positive
+                    if item['quantity'] <= 0:
+                        logger.warning(f'create_sale: Invalid quantity for {product.name}')
+                        return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
+                except Product.DoesNotExist:
+                    logger.error(f'create_sale: Product not found with id {item["id"]}')
+                    return JsonResponse({'error': f'Product not found (id: {item["id"]})'}, status=404)
             
             # All validations passed, create sale records for each item
             for item in items:
@@ -790,14 +800,18 @@ def create_sale(request):
                 if inv:
                     inv.quantity -= item['quantity']
                     inv.save()
+                    logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
             
+            logger.info('create_sale: Sale recorded successfully')
             return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
-        except Product.DoesNotExist:
-            return JsonResponse({'error': 'Product not found'}, status=404)
+        except json.JSONDecodeError as e:
+            logger.error('create_sale: JSON decode error: %s', str(e))
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
         except Exception as e:
-            logging.error('Error in create_sale: %s', str(e))
-            return JsonResponse({'error': str(e)}, status=400)
+            logger.error('Error in create_sale: %s\n%s', str(e), traceback.format_exc())
+            return JsonResponse({'error': f'Error: {str(e)}'}, status=500)
     
+    logger.warning('create_sale: Method not allowed')
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
