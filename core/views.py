@@ -748,19 +748,22 @@ def pending_cashier_reject(request):
     messages.success(request, f"Rejected and removed user: {username}")
     return redirect('pending_cashiers')
 
-@group_required("Admin", "Cashier")
 @csrf_exempt
+@group_required("Admin", "Cashier")
 def create_sale(request):
     """API endpoint to create a sale transaction"""
     import json
     import traceback
     
     logger = logging.getLogger(__name__)
-    logger.info('='*60)
-    logger.info('create_sale endpoint called')
-    logger.info(f'User: {request.user}')
-    logger.info(f'Method: {request.method}')
-    logger.info(f'Headers: {dict(request.headers)}')
+    
+    try:
+        logger.info('='*60)
+        logger.info('create_sale endpoint called')
+        logger.info(f'User: {request.user}')
+        logger.info(f'Method: {request.method}')
+    except Exception as log_err:
+        pass
     
     if request.method == 'POST':
         try:
