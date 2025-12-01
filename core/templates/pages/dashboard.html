@@ -657,6 +657,9 @@
           document.querySelector('input[placeholder="Customer name (Optional)"]').value = '';
           updateCart();
 
+          // Refresh order history from database
+          loadRecentOrders();
+
           // Generate and print receipt
           generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
         } else {
@@ -678,6 +681,49 @@
 
     // Initialize pagination display
     displayPage();
+
+    // Load recent orders from database
+    async function loadRecentOrders() {
+      try {
+        const response = await fetch('/sales/api/recent/');
+        if (!response.ok) {
+          console.error('Failed to fetch recent orders:', response.status);
+          return;
+        }
+        const data = await response.json();
+        if (data.success && data.orders && data.orders.length > 0) {
+          const orderHistoryDiv = document.getElementById('orderHistory');
+          let html = '';
+          
+          // Display up to 10 most recent orders
+          data.orders.slice(0, 10).forEach(order => {
+            const dateObj = new Date(order.date);
+            const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            html += `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e0e0e0; gap: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                  <p style="margin: 0; font-weight: 600; color: var(--fg); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${order.product_name}</p>
+                  <p style="margin: 2px 0 0 0; font-size: 10px; color: var(--text-secondary);">${dateStr} ${timeStr}</p>
+                </div>
+                <div style="text-align: right; white-space: nowrap;">
+                  <p style="margin: 0; font-weight: 700; color: var(--fg); font-size: 11px;">x${order.units_sold}</p>
+                  <p style="margin: 2px 0 0 0; font-size: 10px; color: #16a34a; font-weight: 600;">₱${order.revenue.toFixed(2)}</p>
+                </div>
+              </div>
+            `;
+          });
+          
+          orderHistoryDiv.innerHTML = html;
+        }
+      } catch (error) {
+        console.error('Error loading recent orders:', error);
+      }
+    }
+
+    // Load recent orders on page load
+    loadRecentOrders();
 
     // Print Report Functionality
     document.getElementById('printOrderBtn').addEventListener('click', async function() {

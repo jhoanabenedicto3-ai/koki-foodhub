@@ -22,6 +22,7 @@ urlpatterns = [
     path("sales/<int:pk>/delete/", views.sale_delete, name="sale_delete"),
     path("sales-dashboard/", views.sales_dashboard, name="sales_dashboard"),
     path("api/sales/today/", views.sales_today_api, name="api_sales_today"),
+    path("api/sales/recent/", views.recent_orders_api, name="api_recent_orders"),
     path("sales/period/", views.record_sales_period, name="record_sales_period"),
     path("api/sales/summary/", views.api_record_sales_summary, name="api_sales_summary"),
     # Forecast

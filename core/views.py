@@ -868,3 +868,31 @@ def pending_cashier_reject(request):
     user.delete()
     messages.success(request, f"Rejected and removed user: {username}")
     return redirect('pending_cashiers')
+
+@group_required("Admin", "Cashier")
+def recent_orders_api(request):
+    """Return recent sales (last 50 orders) with product details, ordered by most recent first."""
+    try:
+        # Get the 50 most recent sales, ordered by date (newest first)
+        recent_sales = Sale.objects.select_related('product').order_by('-date')[:50]
+        
+        orders = []
+        for sale in recent_sales:
+            orders.append({
+                'id': sale.id,
+                'product_name': sale.product.name,
+                'category': sale.product.category,
+                'units_sold': sale.units_sold,
+                'revenue': float(sale.revenue),
+                'date': sale.date.isoformat(),
+                'date_formatted': sale.date.strftime('%b %d, %I:%M %p')
+            })
+        
+        return JsonResponse({'success': True, 'orders': orders})
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
