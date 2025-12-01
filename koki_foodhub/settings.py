@@ -30,6 +30,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-change-me-in-production-no
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
+# Character encoding settings
+FILE_CHARSET = 'utf-8'
+DEFAULT_CHARSET = 'utf-8'
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,.onrender.com").split(",")
 
 

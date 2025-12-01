@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Sum
 from django.db.models.functions import Lower
@@ -576,7 +577,7 @@ def forecast_view(request):
         "peak_day": peak_day,
         "peak_orders": peak_orders,
         "growth_percentage": growth_percentage,
-        "currency": "₱"
+        "currency": "PHP"  # Changed from peso symbol to avoid encoding issues
     }
     return render(request, "pages/forecast.html", context)
     # Add database forecasts as fallback
