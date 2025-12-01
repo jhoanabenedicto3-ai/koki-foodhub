@@ -749,13 +749,17 @@ def pending_cashier_reject(request):
     return redirect('pending_cashiers')
 
 @csrf_exempt
-@login_required
 def create_sale(request):
     """API endpoint to create a sale transaction"""
     import json
     import traceback
     
     logger = logging.getLogger(__name__)
+    
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        logger.warning('create_sale: Unauthenticated user attempting to create sale')
+        return JsonResponse({'error': 'Authentication required'}, status=401)
     
     if request.method == 'POST':
         try:
