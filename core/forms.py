@@ -14,6 +14,11 @@ class ProductForm(forms.ModelForm):
             "size": forms.Select(attrs={"class":"input"}),
         }
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make image field explicitly optional
+        self.fields['image'].required = False
+    
     def clean_image(self):
         """Validate image upload"""
         image = self.cleaned_data.get('image')
