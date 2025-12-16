@@ -546,12 +546,18 @@ def sales_today_api(request):
 # Forecast: Admin only
 @group_required("Admin")
 def forecast_view(request):
-    from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series
-    from datetime import datetime, timedelta
     import json
+    logger = logging.getLogger(__name__)
 
-    # Get CSV-based forecasts (real data)
-    csv_data = get_csv_forecast()
+    try:
+        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series
+        csv_data = get_csv_forecast()
+        import_error = None
+    except Exception as import_error:
+        # Log the import error but continue with empty/fallback data so page renders
+        logger.exception('Forecasting import failed: %s', str(import_error))
+        csv_data = {}
+
 
     # Prepare data for template (per-product forecasts)
     data = []
@@ -593,15 +599,25 @@ def forecast_view(request):
             except Product.DoesNotExist:
                 continue
 
-    # Aggregated time series
-    daily_series = aggregate_sales('daily', lookback=60)
-    weekly_series = aggregate_sales('weekly', lookback=12)
-    monthly_series = aggregate_sales('monthly', lookback=12)
+    # Aggregated time series / forecasts - guarded in case internal errors occur
+    try:
+        daily_series = aggregate_sales('daily', lookback=60)
+        weekly_series = aggregate_sales('weekly', lookback=12)
+        monthly_series = aggregate_sales('monthly', lookback=12)
 
-    # Forecasts for each horizon
-    daily_fore = forecast_time_series(daily_series, horizon=30)
-    weekly_fore = forecast_time_series(weekly_series, horizon=12)
-    monthly_fore = forecast_time_series(monthly_series, horizon=6)
+        # Forecasts for each horizon
+        daily_fore = forecast_time_series(daily_series, horizon=30)
+        weekly_fore = forecast_time_series(weekly_series, horizon=12)
+        monthly_fore = forecast_time_series(monthly_series, horizon=6)
+        series_error = None
+    except Exception as series_exc:
+        logger.exception('Error generating time series or forecasts: %s', str(series_exc))
+        # Provide safe defaults so template still renders
+        daily_series, weekly_series, monthly_series = [], [], []
+        daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        series_error = str(series_exc)
 
     # Simple analytics
     total_forecasted_units = sum(item['forecast'] for item in data)
@@ -647,17 +663,33 @@ def forecast_view(request):
         })
     }
 
+    # If import or series generation failed, pass an error message to template so it can show a friendly alert
+    if import_error:
+        context['error_message'] = 'Forecasting functionality is currently unavailable on this instance. Check logs for details.'
+    elif series_error:
+        context['error_message'] = 'Forecast computation failed. Displaying limited results.'
+
     return render(request, "pages/forecast.html", context)
 
 
 @group_required("Admin")
 def forecast_data_api(request):
     """Return JSON with aggregated series and forecasts for daily/weekly/monthly and per-product summaries."""
-    from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
+    logger = logging.getLogger(__name__)
+    try:
+        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
+    except Exception as e:
+        logger.exception('Forecast API import failed: %s', str(e))
+        return JsonResponse({'error': 'Forecasting libraries unavailable', 'details': str(e)}, status=500)
+
     import json
 
     # Per-product CSV forecasts
-    csv_data = get_csv_forecast()
+    try:
+        csv_data = get_csv_forecast()
+    except Exception as e:
+        logger.exception('Error running get_csv_forecast: %s', str(e))
+        csv_data = {}
     products = []
     for pname, finfo in csv_data.items():
         conf = finfo.get('confidence', 0)
