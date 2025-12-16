@@ -132,11 +132,19 @@ def get_csv_forecast(csv_path=None):
         
         # Get recent history
         history = daily_sales.tail(7).values.tolist()
-        
+        # Derive accuracy label
+        if confidence >= 70:
+            accuracy = 'High'
+        elif confidence >= 40:
+            accuracy = 'Medium'
+        else:
+            accuracy = 'Low'
+
         results[product_name] = {
             'forecast': forecast,
             'trend': trend,
             'confidence': confidence,
+            'accuracy': accuracy,
             'history': history,
             'avg': float(y.mean()),
             'last_7_days': int(y[-7:].sum())
@@ -269,5 +277,70 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
     lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
 
     confidence = max(0.0, min(100.0, r2 * 100))
-    return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence}
+    # Simple accuracy label
+    if confidence >= 70:
+        accuracy = 'High'
+    elif confidence >= 40:
+        accuracy = 'Medium'
+    else:
+        accuracy = 'Low'
+
+    return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+
+
+def compute_period_overview(series):
+    """Given a time series list of (label, units) ordered chronologically,
+    return a summary dict with total (most recent), previous total, pct_change and arrow.
+    """
+    if not series:
+        return {'total': 0, 'previous': 0, 'pct_change': 0.0, 'arrow': 'same'}
+    # last value is current period
+    cur_label, cur_val = series[-1]
+    prev_val = series[-2][1] if len(series) >= 2 else 0
+    total = int(cur_val)
+    previous = int(prev_val)
+    if previous == 0:
+        pct = 100.0 if total > 0 else 0.0
+    else:
+        pct = round(((total - previous) / float(previous)) * 100.0, 2)
+    if pct > 0:
+        arrow = 'up'
+    elif pct < 0:
+        arrow = 'down'
+    else:
+        arrow = 'same'
+    return {'total': total, 'previous': previous, 'pct_change': pct, 'arrow': arrow}
+
+
+def generate_insight(period_name, series, forecast_payload):
+    """Generate a short insight string for the period based on recent trend and forecast confidence."""
+    # Basic heuristics: use last 3 points to detect trend and use forecast_payload['confidence']
+    try:
+        vals = [v for _, v in series]
+        if not vals:
+            return ''
+        recent = vals[-3:]
+        avg_recent = sum(recent) / len(recent)
+        forecast_conf = float(forecast_payload.get('confidence', 0))
+        # trend check
+        if len(vals) >= 3 and vals[-1] > vals[-2] > vals[-3]:
+            trend_text = 'increasing'
+        elif len(vals) >= 3 and vals[-1] < vals[-2] < vals[-3]:
+            trend_text = 'decreasing'
+        else:
+            trend_text = 'stable'
+
+        if trend_text == 'increasing' and forecast_conf >= 60:
+            return f"{period_name.capitalize()} sales show an increasing trend; expected to continue (confidence: {int(forecast_conf)}%)."
+        if trend_text == 'decreasing' and forecast_conf >= 60:
+            return f"{period_name.capitalize()} sales are decreasing; consider promotions (confidence: {int(forecast_conf)}%)."
+        if trend_text == 'stable' and forecast_conf >= 70:
+            return f"{period_name.capitalize()} sales are steady; no major changes expected (confidence: {int(forecast_conf)}%)."
+        # Low confidence fallback
+        if forecast_conf < 40:
+            return f"{period_name.capitalize()} forecast has low confidence ({int(forecast_conf)}%). Review recent data for anomalies."
+        # General mild insight
+        return f"{period_name.capitalize()} sales show {trend_text} behaviour (confidence: {int(forecast_conf)}%)."
+    except Exception:
+        return ''
 

@@ -8,6 +8,26 @@
     <p style="color: var(--text-secondary); margin: 0;">Predictive insights for better planning</p>
   </div>
 
+  <!-- Controls: Date range and product filter -->
+  <div style="display:flex; gap:12px; align-items:center; margin-bottom:18px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label style="font-weight:700; font-size:13px; color:var(--text-secondary);">From</label>
+      <input id="startDate" type="date" style="padding:8px; border:1px solid var(--border); border-radius:6px;" />
+      <label style="font-weight:700; font-size:13px; color:var(--text-secondary);">To</label>
+      <input id="endDate" type="date" style="padding:8px; border:1px solid var(--border); border-radius:6px;" />
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label style="font-weight:700; font-size:13px; color:var(--text-secondary);">Product</label>
+      <select id="productFilter" style="padding:8px; border:1px solid var(--border); border-radius:6px; min-width:180px;">
+        <option value="">All products</option>
+      </select>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <button id="applyFilters" class="btn">Apply</button>
+      <button id="clearFilters" class="btn btn-ghost">Clear</button>
+    </div>
+  </div>
+
   {% if error_message %}
     <div style="margin-bottom: 16px; padding: 12px 16px; background: #fff3f2; border: 1px solid #fcd5d5; color:#7f1d1d; border-radius:8px;">
       <strong>Note:</strong> {{ error_message }}
@@ -15,7 +35,51 @@
   {% endif %}
 
   {% if data %}
-    <!-- Sales Prediction Chart -->
+    <!-- Sales Overview & Prediction Chart -->
+    <!-- Sales Overview Cards -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:18px;">
+      <div class="overview-card" style="background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewDailyTotal">—</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewDailyPct">—</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <div style="background:#fef3c7; color:#92400e; padding:6px 10px; border-radius:8px; font-weight:700;">Predicted</div>
+            <div id="overviewDailyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="overview-card" style="background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewWeeklyTotal">—</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewWeeklyPct">—</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <div style="background:#fff3f2; color:#7f1d1d; padding:6px 10px; border-radius:8px; font-weight:700;">Forecasted</div>
+            <div id="overviewWeeklyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="overview-card" style="background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewMonthlyTotal">—</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewMonthlyPct">—</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <div style="background:#fef3c7; color:#92400e; padding:6px 10px; border-radius:8px; font-weight:700;">Predicted</div>
+            <div id="overviewMonthlyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 32px;">
       <h2 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 700; color: var(--fg);">📊 Sales Prediction (Next 8 Weeks)</h2>
       
@@ -24,20 +88,35 @@
           <div style="display:flex; gap:12px; align-items:center;">
             <h3 style="margin:0; font-size:16px; font-weight:700;">📊 Sales Prediction</h3>
             <div style="display:flex; gap:6px; margin-left:12px;">
-              <button id="btnDaily" class="btn btn-ghost" style="font-weight:700;">Daily</button>
-              <button id="btnWeekly" class="btn btn-ghost btn-active" style="font-weight:700;">Weekly</button>
-              <button id="btnMonthly" class="btn btn-ghost" style="font-weight:700;">Monthly</button>
+              <button id="btnDaily" class="btn btn-ghost" style="font-weight:700;" aria-label="Daily view">Daily</button>
+              <button id="btnWeekly" class="btn btn-ghost btn-active" style="font-weight:700;" aria-label="Weekly view">Weekly</button>
+              <button id="btnMonthly" class="btn btn-ghost" style="font-weight:700;" aria-label="Monthly view">Monthly</button>
             </div>
           </div>
           <div style="display:flex; gap:8px;">
-            <button id="refreshForecastBtn" class="btn">🔄 Refresh</button>
+            <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts">🔄 Refresh</button>
             <span id="forecastStatus" style="color:var(--text-secondary); font-size:13px;"></span>
           </div>
         </div>
         <div style="position:relative; height:360px;">
-          <canvas id="salesChart" style="height:100%; width:100%;"></canvas>
+          <canvas id="salesChart" style="height:100%; width:100%;" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
         </div>
       </div>
+
+        <!-- Forecast-only chart (shows predicted future values) -->
+        <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; box-shadow:var(--shadow-sm); margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="margin:0; font-size:16px; font-weight:700;">🔮 Forecast (Future)</h3>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button id="fcDaily" class="btn btn-ghost">Daily</button>
+              <button id="fcWeekly" class="btn btn-ghost btn-active">Weekly</button>
+              <button id="fcMonthly" class="btn btn-ghost">Monthly</button>
+            </div>
+          </div>
+          <div style="height:260px; position:relative;">
+            <canvas id="forecastChart" style="height:100%; width:100%;" role="img" aria-label="Forecast-only chart showing predicted future values"></canvas>
+          </div>
+        </div>
 
       <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -186,12 +265,112 @@
         chartObj.update();
       }
 
+      // Render forecast-only chart (future predictions with bounds)
+      function renderForecastChart(canvasId, data, label) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const horizon = data.forecast.length || 0;
+        const labels = Array.from({length: horizon}, (_, i) => 'F+' + (i+1));
+
+        const dsForecast = {
+          label: label + ' Forecast',
+          data: data.forecast,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.06)',
+          borderWidth: 3,
+          fill: false,
+          tension: 0.3,
+        };
+
+        const dsUpper = {
+          label: 'Upper Bound',
+          data: data.upper,
+          borderColor: 'rgba(254,202,202,0.9)',
+          backgroundColor: 'rgba(254,202,202,0.08)',
+          pointRadius: 0,
+          borderWidth: 1,
+          fill: '-1'
+        };
+
+        const dsLower = {
+          label: 'Lower Bound',
+          data: data.lower,
+          borderColor: 'rgba(254,202,202,0.9)',
+          backgroundColor: 'rgba(254,202,202,0.08)',
+          pointRadius: 0,
+          borderWidth: 1,
+          fill: '-1'
+        };
+
+        return new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [dsForecast, dsUpper, dsLower]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { tooltip: { mode: 'index', intersect: false } },
+            scales: { y: { beginAtZero: true }, x: { display: true } },
+            animations: { tension: { duration: 700 } }
+          }
+        });
+      }
+
+      function setConfBadge(elId, pct){
+        const el = document.getElementById(elId);
+        if(!el) return;
+        const conf = Math.round(pct || 0);
+        let cls = 'conf-low';
+        let text = 'Low';
+        if(conf >= 70){ cls = 'conf-high'; text = 'High'; }
+        else if(conf >= 40){ cls = 'conf-medium'; text = 'Medium'; }
+        el.innerHTML = `<span class="conf-badge ${cls}">${text}</span> ${conf}%`;
+      }
+
+      // Forecast chart reference
+      window.forecastChart = renderForecastChart('forecastChart', weekly, 'Weekly');
+
+      function setForecastActive(view){
+        document.getElementById('fcDaily').classList.toggle('btn-active', view === 'daily');
+        document.getElementById('fcWeekly').classList.toggle('btn-active', view === 'weekly');
+        document.getElementById('fcMonthly').classList.toggle('btn-active', view === 'monthly');
+      }
+
+      document.getElementById('fcDaily').addEventListener('click', function(){ setForecastActive('daily'); updateForecastChart('daily'); });
+      document.getElementById('fcWeekly').addEventListener('click', function(){ setForecastActive('weekly'); updateForecastChart('weekly'); });
+      document.getElementById('fcMonthly').addEventListener('click', function(){ setForecastActive('monthly'); updateForecastChart('monthly'); });
+
+      function updateForecastChart(view){
+        const mapping = { 'daily': daily, 'weekly': weekly, 'monthly': monthly };
+        const data = mapping[view] || weekly;
+        // rebuild the chart data
+        if(window.forecastChart){
+          window.forecastChart.data.labels = Array.from({length: data.forecast.length}, (_, i) => 'F+' + (i+1));
+          window.forecastChart.data.datasets[0].data = data.forecast;
+          window.forecastChart.data.datasets[1].data = data.upper;
+          window.forecastChart.data.datasets[2].data = data.lower;
+          window.forecastChart.update();
+        } else {
+          window.forecastChart = renderForecastChart('forecastChart', data, view.charAt(0).toUpperCase() + view.slice(1));
+        }
+      }
+
       // Fetch API to refresh the charts
       async function refreshForecast() {
         const statusEl = document.getElementById('forecastStatus');
         try {
           statusEl.textContent = 'Updating...';
-          const res = await fetch('{% url "forecast_api" %}');
+          // Build query params from filters
+          const params = new URLSearchParams();
+          const start = document.getElementById('startDate').value;
+          const end = document.getElementById('endDate').value;
+          const product = document.getElementById('productFilter').value;
+          if(start) params.set('start', start);
+          if(end) params.set('end', end);
+          if(product) params.set('product', product);
+          const url = '{% url "forecast_api" %}' + (params.toString() ? ('?' + params.toString()) : '');
+          const res = await fetch(url);
           if (!res.ok) throw new Error('Network response not ok');
           const json = await res.json();
           // dump json to debug panel
@@ -201,6 +380,23 @@
           document.getElementById('dailyCount').textContent = json.daily.labels.length || 0;
           document.getElementById('weeklyCount').textContent = json.weekly.labels.length || 0;
           document.getElementById('monthlyCount').textContent = json.monthly.labels.length || 0;
+
+          // Update overview cards
+          if(json.summary){
+            const s = json.summary;
+            const d = s.daily || {};
+            const w = s.weekly || {};
+            const m = s.monthly || {};
+            document.getElementById('overviewDailyTotal').textContent = d.total || 0;
+            document.getElementById('overviewDailyPct').textContent = ((d.pct_change || 0) + '% ' + (d.arrow === 'up' ? '↑' : d.arrow === 'down' ? '↓' : '')).replace('NaN%','0%');
+            setConfBadge('overviewDailyConf', json.daily.confidence || 0);
+            document.getElementById('overviewWeeklyTotal').textContent = w.total || 0;
+            document.getElementById('overviewWeeklyPct').textContent = ((w.pct_change || 0) + '% ' + (w.arrow === 'up' ? '↑' : w.arrow === 'down' ? '↓' : '')).replace('NaN%','0%');
+            setConfBadge('overviewWeeklyConf', json.weekly.confidence || 0);
+            document.getElementById('overviewMonthlyTotal').textContent = m.total || 0;
+            document.getElementById('overviewMonthlyPct').textContent = ((m.pct_change || 0) + '% ' + (m.arrow === 'up' ? '↑' : m.arrow === 'down' ? '↓' : '')).replace('NaN%','0%');
+            setConfBadge('overviewMonthlyConf', json.monthly.confidence || 0);
+          }
 
           // If no data, show message over charts
           function showEmptyNotice(id, msg){
@@ -238,6 +434,37 @@
           updateChart(window.dailyChart, json.daily);
           updateChart(window.weeklyChart, json.weekly);
           updateChart(window.monthlyChart, json.monthly);
+          // Update forecast-only chart too
+          updateForecastChart(window.currentView);
+
+          // display AI insights if present
+          const insightsEl = document.getElementById('aiInsights');
+          if(insightsEl){
+            insightsEl.innerHTML = '';
+            (json.ai_insights || []).forEach(function(ins){
+              const p = document.createElement('div');
+              p.textContent = ins;
+              p.style.padding = '8px 0';
+              p.style.color = 'var(--text-secondary)';
+              insightsEl.appendChild(p);
+            });
+          }
+
+          // populate product filter options from API products
+          const pf = document.getElementById('productFilter');
+          if(pf && json.products){
+            // preserve selected
+            const selected = pf.value || '';
+            // clear non-empty options (except the first 'All products')
+            Array.from(pf.querySelectorAll('option')).forEach((opt, i)=>{ if(i>0) opt.remove(); });
+            json.products.forEach(function(p){
+              const opt = document.createElement('option');
+              opt.value = p.product;
+              opt.textContent = p.product + ' (' + (p.last_7_days || 0) + ')';
+              pf.appendChild(opt);
+            });
+            if(selected) pf.value = selected;
+          }
           statusEl.textContent = 'Updated just now';
         } catch (e) {
           console.error('refresh error', e);
@@ -248,6 +475,9 @@
       }
 
       document.getElementById('refreshForecastBtn').addEventListener('click', refreshForecast);
+
+      document.getElementById('applyFilters').addEventListener('click', function(){ refreshForecast(); });
+      document.getElementById('clearFilters').addEventListener('click', function(){ document.getElementById('startDate').value=''; document.getElementById('endDate').value=''; document.getElementById('productFilter').value=''; refreshForecast(); });
 
       // Auto-refresh after load
       window.addEventListener('load', function(){ setTimeout(refreshForecast, 600); });
@@ -311,6 +541,9 @@
 
     <div id="forecastDebug" style="display:none; background:#0f172a; color:#fff; padding:12px; border-radius:8px; font-family:monospace; white-space:pre-wrap; max-height:240px; overflow:auto;"></div>
 
+    <!-- AI Insights area -->
+    <div id="aiInsights" style="background:#fff; padding:12px; margin-top:16px; border-radius:8px; border:1px solid var(--border); box-shadow:var(--shadow-sm);"></div>
+
     <!-- Product Forecast Cards with Pagination -->
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -318,9 +551,9 @@
       </div>
 
       <!-- Forecast Grid Container -->
-      <div class="forecast-container" id="forecastContainer">
+      <div class="forecast-container" id="forecastContainer" role="list" aria-label="Product forecasts">
         {% for row in data %}
-          <div class="forecast-card" data-product-id="{{ forloop.counter }}">
+          <div class="forecast-card" data-product-id="{{ forloop.counter }}" role="listitem" aria-label="Forecast for {{ row.product }}">
             <div class="forecast-header">
               <div>
                 <h3 style="margin: 0 0 4px 0; font-size: 16px; text-transform: capitalize;">{{ row.product }}</h3>
@@ -328,6 +561,7 @@
               </div>
               {% if row.is_csv %}
                 <span class="trend-badge trend-{{ row.trend }}">{{ row.trend|upper }}</span>
+                <span style="margin-left:8px; padding:4px 8px; border-radius:8px; font-weight:700; font-size:11px;" class="conf-{{ row.accuracy|default:'low'|lower }}">{{ row.accuracy|default:'Low' }}</span>
               {% endif %}
             </div>
 
@@ -520,6 +754,10 @@
           grid-template-columns: 1fr;
         }
       }
+      .conf-badge{ padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; display:inline-block; }
+      .conf-high{ background:#dcfce7; color:#065f46; }
+      .conf-medium{ background:#fffbeb; color:#92400e; }
+      .conf-low{ background:#fee2e2; color:#991b1b; }
     </style>
 
     <script>

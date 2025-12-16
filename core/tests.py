@@ -50,3 +50,25 @@ class Seed(TestCase):
         # API should indicate the data source
         self.assertIn('data_source', data)
         self.assertIn(data['data_source'], ('csv','db','unknown'))
+        # New: summary and AI insights present
+        self.assertIn('summary', data)
+        self.assertIn('daily', data['summary'])
+        self.assertIn('weekly', data['summary'])
+        self.assertIn('monthly', data['summary'])
+        self.assertIn('ai_insights', data)
+        self.assertIsInstance(data['ai_insights'], list)
+
+    def test_forecast_api_filters(self):
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin3', 'a3@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+        # Use start date equal to today so daily series should include today's label if present
+        from datetime import date
+        today = date.today().isoformat()
+        resp = c.get(f'/forecast/api/?start={today}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('daily', data)

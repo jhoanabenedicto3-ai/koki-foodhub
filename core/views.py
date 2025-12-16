@@ -753,6 +753,7 @@ def forecast_data_api(request):
             'avg': float(finfo.get('avg', 0)),
             'trend': finfo.get('trend', 'stable'),
             'confidence': conf,
+            'accuracy': finfo.get('accuracy', '') or ( 'High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low' ),
             'last_7_days': int(finfo.get('last_7_days', 0))
         })
 
@@ -772,21 +773,78 @@ def forecast_data_api(request):
         weekly_series = aggregate_sales('weekly', lookback=12)
         monthly_series = aggregate_sales('monthly', lookback=12)
 
+    # Optional filters from query params: start (YYYY-MM-DD), end (YYYY-MM-DD), product
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+    product_filter = request.GET.get('product')
+
+    def filter_series_by_range(series, granularity):
+        if not series or not (start or end):
+            return series
+        out = []
+        for label, val in series:
+            try:
+                if granularity == 'monthly':
+                    # label like 'YYYY-MM'
+                    lab_key = label
+                    if start:
+                        if lab_key < start[:7]:
+                            continue
+                    if end:
+                        if lab_key > end[:7]:
+                            continue
+                else:
+                    # daily/weekly ISO date
+                    lab_date = label
+                    if start and lab_date < start:
+                        continue
+                    if end and lab_date > end:
+                        continue
+                out.append((label, val))
+            except Exception:
+                continue
+        return out
+
+    daily_series = filter_series_by_range(daily_series, 'daily')
+    weekly_series = filter_series_by_range(weekly_series, 'weekly')
+    monthly_series = filter_series_by_range(monthly_series, 'monthly')
+
+    if product_filter:
+        products = [p for p in products if p.get('product') == product_filter]
+
     daily_fore = forecast_time_series(daily_series, horizon=30)
     weekly_fore = forecast_time_series(weekly_series, horizon=12)
     monthly_fore = forecast_time_series(monthly_series, horizon=6)
 
     try:
+        from .services.forecasting import compute_period_overview, generate_insight
+
+        # Build summary for overview cards and AI insights
+        daily_summary = compute_period_overview(daily_series)
+        weekly_summary = compute_period_overview(weekly_series)
+        monthly_summary = compute_period_overview(monthly_series)
+
+        daily_insight = generate_insight('daily', daily_series, daily_fore)
+        weekly_insight = generate_insight('weekly', weekly_series, weekly_fore)
+        monthly_insight = generate_insight('monthly', monthly_series, monthly_fore)
+
         payload = {
             'products': products,
             'data_source': 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db',
+            'summary': {
+                'daily': daily_summary,
+                'weekly': weekly_summary,
+                'monthly': monthly_summary
+            },
+            'ai_insights': [ins for ins in (daily_insight, weekly_insight, monthly_insight) if ins],
             'daily': {
                 'labels': [d for d, _ in daily_series],
                 'actual': [v for _, v in daily_series],
                 'forecast': daily_fore['forecast'],
                 'upper': daily_fore['upper'],
                 'lower': daily_fore['lower'],
-                'confidence': daily_fore['confidence']
+                'confidence': daily_fore['confidence'],
+                'accuracy': daily_fore.get('accuracy', '')
             },
             'weekly': {
                 'labels': [d for d, _ in weekly_series],
@@ -794,7 +852,8 @@ def forecast_data_api(request):
                 'forecast': weekly_fore['forecast'],
                 'upper': weekly_fore['upper'],
                 'lower': weekly_fore['lower'],
-                'confidence': weekly_fore['confidence']
+                'confidence': weekly_fore['confidence'],
+                'accuracy': weekly_fore.get('accuracy', '')
             },
             'monthly': {
                 'labels': [d for d, _ in monthly_series],
@@ -802,7 +861,8 @@ def forecast_data_api(request):
                 'forecast': monthly_fore['forecast'],
                 'upper': monthly_fore['upper'],
                 'lower': monthly_fore['lower'],
-                'confidence': monthly_fore['confidence']
+                'confidence': monthly_fore['confidence'],
+                'accuracy': monthly_fore.get('accuracy', '')
             }
         }
         return JsonResponse(payload)
