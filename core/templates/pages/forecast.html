@@ -13,7 +13,16 @@
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 32px;">
       <h2 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 700; color: var(--fg);">📊 Sales Prediction (Next 8 Weeks)</h2>
       
-      <div style="position: relative; height: 400px; margin-bottom: 20px;">
+      <div style="position: relative; height: 400px; margin-bottom: 20px;" data-insert-charts>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <h3 style="margin:0; font-size:16px; font-weight:700;">📊 Sales Prediction (Next Weeks)</h3>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="refreshForecastBtn" class="btn">🔄 Refresh</button>
+            <span id="forecastStatus" style="color:var(--text-secondary); font-size:13px;"></span>
+          </div>
+        </div>
         <canvas id="salesChart"></canvas>
       </div>
 
@@ -39,133 +48,158 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-      // Generate 8-week forecast data
-      const weeks = [];
-      const actualData = [];
-      const predictedData = [];
-      const upperBound = [];
-      const lowerBound = [];
-      
-      const baseValue = {{ total_forecast }};
-      const variance = baseValue * 0.15; // 15% variance
-      
-      for (let i = 1; i <= 8; i++) {
-        weeks.push('Week ' + i);
-        
-        // Simulate actual data with some randomness
-        const actual = baseValue + (Math.random() - 0.5) * baseValue * 0.2;
-        actualData.push(Math.round(actual));
-        
-        // Predicted trend (slight upward trend)
-        const predicted = baseValue + (i * baseValue * 0.02) + (Math.random() - 0.5) * baseValue * 0.1;
-        predictedData.push(Math.round(predicted));
-        
-        // Bounds
-        upperBound.push(Math.round(predicted + variance));
-        lowerBound.push(Math.round(predicted - variance));
-      }
+      // Parse server-provided JSON data for charts
+      const daily = JSON.parse('{{ daily_json|escapejs }}');
+      const weekly = JSON.parse('{{ weekly_json|escapejs }}');
+      const monthly = JSON.parse('{{ monthly_json|escapejs }}');
 
-      const ctx = document.getElementById('salesChart').getContext('2d');
-      const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: weeks,
-          datasets: [
-            {
-              label: 'Actual Sales',
-              data: actualData,
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.05)',
-              borderWidth: 3,
-              fill: true,
-              tension: 0.4,
-              pointRadius: 5,
-              pointBackgroundColor: '#10b981',
-              pointBorderColor: '#fff',
-              pointBorderWidth: 2,
-              pointHoverRadius: 7
-            },
-            {
-              label: 'Predicted Sales',
-              data: predictedData,
-              borderColor: '#f59e0b',
-              backgroundColor: 'rgba(245, 158, 11, 0.05)',
-              borderWidth: 3,
-              borderDash: [5, 5],
-              fill: false,
-              tension: 0.4,
-              pointRadius: 5,
-              pointBackgroundColor: '#f59e0b',
-              pointBorderColor: '#fff',
-              pointBorderWidth: 2,
-              pointHoverRadius: 7
-            },
-            {
-              label: 'Upper Bound',
-              data: upperBound,
-              borderColor: '#fecaca',
-              backgroundColor: 'rgba(254, 202, 202, 0.1)',
-              borderWidth: 1,
-              fill: false,
-              tension: 0.4,
-              pointRadius: 0,
-              borderDash: [2, 2]
-            },
-            {
-              label: 'Lower Bound',
-              data: lowerBound,
-              borderColor: '#fecaca',
-              backgroundColor: 'rgba(254, 202, 202, 0.1)',
-              borderWidth: 1,
-              fill: '-1',
-              tension: 0.4,
-              pointRadius: 0,
-              borderDash: [2, 2]
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              padding: 12,
-              titleFont: { size: 14, weight: 'bold' },
-              bodyFont: { size: 13 },
-              borderColor: '#ddd',
-              borderWidth: 1,
-              usePointStyle: true
-            }
+      function renderAreaChart(canvasId, data, label) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const labels = data.labels.slice();
+        // Prepare combined arrays: extend labels for forecast horizon
+        const forecastLabels = labels.concat(Array.from({length: data.forecast.length}, (_, i) => 'F+' + (i+1)));
+
+        const actualExtended = data.actual.slice();
+        // Pad actual with nulls for forecast region so Chart.js shows forecast as separate series
+        const actualPadded = actualExtended.concat(Array(data.forecast.length).fill(null));
+
+        const forecastPadding = Array(labels.length).fill(null).concat(data.forecast);
+        const upperPadding = Array(labels.length).fill(null).concat(data.upper);
+        const lowerPadding = Array(labels.length).fill(null).concat(data.lower);
+
+        return new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: forecastLabels,
+            datasets: [
+              {
+                label: 'Actual',
+                data: actualPadded,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3
+              },
+              {
+                label: 'Forecast',
+                data: forecastPadding,
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.06)',
+                fill: false,
+                borderDash: [5,4],
+                tension: 0.3,
+                pointRadius: 3
+              },
+              {
+                label: 'Upper',
+                data: upperPadding,
+                borderColor: 'rgba(254,202,202,0.9)',
+                backgroundColor: 'rgba(254,202,202,0.08)',
+                fill: '-1',
+                pointRadius: 0,
+                borderWidth: 1
+              },
+              {
+                label: 'Lower',
+                data: lowerPadding,
+                borderColor: 'rgba(254,202,202,0.9)',
+                backgroundColor: 'rgba(254,202,202,0.08)',
+                fill: '-1',
+                pointRadius: 0,
+                borderWidth: 1
+              }
+            ]
           },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: {
-                color: 'rgba(0, 0, 0, 0.05)',
-                drawBorder: false
-              },
-              ticks: {
-                color: 'rgba(0, 0, 0, 0.5)',
-                font: { size: 12 }
-              }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              tooltip: { mode: 'index', intersect: false }
             },
-            x: {
-              grid: {
-                display: false,
-                drawBorder: false
-              },
-              ticks: {
-                color: 'rgba(0, 0, 0, 0.5)',
-                font: { size: 12 }
-              }
+            scales: {
+              y: { beginAtZero: true },
+              x: { display: true }
             }
           }
+        });
+      }
+
+      // Render three charts and keep references for updates
+      window.weeklyChart = renderAreaChart('salesChart', weekly, 'Weekly Sales');
+      window.dailyChart = null;
+      window.monthlyChart = null;
+      // create additional canvas elements for daily and monthly charts
+      // insert them before analytics cards
+      (function(){
+        const container = document.querySelector('[data-insert-charts]');
+        if(container){
+          const html = `
+            <div style="display:grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;">
+              <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;">
+                <h3 style="margin:0 0 12px 0; font-size:14px; font-weight:700;">Daily Sales (Last ${daily.labels.length} days)</h3>
+                <div style="height:300px;"><canvas id="dailyChart"></canvas></div>
+              </div>
+              <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;">
+                <h3 style="margin:0 0 12px 0; font-size:14px; font-weight:700;">Monthly Sales (Last ${monthly.labels.length} months)</h3>
+                <div style="height:300px;"><canvas id="monthlyChart"></canvas></div>
+              </div>
+            </div>
+          `;
+          container.insertAdjacentHTML('beforebegin', html);
+          window.dailyChart = renderAreaChart('dailyChart', daily, 'Daily Sales');
+          window.monthlyChart = renderAreaChart('monthlyChart', monthly, 'Monthly Sales');
         }
-      });
+      })();
+
+      // Helper to update existing Chart.js chart with new data
+      function updateChart(chartObj, newData) {
+        if(!chartObj) return;
+        const labels = newData.labels.slice();
+        const paddedLabels = labels.concat(Array.from({length: newData.forecast.length}, (_, i) => 'F+' + (i+1)));
+        chartObj.data.labels = paddedLabels;
+
+        // Actual padded
+        const actualPadded = newData.actual.concat(Array(newData.forecast.length).fill(null));
+        chartObj.data.datasets[0].data = actualPadded;
+
+        // Forecast padded
+        const forecastPadded = Array(newData.actual.length).fill(null).concat(newData.forecast);
+        chartObj.data.datasets[1].data = forecastPadded;
+
+        // Upper / Lower
+        chartObj.data.datasets[2].data = Array(newData.actual.length).fill(null).concat(newData.upper);
+        chartObj.data.datasets[3].data = Array(newData.actual.length).fill(null).concat(newData.lower);
+
+        chartObj.update();
+      }
+
+      // Fetch API to refresh the charts
+      async function refreshForecast() {
+        const statusEl = document.getElementById('forecastStatus');
+        try {
+          statusEl.textContent = 'Updating...';
+          const res = await fetch('{% url "forecast_api" %}');
+          if (!res.ok) throw new Error('Network response not ok');
+          const json = await res.json();
+          updateChart(window.dailyChart, json.daily);
+          updateChart(window.weeklyChart, json.weekly);
+          updateChart(window.monthlyChart, json.monthly);
+          statusEl.textContent = 'Updated just now';
+        } catch (e) {
+          console.error('refresh error', e);
+          statusEl.textContent = 'Update failed';
+        } finally {
+          setTimeout(()=>{ if(statusEl.textContent === 'Update failed' || statusEl.textContent === 'Updated just now') statusEl.textContent = ''; }, 2500);
+        }
+      }
+
+      document.getElementById('refreshForecastBtn').addEventListener('click', refreshForecast);
+
+      // Auto-refresh after load
+      window.addEventListener('load', function(){ setTimeout(refreshForecast, 600); });
+        }
+      })();
     </script>
 
     <!-- Analytics Cards -->

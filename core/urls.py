@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/sales/summary/", views.api_record_sales_summary, name="api_sales_summary"),
     # Forecast
     path("forecast/", views.forecast_view, name="forecast"),
+    path("forecast/api/", views.forecast_data_api, name="forecast_api"),
     # User management (avoid colliding with Django admin URL prefix)
     path("users/manage/", views.admin_user_list, name="admin_user_list"),
     path("users/manage/toggle/", views.admin_toggle_group, name="admin_toggle_group"),

@@ -546,53 +546,72 @@ def sales_today_api(request):
 # Forecast: Admin only
 @group_required("Admin")
 def forecast_view(request):
-    from .services.forecasting import get_csv_forecast
+    from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series
     from datetime import datetime, timedelta
-    
+    import json
+
     # Get CSV-based forecasts (real data)
     csv_data = get_csv_forecast()
-    
-    # Get database forecasts
-    db_results = moving_average_forecast(window=3)
-    db_forecasts = db_results.get('db_forecasts', {})
-    
-    # Prepare data for template
+
+    # Prepare data for template (per-product forecasts)
     data = []
-    
-    # Add CSV forecasts
     for product_name, forecast_info in csv_data.items():
-        # Ensure confidence is a percentage (0-100)
-        confidence = forecast_info['confidence']
-        if confidence < 1:  # If it's still in decimal format (0-1), convert to percentage
+        confidence = forecast_info.get('confidence', 0)
+        if confidence < 1:  # convert if accidentally in 0-1
             confidence = confidence * 100
-        
+
         data.append({
             "product": product_name,
-            "forecast": forecast_info['forecast'],
-            "avg": forecast_info['avg'],
-            "trend": forecast_info['trend'],
+            "forecast": int(forecast_info.get('forecast', 0)),
+            "avg": float(forecast_info.get('avg', 0)),
+            "trend": forecast_info.get('trend', 'stable'),
             "confidence": confidence,
-            "history": forecast_info['history'],
-            "last_7_days": forecast_info['last_7_days'],
+            "history": forecast_info.get('history', []),
+            "last_7_days": int(forecast_info.get('last_7_days', 0)),
             "source": "Real Data (CSV)",
             "is_csv": True
         })
-    
-    # Calculate analytics
+
+    # Add fallback DB forecasts (if CSV empty)
+    if not data:
+        db_results = moving_average_forecast(window=3)
+        db_forecasts = db_results.get('db_forecasts', {})
+        for pid, r in db_forecasts.items():
+            try:
+                product = Product.objects.get(pk=pid)
+                data.append({
+                    "product": product.name,
+                    "forecast": int(r.get('forecast', 0)),
+                    "avg": float(r.get('avg', 0)),
+                    "trend": "unknown",
+                    "confidence": 0,
+                    "history": r.get('history', []),
+                    "last_7_days": sum([u for _, u in r.get('history', [])[-7:]]),
+                    "source": "Database",
+                    "is_csv": False
+                })
+            except Product.DoesNotExist:
+                continue
+
+    # Aggregated time series
+    daily_series = aggregate_sales('daily', lookback=60)
+    weekly_series = aggregate_sales('weekly', lookback=12)
+    monthly_series = aggregate_sales('monthly', lookback=12)
+
+    # Forecasts for each horizon
+    daily_fore = forecast_time_series(daily_series, horizon=30)
+    weekly_fore = forecast_time_series(weekly_series, horizon=12)
+    monthly_fore = forecast_time_series(monthly_series, horizon=6)
+
+    # Simple analytics
     total_forecasted_units = sum(item['forecast'] for item in data)
     avg_confidence = sum(item['confidence'] for item in data) / len(data) if data else 0
-    
-    # Calculate next week forecast (7 days)
     next_week_forecast = total_forecasted_units * 7
-    
-    # Determine peak day (Saturday is typically busier)
     peak_day = "Saturday"
-    peak_orders = int(total_forecasted_units * 1.2)  # 20% increase on peak day
-    
-    # Calculate week-over-week growth
+    peak_orders = int(total_forecasted_units * 1.2)
     last_week_total = sum(item['last_7_days'] for item in data)
     growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
-    
+
     context = {
         "data": data,
         "total_forecast": next_week_forecast,
@@ -600,27 +619,96 @@ def forecast_view(request):
         "peak_day": peak_day,
         "peak_orders": peak_orders,
         "growth_percentage": growth_percentage,
-        "currency": "PHP"  # Changed from peso symbol to avoid encoding issues
+        "currency": "PHP",
+        # JSON for charts
+        "daily_json": json.dumps({
+            'labels': [d for d, _ in daily_series],
+            'actual': [v for _, v in daily_series],
+            'forecast': daily_fore['forecast'],
+            'upper': daily_fore['upper'],
+            'lower': daily_fore['lower'],
+            'confidence': daily_fore['confidence']
+        }),
+        "weekly_json": json.dumps({
+            'labels': [d for d, _ in weekly_series],
+            'actual': [v for _, v in weekly_series],
+            'forecast': weekly_fore['forecast'],
+            'upper': weekly_fore['upper'],
+            'lower': weekly_fore['lower'],
+            'confidence': weekly_fore['confidence']
+        }),
+        "monthly_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series],
+            'forecast': monthly_fore['forecast'],
+            'upper': monthly_fore['upper'],
+            'lower': monthly_fore['lower'],
+            'confidence': monthly_fore['confidence']
+        })
     }
+
     return render(request, "pages/forecast.html", context)
-    # Add database forecasts as fallback
-    for pid, r in db_forecasts.items():
-        try:
-            product = Product.objects.get(pk=pid)
-            data.append({
-                "product": product.name,
-                "forecast": r["forecast"],
-                "avg": r["avg"],
-                "trend": "unknown",
-                "confidence": 0,
-                "history": r["history"],
-                "last_7_days": sum([u for _, u in r["history"][-7:]]),
-                "source": "Database",
-                "is_csv": False
-            })
-        except Product.DoesNotExist:
-            pass
-    return render(request, "pages/forecast.html", {"data": data})
+
+
+@group_required("Admin")
+def forecast_data_api(request):
+    """Return JSON with aggregated series and forecasts for daily/weekly/monthly and per-product summaries."""
+    from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
+    import json
+
+    # Per-product CSV forecasts
+    csv_data = get_csv_forecast()
+    products = []
+    for pname, finfo in csv_data.items():
+        conf = finfo.get('confidence', 0)
+        if conf < 1:
+            conf = conf * 100
+        products.append({
+            'product': pname,
+            'forecast': int(finfo.get('forecast', 0)),
+            'avg': float(finfo.get('avg', 0)),
+            'trend': finfo.get('trend', 'stable'),
+            'confidence': conf,
+            'last_7_days': int(finfo.get('last_7_days', 0))
+        })
+
+    # Aggregated series
+    daily_series = aggregate_sales('daily', lookback=60)
+    weekly_series = aggregate_sales('weekly', lookback=12)
+    monthly_series = aggregate_sales('monthly', lookback=12)
+
+    daily_fore = forecast_time_series(daily_series, horizon=30)
+    weekly_fore = forecast_time_series(weekly_series, horizon=12)
+    monthly_fore = forecast_time_series(monthly_series, horizon=6)
+
+    payload = {
+        'products': products,
+        'daily': {
+            'labels': [d for d, _ in daily_series],
+            'actual': [v for _, v in daily_series],
+            'forecast': daily_fore['forecast'],
+            'upper': daily_fore['upper'],
+            'lower': daily_fore['lower'],
+            'confidence': daily_fore['confidence']
+        },
+        'weekly': {
+            'labels': [d for d, _ in weekly_series],
+            'actual': [v for _, v in weekly_series],
+            'forecast': weekly_fore['forecast'],
+            'upper': weekly_fore['upper'],
+            'lower': weekly_fore['lower'],
+            'confidence': weekly_fore['confidence']
+        },
+        'monthly': {
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series],
+            'forecast': monthly_fore['forecast'],
+            'upper': monthly_fore['upper'],
+            'lower': monthly_fore['lower'],
+            'confidence': monthly_fore['confidence']
+        }
+    }
+    return JsonResponse(payload)
 
 
 # Admin: user management (Admin only)

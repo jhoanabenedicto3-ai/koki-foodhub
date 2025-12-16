@@ -6,6 +6,9 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 import numpy as np
 from ..models import Sale, Product
+from django.db.models import Sum
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 def load_csv_data(csv_path=None):
     """Load sales data from CSV file"""
@@ -129,4 +132,101 @@ def moving_average_forecast(window=3, lookback_days=21):
         'db_forecasts': results,
         'csv_forecasts': csv_forecasts
     }
+
+
+def aggregate_sales(period='daily', lookback=90):
+    """
+    Aggregate sales into time series.
+    period: 'daily', 'weekly', or 'monthly'
+    lookback: number of days (for daily), weeks (for weekly), months (for monthly)
+    Returns list of (label, units) ordered chronologically.
+    """
+    today = date.today()
+    series = []
+    if period == 'daily':
+        start = today - timedelta(days=lookback - 1)
+        # Initialize dict with zeros
+        counts = { (start + timedelta(days=i)): 0 for i in range(lookback) }
+        qs = Sale.objects.filter(date__gte=start).values('date').annotate(total=Sum('units_sold'))
+        for row in qs:
+            d = row['date']
+            counts[d] = counts.get(d, 0) + int(row['total'] or 0)
+        for d in sorted(counts.keys()):
+            series.append((d.isoformat(), counts[d]))
+
+    elif period == 'weekly':
+        # Weeks ending on Sunday (use ISO week numbers)
+        start = today - timedelta(weeks=lookback - 1)
+        # create week start dates
+        weeks = []
+        for i in range(lookback):
+            wk_start = (start + timedelta(weeks=i))
+            # normalize to Monday
+            wk_start = wk_start - timedelta(days=wk_start.weekday())
+            weeks.append(wk_start)
+        counts = { w: 0 for w in weeks }
+        qs = Sale.objects.filter(date__gte=weeks[0]).values('date').annotate(total=Sum('units_sold'))
+        for row in qs:
+            d = row['date']
+            wk_start = d - timedelta(days=d.weekday())
+            if wk_start in counts:
+                counts[wk_start] += int(row['total'] or 0)
+        for w in sorted(counts.keys()):
+            label = w.isoformat()
+            series.append((label, counts[w]))
+
+    elif period == 'monthly':
+        start = today - relativedelta(months=lookback - 1)
+        months = []
+        cur = start.replace(day=1)
+        for i in range(lookback):
+            months.append(cur)
+            cur = (cur + relativedelta(months=1)).replace(day=1)
+        counts = { m: 0 for m in months }
+        qs = Sale.objects.filter(date__gte=months[0]).values('date').annotate(total=Sum('units_sold'))
+        for row in qs:
+            d = row['date']
+            m = d.replace(day=1)
+            if m in counts:
+                counts[m] += int(row['total'] or 0)
+        for m in sorted(counts.keys()):
+            label = m.strftime('%Y-%m')
+            series.append((label, counts[m]))
+
+    return series
+
+
+def forecast_time_series(series, horizon=7, method='linear', window=3):
+    """
+    Given a time series of numeric values, produce a forecast for `horizon` steps ahead.
+    Returns dict with 'forecast' list and 'upper' and 'lower' bounds.
+    """
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+
+    values = [v for _, v in series]
+    n = len(values)
+    if n == 0:
+        return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
+
+    X = np.arange(n).reshape(-1, 1)
+    y = np.array(values)
+
+    # Use linear regression for trend
+    model = LinearRegression()
+    model.fit(X, y)
+    r2 = model.score(X, y)
+
+    future_X = np.arange(n, n + horizon).reshape(-1, 1)
+    preds = model.predict(future_X)
+    preds = [max(0, float(round(p))) for p in preds]
+
+    # Compute simple bounds using std deviation
+    resid = y - model.predict(X)
+    std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
+    upper = [int(round(p + 1.5 * std)) for p in preds]
+    lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+
+    confidence = max(0.0, min(100.0, r2 * 100))
+    return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence}
 
