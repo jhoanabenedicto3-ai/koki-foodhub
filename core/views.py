@@ -686,7 +686,13 @@ def forecast_view(request):
         if (not daily_series) and (not weekly_series) and (not monthly_series):
             context['error_message'] = 'No historical data available to generate forecasts.'
 
-    return render(request, "pages/forecast.html", context)
+    try:
+        return render(request, "pages/forecast.html", context)
+    except Exception as render_exc:
+        logger = logging.getLogger(__name__)
+        logger.exception('Error rendering forecast template: %s', str(render_exc))
+        # Show a friendly error page instead of Django's raw 500
+        return HttpResponse('Server Error (500) - Forecasts temporarily unavailable. Please check logs.', status=500)
 
 
 @group_required("Admin")
@@ -741,34 +747,38 @@ def forecast_data_api(request):
     weekly_fore = forecast_time_series(weekly_series, horizon=12)
     monthly_fore = forecast_time_series(monthly_series, horizon=6)
 
-    payload = {
-        'products': products,
-        'daily': {
-            'labels': [d for d, _ in daily_series],
-            'actual': [v for _, v in daily_series],
-            'forecast': daily_fore['forecast'],
-            'upper': daily_fore['upper'],
-            'lower': daily_fore['lower'],
-            'confidence': daily_fore['confidence']
-        },
-        'weekly': {
-            'labels': [d for d, _ in weekly_series],
-            'actual': [v for _, v in weekly_series],
-            'forecast': weekly_fore['forecast'],
-            'upper': weekly_fore['upper'],
-            'lower': weekly_fore['lower'],
-            'confidence': weekly_fore['confidence']
-        },
-        'monthly': {
-            'labels': [d for d, _ in monthly_series],
-            'actual': [v for _, v in monthly_series],
-            'forecast': monthly_fore['forecast'],
-            'upper': monthly_fore['upper'],
-            'lower': monthly_fore['lower'],
-            'confidence': monthly_fore['confidence']
+    try:
+        payload = {
+            'products': products,
+            'daily': {
+                'labels': [d for d, _ in daily_series],
+                'actual': [v for _, v in daily_series],
+                'forecast': daily_fore['forecast'],
+                'upper': daily_fore['upper'],
+                'lower': daily_fore['lower'],
+                'confidence': daily_fore['confidence']
+            },
+            'weekly': {
+                'labels': [d for d, _ in weekly_series],
+                'actual': [v for _, v in weekly_series],
+                'forecast': weekly_fore['forecast'],
+                'upper': weekly_fore['upper'],
+                'lower': weekly_fore['lower'],
+                'confidence': weekly_fore['confidence']
+            },
+            'monthly': {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': monthly_fore['forecast'],
+                'upper': monthly_fore['upper'],
+                'lower': monthly_fore['lower'],
+                'confidence': monthly_fore['confidence']
+            }
         }
-    }
-    return JsonResponse(payload)
+        return JsonResponse(payload)
+    except Exception as out_exc:
+        logger.exception('Error building forecast API response: %s', str(out_exc))
+        return JsonResponse({'error': 'Failed to build forecast response', 'details': str(out_exc)}, status=500)
 
 
 # Admin: user management (Admin only)
