@@ -45,3 +45,5 @@ class Seed(TestCase):
         # validate structure
         self.assertIsInstance(data['daily']['labels'], list)
         self.assertIsInstance(data['daily']['actual'], list)
+        # CSV is present in repo and we aggregate last 100 rows -> expect non-empty daily series
+        self.assertTrue(len(data['daily']['labels']) > 0)

@@ -599,16 +599,29 @@ def forecast_view(request):
             except Product.DoesNotExist:
                 continue
 
-    # Aggregated time series / forecasts - guarded in case internal errors occur
+    # Prefer CSV-based aggregation (limit to 100 rows) so charts reflect historical CSV data
     try:
-        daily_series = aggregate_sales('daily', lookback=60)
-        weekly_series = aggregate_sales('weekly', lookback=12)
-        monthly_series = aggregate_sales('monthly', lookback=12)
+        csv_agg = None
+        try:
+            from .services.forecasting import csv_aggregate_series
+            csv_agg = csv_aggregate_series(limit=100)
+        except Exception:
+            csv_agg = None
+
+        if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
+            daily_series = csv_agg.get('daily', [])
+            weekly_series = csv_agg.get('weekly', [])
+            monthly_series = csv_agg.get('monthly', [])
+        else:
+            daily_series = aggregate_sales('daily', lookback=60)
+            weekly_series = aggregate_sales('weekly', lookback=12)
+            monthly_series = aggregate_sales('monthly', lookback=12)
 
         # Forecasts for each horizon
         daily_fore = forecast_time_series(daily_series, horizon=30)
         weekly_fore = forecast_time_series(weekly_series, horizon=12)
         monthly_fore = forecast_time_series(monthly_series, horizon=6)
+
         series_error = None
     except Exception as series_exc:
         logger.exception('Error generating time series or forecasts: %s', str(series_exc))
@@ -668,6 +681,10 @@ def forecast_view(request):
         context['error_message'] = 'Forecasting functionality is currently unavailable on this instance. Check logs for details.'
     elif series_error:
         context['error_message'] = 'Forecast computation failed. Displaying limited results.'
+    else:
+        # If CSV was used but produced no data, inform user
+        if (not daily_series) and (not weekly_series) and (not monthly_series):
+            context['error_message'] = 'No historical data available to generate forecasts.'
 
     return render(request, "pages/forecast.html", context)
 
@@ -704,10 +721,21 @@ def forecast_data_api(request):
             'last_7_days': int(finfo.get('last_7_days', 0))
         })
 
-    # Aggregated series
-    daily_series = aggregate_sales('daily', lookback=60)
-    weekly_series = aggregate_sales('weekly', lookback=12)
-    monthly_series = aggregate_sales('monthly', lookback=12)
+    # Prefer CSV-based series when available
+    try:
+        from .services.forecasting import csv_aggregate_series
+        csv_agg = csv_aggregate_series(limit=100)
+    except Exception as e:
+        csv_agg = None
+
+    if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
+        daily_series = csv_agg.get('daily', [])
+        weekly_series = csv_agg.get('weekly', [])
+        monthly_series = csv_agg.get('monthly', [])
+    else:
+        daily_series = aggregate_sales('daily', lookback=60)
+        weekly_series = aggregate_sales('weekly', lookback=12)
+        monthly_series = aggregate_sales('monthly', lookback=12)
 
     daily_fore = forecast_time_series(daily_series, horizon=30)
     weekly_fore = forecast_time_series(weekly_series, horizon=12)

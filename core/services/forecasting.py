@@ -26,6 +26,47 @@ def load_csv_data(csv_path=None):
         print(f"Error loading CSV: {e}")
         return None
 
+
+def csv_aggregate_series(limit=100):
+    """Return aggregated series (daily, weekly, monthly) computed from the CSV.
+    Limit to the most recent `limit` rows in the CSV to keep processing bounded.
+    Returns dict with keys 'daily', 'weekly', 'monthly' where each value is a list of
+    (label, units) tuples ordered chronologically (oldest -> newest).
+    """
+    df = load_csv_data()
+    if df is None or df.empty:
+        return {'daily': [], 'weekly': [], 'monthly': []}
+
+    # Ensure date column is datetime and sort by date
+    df = df.sort_values('date')
+
+    # Limit to `limit` most recent rows
+    if limit is not None:
+        df = df.tail(limit)
+
+    # DAILY: count rows per date
+    daily = df.groupby(df['date'].dt.date).size().reset_index(name='units')
+    # Fill missing days between min and max date with zeros for nicer charts
+    min_d = daily['date'].min()
+    max_d = daily['date'].max()
+    all_dates = pd.date_range(start=min_d, end=max_d, freq='D')
+    daily = daily.set_index('date').reindex(all_dates, fill_value=0).rename_axis('date').reset_index()
+    daily_series = [(row['date'].date().isoformat(), int(row['units'])) for _, row in daily.iterrows()]
+
+    # WEEKLY: group by week starting Monday
+    df_week = df.copy()
+    df_week['week_start'] = df_week['date'].dt.to_period('W').apply(lambda r: r.start_time.date())
+    weekly = df_week.groupby('week_start').size().reset_index(name='units')
+    weekly_series = [(row['week_start'].isoformat(), int(row['units'])) for _, row in weekly.iterrows()]
+
+    # MONTHLY: group by year-month
+    df_month = df.copy()
+    df_month['month'] = df_month['date'].dt.to_period('M').apply(lambda r: r.start_time.date())
+    monthly = df_month.groupby('month').size().reset_index(name='units')
+    monthly_series = [(row['month'].strftime('%Y-%m'), int(row['units'])) for _, row in monthly.iterrows()]
+
+    return {'daily': daily_series, 'weekly': weekly_series, 'monthly': monthly_series}
+
 def get_csv_forecast(csv_path=None):
     """
     Train ML model on CSV data and return forecasts for each product
