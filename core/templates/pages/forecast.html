@@ -19,17 +19,24 @@
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 32px;">
       <h2 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 700; color: var(--fg);">📊 Sales Prediction (Next 8 Weeks)</h2>
       
-      <div style="position: relative; height: 400px; margin-bottom: 20px;" data-insert-charts>
+      <div style="position: relative; height: 440px; margin-bottom: 20px;" data-insert-charts>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
-            <h3 style="margin:0; font-size:16px; font-weight:700;">📊 Sales Prediction (Next Weeks)</h3>
+            <h3 style="margin:0; font-size:16px; font-weight:700;">📊 Sales Prediction</h3>
+            <div style="display:flex; gap:6px; margin-left:12px;">
+              <button id="btnDaily" class="btn btn-ghost" style="font-weight:700;">Daily</button>
+              <button id="btnWeekly" class="btn btn-ghost btn-active" style="font-weight:700;">Weekly</button>
+              <button id="btnMonthly" class="btn btn-ghost" style="font-weight:700;">Monthly</button>
+            </div>
           </div>
           <div style="display:flex; gap:8px;">
             <button id="refreshForecastBtn" class="btn">🔄 Refresh</button>
             <span id="forecastStatus" style="color:var(--text-secondary); font-size:13px;"></span>
           </div>
         </div>
-        <canvas id="salesChart"></canvas>
+        <div style="position:relative; height:360px;">
+          <canvas id="salesChart" style="height:100%; width:100%;"></canvas>
+        </div>
       </div>
 
       <div style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border);">
@@ -131,32 +138,31 @@
         });
       }
 
-      // Render three charts and keep references for updates
-      window.weeklyChart = renderAreaChart('salesChart', weekly, 'Weekly Sales');
-      window.dailyChart = null;
-      window.monthlyChart = null;
-      // create additional canvas elements for daily and monthly charts
-      // insert them before analytics cards
-      (function(){
-        const container = document.querySelector('[data-insert-charts]');
-        if(container){
-          const html = `
-            <div style="display:grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;">
-              <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;">
-                <h3 style="margin:0 0 12px 0; font-size:14px; font-weight:700;">Daily Sales (Last ${daily.labels.length} days)</h3>
-                <div style="height:300px;"><canvas id="dailyChart"></canvas></div>
-              </div>
-              <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;">
-                <h3 style="margin:0 0 12px 0; font-size:14px; font-weight:700;">Monthly Sales (Last ${monthly.labels.length} months)</h3>
-                <div style="height:300px;"><canvas id="monthlyChart"></canvas></div>
-              </div>
-            </div>
-          `;
-          container.insertAdjacentHTML('beforebegin', html);
-          window.dailyChart = renderAreaChart('dailyChart', daily, 'Daily Sales');
-          window.monthlyChart = renderAreaChart('monthlyChart', monthly, 'Monthly Sales');
-        }
-      })();
+      // Render a single chart (default to weekly)
+      window.currentView = 'weekly';
+      window.mainChart = renderAreaChart('salesChart', weekly, 'Weekly Sales');
+
+      function setActiveButton(view){
+        document.getElementById('btnDaily').classList.toggle('btn-active', view === 'daily');
+        document.getElementById('btnWeekly').classList.toggle('btn-active', view === 'weekly');
+        document.getElementById('btnMonthly').classList.toggle('btn-active', view === 'monthly');
+      }
+
+      document.getElementById('btnDaily').addEventListener('click', function(){
+        setActiveButton('daily');
+        window.currentView = 'daily';
+        updateChart(window.mainChart, daily);
+      });
+      document.getElementById('btnWeekly').addEventListener('click', function(){
+        setActiveButton('weekly');
+        window.currentView = 'weekly';
+        updateChart(window.mainChart, weekly);
+      });
+      document.getElementById('btnMonthly').addEventListener('click', function(){
+        setActiveButton('monthly');
+        window.currentView = 'monthly';
+        updateChart(window.mainChart, monthly);
+      });
 
       // Helper to update existing Chart.js chart with new data
       function updateChart(chartObj, newData) {

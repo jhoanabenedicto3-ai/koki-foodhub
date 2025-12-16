@@ -47,3 +47,6 @@ class Seed(TestCase):
         self.assertIsInstance(data['daily']['actual'], list)
         # CSV is present in repo and we aggregate last 100 rows -> expect non-empty daily series
         self.assertTrue(len(data['daily']['labels']) > 0)
+        # API should indicate the data source
+        self.assertIn('data_source', data)
+        self.assertIn(data['data_source'], ('csv','db','unknown'))
