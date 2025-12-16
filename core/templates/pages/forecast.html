@@ -188,6 +188,47 @@
           const res = await fetch('{% url "forecast_api" %}');
           if (!res.ok) throw new Error('Network response not ok');
           const json = await res.json();
+          // dump json to debug panel
+          const dbg = document.getElementById('forecastDebug');
+          if(dbg){ dbg.textContent = JSON.stringify(json, null, 2); }
+          document.getElementById('dataSource').textContent = json.data_source || 'unknown';
+          document.getElementById('dailyCount').textContent = json.daily.labels.length || 0;
+          document.getElementById('weeklyCount').textContent = json.weekly.labels.length || 0;
+          document.getElementById('monthlyCount').textContent = json.monthly.labels.length || 0;
+
+          // If no data, show message over charts
+          function showEmptyNotice(id, msg){
+            const canvas = document.getElementById(id);
+            if(!canvas) return;
+            const parent = canvas.parentElement;
+            let notice = parent.querySelector('.empty-notice');
+            if(!notice){
+              notice = document.createElement('div');
+              notice.className = 'empty-notice';
+              notice.style.position = 'absolute';
+              notice.style.top = '50%';
+              notice.style.left = '50%';
+              notice.style.transform = 'translate(-50%, -50%)';
+              notice.style.background = 'rgba(255,255,255,0.9)';
+              notice.style.padding = '12px 16px';
+              notice.style.borderRadius = '8px';
+              notice.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+              parent.style.position = 'relative';
+              parent.appendChild(notice);
+            }
+            notice.textContent = msg;
+          }
+
+          // Clear any existing notices
+          ['dailyChart','salesChart','monthlyChart'].forEach(function(id){
+            const c = document.getElementById(id);
+            if(c && c.parentElement){ const n = c.parentElement.querySelector('.empty-notice'); if(n) n.remove(); }
+          });
+
+          if(!json.daily.labels.length){ showEmptyNotice('dailyChart','No daily data available'); }
+          if(!json.weekly.labels.length){ showEmptyNotice('salesChart','No weekly data available'); }
+          if(!json.monthly.labels.length){ showEmptyNotice('monthlyChart','No monthly data available'); }
+
           updateChart(window.dailyChart, json.daily);
           updateChart(window.weeklyChart, json.weekly);
           updateChart(window.monthlyChart, json.monthly);
@@ -204,6 +245,12 @@
 
       // Auto-refresh after load
       window.addEventListener('load', function(){ setTimeout(refreshForecast, 600); });
+
+      document.getElementById('toggleDebug').addEventListener('click', function(){
+        const dbg = document.getElementById('forecastDebug');
+        if(!dbg) return;
+        dbg.style.display = dbg.style.display === 'none' ? 'block' : 'none';
+      });
         }
       })();
     </script>
@@ -246,6 +293,17 @@
         <p style="margin: 0; font-size: 13px; color: #f97316; font-weight: 600;">Expected: {{ peak_orders }} orders</p>
       </div>
     </div>
+
+    <!-- Diagnostics / Data source info (visible to Admin) -->
+    <div style="margin-bottom:16px; display:flex; gap:12px; align-items:center;">
+      <div style="padding:8px 12px; background:#f3f4f6; border-radius:8px; font-weight:700;">Source: <span id="dataSource">{{ data_source|default:'unknown' }}</span></div>
+      <div style="padding:8px 12px; background:#fff; border:1px solid var(--border); border-radius:8px;">Daily: <strong id="dailyCount">{{ daily_count }}</strong> ({{ daily_first }} → {{ daily_last }})</div>
+      <div style="padding:8px 12px; background:#fff; border:1px solid var(--border); border-radius:8px;">Weekly: <strong id="weeklyCount">{{ weekly_count }}</strong> ({{ weekly_first }} → {{ weekly_last }})</div>
+      <div style="padding:8px 12px; background:#fff; border:1px solid var(--border); border-radius:8px;">Monthly: <strong id="monthlyCount">{{ monthly_count }}</strong> ({{ monthly_first }} → {{ monthly_last }})</div>
+      <button id="toggleDebug" class="btn" style="margin-left:auto;">Toggle Debug JSON</button>
+    </div>
+
+    <div id="forecastDebug" style="display:none; background:#0f172a; color:#fff; padding:12px; border-radius:8px; font-family:monospace; white-space:pre-wrap; max-height:240px; overflow:auto;"></div>
 
     <!-- Product Forecast Cards with Pagination -->
     <div style="background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; box-shadow: var(--shadow-sm);">

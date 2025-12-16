@@ -641,6 +641,21 @@ def forecast_view(request):
     last_week_total = sum(item['last_7_days'] for item in data)
     growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
 
+    # determine which source we used for series
+    data_source = 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db'
+
+    # counts and date range
+    def first_last(series):
+        if not series:
+            return (None, None)
+        first = series[0][0]
+        last = series[-1][0]
+        return (first, last)
+
+    d_first, d_last = first_last(daily_series)
+    w_first, w_last = first_last(weekly_series)
+    m_first, m_last = first_last(monthly_series)
+
     context = {
         "data": data,
         "total_forecast": next_week_forecast,
@@ -675,6 +690,20 @@ def forecast_view(request):
             'confidence': monthly_fore['confidence']
         })
     }
+
+    # include diagnostics
+    context.update({
+        'data_source': data_source,
+        'daily_count': len(daily_series),
+        'weekly_count': len(weekly_series),
+        'monthly_count': len(monthly_series),
+        'daily_first': d_first,
+        'daily_last': d_last,
+        'weekly_first': w_first,
+        'weekly_last': w_last,
+        'monthly_first': m_first,
+        'monthly_last': m_last,
+    })
 
     # If import or series generation failed, pass an error message to template so it can show a friendly alert
     if import_error:
@@ -750,6 +779,7 @@ def forecast_data_api(request):
     try:
         payload = {
             'products': products,
+            'data_source': 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db',
             'daily': {
                 'labels': [d for d, _ in daily_series],
                 'actual': [v for _, v in daily_series],
