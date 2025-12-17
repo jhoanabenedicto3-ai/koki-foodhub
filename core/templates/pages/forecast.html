@@ -130,15 +130,19 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
               <button id="btnMonthly" class="btn btn-ghost" style="font-weight:700;" aria-label="Monthly view">Monthly</button>
             </div>
           </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh</span></button>
-              <span id="forecastStatusRight" class="muted small-text"></span>
+            <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh</span></button>
+                <span id="forecastStatusRight" class="muted small-text"></span>
+              </div>
             </div>
+
+            <!-- Main chart area now explicitly inside the card -->
+            <div class="chart-area">
+              <canvas id="salesChart" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
+            </div>
+
         </div>
-        <div class="chart-area">
-          <canvas id="salesChart" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
-        </div>
-      </div>
 
         <!-- Removed separate forecast-only chart to simplify layout. Forecast is shown on the main chart. -->
 
