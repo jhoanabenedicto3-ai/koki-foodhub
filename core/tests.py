@@ -167,6 +167,36 @@ class Seed(TestCase):
             if saved is not None:
                 setattr(mod, 'forecast_time_series', saved)
 
+    def test_forecast_exception_middleware_returns_id(self):
+        """The middleware should catch uncaught exceptions and return an error id."""
+        from django.test.client import RequestFactory
+        from django.contrib.auth.models import User, Group
+        from core.middleware.forecast_exceptions import ForecastExceptionMiddleware
+
+        # Create an admin user
+        admin = User.objects.create_superuser('admin_mw', 'amw@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+
+        # Create a get_response that raises an exception to simulate an unhandled error
+        def raising_get_response(req):
+            raise RuntimeError('boom-mw')
+
+        mw = ForecastExceptionMiddleware(raising_get_response)
+        rf = RequestFactory()
+        req = rf.get('/forecast/api/')
+        req.user = admin
+        # header to mimic fetch XHR
+        req.META['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest'
+
+        resp = mw(req)
+        self.assertEqual(resp.status_code, 500)
+        import json
+        data = json.loads(resp.content)
+        self.assertIn('error', data)
+        self.assertIn('id', data)
+        self.assertTrue(len(data['id']) > 0)
+
     def test_aggregate_sales_caps_per_sale(self):
         """Ensure extremely large per-sale unit counts are capped when aggregating."""
         from .services.forecasting import aggregate_sales

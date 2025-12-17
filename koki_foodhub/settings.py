@@ -62,6 +62,9 @@ MIDDLEWARE = [
     # Ensure DB connections are fresh at each request to avoid stale
     # 'connection already closed' errors in long-running workers.
     'core.middleware.db.DBConnectionMiddleware',
+    # Global handler to ensure uncontrolled exceptions in forecast endpoints are logged
+    # with an Error ID and returned to clients in a safe (JSON or HTML) format.
+    'core.middleware.forecast_exceptions.ForecastExceptionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
