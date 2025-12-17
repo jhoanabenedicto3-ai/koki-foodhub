@@ -12,17 +12,17 @@
   <div class="hero-row">
     <div class="hero-card">
       <div class="hero-card-label">Today's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ today_sales|floatformat:0 }}</div>
+      <div class="hero-card-amount">{{ today_units }} units / {{ currency }}{{ today_sales|floatformat:0 }}</div>
       <div class="hero-card-sub">Forecast: {{ currency }}{{ today_forecast_preview }}</div>
     </div>
     <div class="hero-card">
       <div class="hero-card-label">This Week's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ this_week_sales|floatformat:0 }}</div>
+      <div class="hero-card-amount">{{ this_week_units }} units / {{ currency }}{{ this_week_sales|floatformat:0 }}</div>
       <div class="hero-card-sub">Forecast: {{ currency }}{{ week_forecast_preview }}</div>
     </div>
     <div class="hero-card">
       <div class="hero-card-label">This Month's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ this_month_sales|floatformat:0 }}</div>
+      <div class="hero-card-amount">{{ this_month_units }} units / {{ currency }}{{ this_month_sales|floatformat:0 }}</div>
       <div class="hero-card-sub">Forecast: {{ currency }}{{ month_forecast_preview }}</div>
     </div>
     <div class="hero-badge">Trained on last 100 CSV rows</div>

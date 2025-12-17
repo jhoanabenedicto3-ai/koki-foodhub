@@ -88,3 +88,29 @@ class Seed(TestCase):
         self.assertIn('daily', data)
         self.assertIn('weekly', data)
         self.assertIn('monthly', data)
+
+    def test_forecast_today_sales_matches_sales_page(self):
+        """Forecast page should display today's revenue (currency) matching DB aggregates."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_today', 'today@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Ensure we have at least one sale for today from setUp
+        from django.db.models import Sum
+        from django.utils import timezone
+        today = timezone.localdate()
+        expected = float(Sale.objects.filter(date=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+
+        resp = c.get('/forecast/')
+        self.assertEqual(resp.status_code, 200)
+        # Response context should include the numeric 'today_sales' matching revenue
+        ctx = resp.context
+        self.assertIn('today_sales', ctx)
+        self.assertAlmostEqual(float(ctx['today_sales']), expected, places=2)
+        # Also verify units are present and accurate
+        expected_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+        self.assertIn('today_units', ctx)
+        self.assertEqual(int(ctx['today_units']), expected_units)

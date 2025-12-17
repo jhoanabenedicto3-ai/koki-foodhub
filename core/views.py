@@ -690,6 +690,38 @@ def forecast_view(request):
     weekly_summary = compute_period_overview(weekly_series)
     monthly_summary = compute_period_overview(monthly_series)
 
+    # Compute currency-based sales totals (revenue) for the hero tiles so values
+    # displayed with the currency symbol reflect actual revenue (not unit counts).
+    from django.utils import timezone
+    from django.db.models import Sum
+    from datetime import timedelta
+
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+
+    try:
+        today_revenue = float(Sale.objects.filter(date=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        week_start = today - timedelta(days=today.weekday())
+        this_week_revenue = float(Sale.objects.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        month_start = today.replace(day=1)
+        this_month_revenue = float(Sale.objects.filter(date__gte=month_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        # Also compute unit counts (units sold) for the same periods so we can
+        # show "X units / PHPY" in the hero tiles for clarity.
+        today_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+        this_week_units = int(Sale.objects.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+        this_month_units = int(Sale.objects.filter(date__gte=month_start, date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+    except Exception:
+        # Fallback to the previously-computed unit-based summaries if revenue aggregation fails
+        today_revenue = float(daily_summary.get('total', 0))
+        this_week_revenue = float(weekly_summary.get('total', 0))
+        this_month_revenue = float(monthly_summary.get('total', 0))
+        # daily_summary still contains unit counts — use them as fallbacks for units
+        today_units = int(daily_summary.get('total', 0))
+        this_week_units = int(weekly_summary.get('total', 0))
+        this_month_units = int(monthly_summary.get('total', 0))
+
     # Forecast preview values (next period forecast) from forecast payloads
     today_forecast = (daily_fore.get('forecast') or [0])[0] if daily_fore.get('forecast') else 0
     week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
@@ -717,9 +749,17 @@ def forecast_view(request):
         "peak_day": peak_day,
         "peak_orders": peak_orders,
         "growth_percentage": growth_percentage,
-        "today_sales": daily_summary.get('total', 0),
-        "this_week_sales": weekly_summary.get('total', 0),
-        "this_month_sales": monthly_summary.get('total', 0),
+        # Use revenue (currency) values for the hero tiles so they're consistent
+        # with other parts of the app that display monetary totals.
+        # Use revenue (currency) values for the hero tiles so they're consistent
+        # with other parts of the app that display monetary totals.
+        "today_sales": today_revenue,
+        "this_week_sales": this_week_revenue,
+        "this_month_sales": this_month_revenue,
+        # Unit counts to be shown alongside revenue in the hero tiles
+        "today_units": today_units,
+        "this_week_units": this_week_units,
+        "this_month_units": this_month_units,
         "today_forecast_preview": today_forecast,
         "week_forecast_preview": week_forecast,
         "month_forecast_preview": month_forecast,
@@ -1224,20 +1264,43 @@ def create_sale(request):
                 return JsonResponse({'error': f'Product not found (id: {item["id"]})'}, status=404)
         
         # All validations passed, create sale records for each item
+        # Use a small retry for transient DB errors (e.g., SSL decryption failures)
+        from django.db import close_old_connections
+        from django.db.utils import InterfaceError, DatabaseError
+
         for item in items:
             product = Product.objects.get(pk=item['id'])
-            sale = Sale.objects.create(
-                product=product,
-                units_sold=item['quantity'],
-                revenue=float(item['price']) * item['quantity']
-            )
-            
-            # Update inventory
-            inv = product.inventory_items.first()
-            if inv:
-                inv.quantity -= item['quantity']
-                inv.save()
-                logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
+            attempt = 0
+            while True:
+                try:
+                    sale = Sale.objects.create(
+                        product=product,
+                        units_sold=item['quantity'],
+                        revenue=float(item['price']) * item['quantity']
+                    )
+
+                    # Update inventory
+                    inv = product.inventory_items.first()
+                    if inv:
+                        inv.quantity -= item['quantity']
+                        inv.save()
+                        logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
+
+                    # success -> break retry loop
+                    break
+
+                except (InterfaceError, DatabaseError) as db_exc:
+                    # transient DB error (could be SSL/decryption); attempt to recover once
+                    logger.warning('create_sale: DB error on write (attempt %s): %s', attempt + 1, str(db_exc))
+                    # Close old connections and retry once
+                    try:
+                        close_old_connections()
+                    except Exception:
+                        logger.exception('create_sale: close_old_connections failed')
+                    attempt += 1
+                    if attempt >= 2:
+                        logger.exception('create_sale: DB write failed after retry: %s', str(db_exc))
+                        raise
         
         logger.info('create_sale: Sale recorded successfully')
         return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
