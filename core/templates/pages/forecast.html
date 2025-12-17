@@ -46,43 +46,46 @@
     <!-- Sales Overview Cards -->
     <div class="overview-grid" style="display:flex; gap:16px; align-items:stretch; overflow-x:auto; padding-bottom:6px;">
       <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div>
+        <div style="display:flex; align-items:center; gap:12px; width:100%;">
+          <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
             <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewDailyTotal">{{ daily_summary.total|default:'—' }}</div>
             <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewDailyPct">{% if daily_summary %}{{ daily_summary.pct_change }}% {{ daily_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <div class="card-right">
             <div class="badge badge-warning">Predicted</div>
             <div id="overviewDailyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ daily_confidence|floatformat:0 }}%</div>
+            <div class="card-icon">📊</div>
           </div>
         </div>
       </div>
 
       <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div>
+        <div style="display:flex; align-items:center; gap:12px; width:100%;">
+          <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
             <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewWeeklyTotal">{{ weekly_summary.total|default:'—' }}</div>
             <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewWeeklyPct">{% if weekly_summary %}{{ weekly_summary.pct_change }}% {{ weekly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <div class="card-right">
             <div class="badge badge-danger">Predicted</div>
             <div id="overviewWeeklyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ weekly_confidence|floatformat:0 }}%</div>
+            <div class="card-icon">✔️</div>
           </div>
         </div>
       </div>
 
       <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div>
+        <div style="display:flex; align-items:center; gap:12px; width:100%;">
+          <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
             <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewMonthlyTotal">{{ monthly_summary.total|default:'—' }}</div>
             <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewMonthlyPct">{% if monthly_summary %}{{ monthly_summary.pct_change }}% {{ monthly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <div class="card-right">
             <div class="badge badge-warning">Predicted</div>
             <div id="overviewMonthlyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ monthly_confidence|floatformat:0 }}%</div>
+            <div class="card-icon">📅</div>
           </div>
         </div>
       </div>
@@ -739,7 +742,10 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .hero-badge { align-self:center; padding:8px 12px; background:#f3f4f6; border-radius:8px; font-weight:700; font-size:13px; color:var(--text-secondary); }
 
       .overview-grid { display:flex !important; gap:16px; margin-bottom:18px; align-items:stretch; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
-      .overview-grid .overview-card { flex: 0 0 320px; min-width:240px; max-width:320px; background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04); min-height:92px; }
+      .overview-grid .overview-card { flex: 0 0 320px; min-width:240px; max-width:320px; background:#fff; border-radius:10px; padding:14px 18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.06); min-height:88px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+      .overview-grid .overview-card .card-left { flex:1 1 auto; }
+      .overview-grid .overview-card .card-right { display:flex; align-items:center; gap:8px; margin-left:12px; }
+      .overview-grid .overview-card .card-icon { width:44px; height:44px; border-radius:8px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
       /* Keep stacked on very small screens for readability */
       @media (max-width: 680px) { .overview-grid { flex-wrap:wrap; } .overview-grid .overview-card { flex:1 1 100%; max-width:100%; } }
       .badge { padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; }
