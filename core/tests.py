@@ -114,6 +114,32 @@ class Seed(TestCase):
         content = resp.content.decode('utf-8')
         self.assertNotIn('units /', content)
 
+    def test_forecast_view_handles_missing_moving_average(self):
+        """If the forecasting helper 'moving_average_forecast' is missing, the view should still render (no 500)."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_missing', 'am@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Temporarily remove the helper from the forecasting module to simulate a partial import failure
+        import importlib
+        mod = importlib.import_module('core.services.forecasting')
+        had = hasattr(mod, 'moving_average_forecast')
+        saved = getattr(mod, 'moving_average_forecast', None)
+        if had:
+            delattr(mod, 'moving_average_forecast')
+        try:
+            resp = c.get('/forecast/')
+            # Should still render a friendly page instead of 500
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
+        finally:
+            # restore the helper if it existed
+            if had:
+                setattr(mod, 'moving_average_forecast', saved)
+
     def test_aggregate_sales_caps_per_sale(self):
         """Ensure extremely large per-sale unit counts are capped when aggregating."""
         from .services.forecasting import aggregate_sales

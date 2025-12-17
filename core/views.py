@@ -549,15 +549,21 @@ def forecast_view(request):
     import json
     logger = logging.getLogger(__name__)
 
+    # Track any import errors for later friendly messaging
+    import_error = None
     try:
-        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series
+        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
         # Use last 100 rows from CSV for model training (per user request)
         csv_data = get_csv_forecast(limit=100)
         import_error = None
-    except Exception as import_error:
+    except Exception as exc:
         # Log the import error but continue with empty/fallback data so page renders
-        logger.exception('Forecasting import failed: %s', str(import_error))
+        logger.exception('Forecasting import failed: %s', str(exc))
+        import_error = exc
         csv_data = {}
+        # If moving_average_forecast isn't available due to import failures, provide a safe stub
+        def moving_average_forecast(window=3):
+            return {'db_forecasts': {}}
 
 
     # Prepare data for template (per-product forecasts)
