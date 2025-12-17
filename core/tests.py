@@ -140,6 +140,32 @@ class Seed(TestCase):
             if had:
                 setattr(mod, 'moving_average_forecast', saved)
 
+    def test_forecast_view_handles_missing_forecast_time_series(self):
+        """If the forecasting helper 'forecast_time_series' is missing, the view should still render (no 500)."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_missing2', 'am2@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Temporarily remove the helper from the forecasting module to simulate a partial import failure
+        import importlib
+        mod = importlib.import_module('core.services.forecasting')
+        had = hasattr(mod, 'forecast_time_series')
+        saved = getattr(mod, 'forecast_time_series', None)
+        if had:
+            delattr(mod, 'forecast_time_series')
+        try:
+            resp = c.get('/forecast/')
+            # Should still render a friendly page instead of 500
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
+        finally:
+            # restore the helper if it existed
+            if had:
+                setattr(mod, 'forecast_time_series', saved)
+
     def test_forecast_api_returns_error_id_on_unexpected_exception(self):
         """When the API encounters an unexpected exception it should return a JSON error with an id for lookup."""
         from django.contrib.auth.models import User, Group

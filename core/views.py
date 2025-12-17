@@ -564,6 +564,28 @@ def forecast_view(request):
         # If moving_average_forecast isn't available due to import failures, provide a safe stub
         def moving_average_forecast(window=3):
             return {'db_forecasts': {}}
+        # Provide a minimal forecast_time_series fallback so the view can render
+        # even when ML libraries (e.g., scikit-learn) are unavailable in production.
+        def forecast_time_series(series, horizon=7, method='linear', window=3):
+            # simple fallback: use recent average and small slope estimation
+            vals = [v for _, v in (series or [])]
+            if not vals:
+                return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0, 'accuracy': 'Low'}
+            recent = vals[-window:] if window and len(vals) >= 1 else vals
+            avg = sum(recent) / len(recent)
+            slope = 0.0
+            if len(recent) >= 2:
+                slope = (recent[-1] - recent[0]) / float(len(recent) - 1)
+            preds = [max(0, int(round(avg + slope * (i + 1)))) for i in range(horizon)]
+            # basic dispersion estimate
+            mean = avg
+            var = sum((x - mean) ** 2 for x in recent) / len(recent) if len(recent) else 0.0
+            std = var ** 0.5
+            upper = [int(round(p + 1.5 * std)) for p in preds]
+            lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+            confidence = 0.0 if mean <= 0 else max(0.0, min(100.0, (1.0 - (std / (mean + 1e-9))) * 100.0))
+            accuracy = 'High' if confidence >= 70 else 'Medium' if confidence >= 40 else 'Low'
+            return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
 
 
     # Prepare data for template (per-product forecasts)
