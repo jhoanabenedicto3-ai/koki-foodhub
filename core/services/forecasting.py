@@ -308,7 +308,7 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
 
         # Original linear-regression-based implementation
         X = np.arange(n).reshape(-1, 1)
-        y = np.array(values)
+        y = np.array(values, dtype=float)
         try:
             model = LinearRegression()
             model.fit(X, y)
@@ -341,7 +341,22 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
     try:
         recent = values[-window:] if window and len(values) >= 1 else values
         med = float(np.median(recent)) if recent else 0.0
-        preds = [max(0, int(round(med))) for _ in range(horizon)]
+        
+        # Instead of a flat median, create a simple trend: use slope of recent data
+        if len(recent) >= 2:
+            recent_x = np.arange(len(recent)).reshape(-1, 1)
+            recent_y = np.array(recent, dtype=float)
+            try:
+                trend_model = LinearRegression()
+                trend_model.fit(recent_x, recent_y)
+                slope = trend_model.coef_[0]
+                # Use recent average as base, then apply slope for each forecast step
+                preds = [max(0, int(round(med + slope * (i + 1)))) for i in range(horizon)]
+            except Exception:
+                # If trend estimation fails, use flat median
+                preds = [max(0, int(round(med))) for _ in range(horizon)]
+        else:
+            preds = [max(0, int(round(med))) for _ in range(horizon)]
 
         # Measure dispersion with std of recent values (or full series if very short)
         disp_source = recent if len(recent) >= 2 else values
