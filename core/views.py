@@ -871,34 +871,48 @@ def forecast_data_api(request):
         logger.info('forecast_data_api called; path=%s user=%s remote=%s x-requested-with=%s', request.path, user_info, request.META.get('REMOTE_ADDR'), request.META.get('HTTP_X_REQUESTED_WITH'))
     except Exception:
         logger.exception('Error logging forecast_data_api request info')
+    # Wrap main API logic so unexpected exceptions return a controlled JSON error
     try:
-        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
-    except Exception as e:
-        logger.exception('Forecast API import failed: %s', str(e))
-        return JsonResponse({'error': 'Forecasting libraries unavailable', 'details': str(e)}, status=500)
+        try:
+            from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
+        except Exception as e:
+            logger.exception('Forecast API import failed: %s', str(e))
+            return JsonResponse({'error': 'Forecasting libraries unavailable', 'details': str(e)}, status=500)
 
-    import json
+        import json
 
-    # Per-product CSV forecasts
-    try:
-        csv_data = get_csv_forecast(limit=100)
+        # Per-product CSV forecasts
+        try:
+            csv_data = get_csv_forecast(limit=100)
+        except Exception as e:
+            logger.exception('Error running get_csv_forecast: %s', str(e))
+            csv_data = {}
+        products = []
+        for pname, finfo in csv_data.items():
+            conf = finfo.get('confidence', 0)
+            if conf < 1:
+                conf = conf * 100
+            products.append({
+                'product': pname,
+                'forecast': int(finfo.get('forecast', 0)),
+                'avg': float(finfo.get('avg', 0)),
+                'trend': finfo.get('trend', 'stable'),
+                'confidence': conf,
+                'accuracy': finfo.get('accuracy', '') or ( 'High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low' ),
+                'last_7_days': int(finfo.get('last_7_days', 0))
+            })
     except Exception as e:
-        logger.exception('Error running get_csv_forecast: %s', str(e))
-        csv_data = {}
-    products = []
-    for pname, finfo in csv_data.items():
-        conf = finfo.get('confidence', 0)
-        if conf < 1:
-            conf = conf * 100
-        products.append({
-            'product': pname,
-            'forecast': int(finfo.get('forecast', 0)),
-            'avg': float(finfo.get('avg', 0)),
-            'trend': finfo.get('trend', 'stable'),
-            'confidence': conf,
-            'accuracy': finfo.get('accuracy', '') or ( 'High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low' ),
-            'last_7_days': int(finfo.get('last_7_days', 0))
-        })
+        # Catch-all: return JSON error; include traceback when admin requests debug=1
+        import traceback
+        tb = traceback.format_exc()
+        logger.exception('Unexpected error in forecast_data_api: %s', str(e))
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return JsonResponse({'error': 'Internal Server Error', 'trace': tb}, status=500)
+        except Exception:
+            pass
+        return JsonResponse({'error': 'Internal Server Error'}, status=500)
 
     # Prefer CSV-based series when available
     try:
