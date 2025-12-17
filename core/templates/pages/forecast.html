@@ -99,7 +99,17 @@
             </div>
         </div>
         <div style="margin-top:8px;">
-          <pre id="forecastDebug" style="display:none; max-height:140px; overflow:auto; background:#111; color:#fff; padding:8px; border-radius:6px; font-size:12px;"></pre>
+          <!-- User-facing friendly error banner (hidden by default). Click 'Show details' to reveal raw server response -->
+          <div id="forecastError" class="forecast-error" style="display:none;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <strong style="margin-right:8px;">Forecast temporarily unavailable</strong>
+              <span id="forecastErrorMsg" style="color:var(--text-secondary);"></span>
+              <button id="forecastToggleDetails" class="btn btn-ghost" style="margin-left:12px; display:none;">Show details</button>
+            </div>
+          </div>
+
+          <pre id="forecastDebug" class="debug-panel" style="display:none; max-height:220px; overflow:auto; background:#0f1724; color:#e6edf3; padding:12px; border-radius:8px; font-size:12px; margin-top:8px; border:1px solid rgba(255,255,255,0.04);"></pre>
+
           {% if debug_mode %}
             <pre id="serverDebug" style="display:block; max-height:240px; overflow:auto; background:#f8fafc; color:#111; padding:8px; border-radius:6px; font-size:12px; border:1px solid var(--border); margin-top:6px;">Server context:\n
 Data source: {{ data_source }}\n
@@ -392,6 +402,36 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       // Forecast-only chart removed to simplify UI; forecast series are drawn on the main chart.
 
+      function showForecastError(message, details){
+        const errEl = document.getElementById('forecastError');
+        const debugEl = document.getElementById('forecastDebug');
+        const toggleBtn = document.getElementById('forecastToggleDetails');
+        if(!errEl) return;
+        errEl.style.display = 'block';
+        document.getElementById('forecastErrorMsg').textContent = '— ' + message;
+        if(debugEl && details){
+          debugEl.textContent = details;
+          toggleBtn.style.display = 'inline-block';
+        } else if(debugEl){
+          debugEl.textContent = '';
+          toggleBtn.style.display = 'none';
+        }
+      }
+
+      // Wire the details toggle
+      document.addEventListener('click', function(e){
+        if(e.target && e.target.id === 'forecastToggleDetails'){
+          const debugEl = document.getElementById('forecastDebug');
+          const btn = document.getElementById('forecastToggleDetails');
+          if(!debugEl) return;
+          if(debugEl.style.display === 'block'){
+            debugEl.style.display = 'none'; btn.textContent = 'Show details';
+          } else {
+            debugEl.style.display = 'block'; btn.textContent = 'Hide details';
+          }
+        }
+      });
+
       function setConfBadge(elId, pct){
         const el = document.getElementById(elId);
         if(!el) return;
@@ -419,15 +459,13 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           // Check HTTP status first
           if (!res.ok) {
             const text = await res.text().catch(()=>'');
-            const debugEl = document.getElementById('forecastDebug');
-            if(debugEl){ debugEl.style.display='block'; debugEl.textContent = `HTTP ${res.status} ${res.statusText}\n\n${text.slice(0,2000)}`; }
+            showForecastError(`Server error (${res.status})`, text.slice(0,2000));
             throw new Error('Network response not ok: ' + res.status);
           }
           const contentType = (res.headers.get('content-type') || '').toLowerCase();
           if (!contentType.includes('application/json')){
             const txt = await res.text().catch(()=>'');
-            const debugEl = document.getElementById('forecastDebug');
-            if(debugEl){ debugEl.style.display='block'; debugEl.textContent = `Expected JSON but got: ${contentType || 'unknown'}\n\nResponse snippet:\n${txt.slice(0,2000)}`; }
+            showForecastError('Unexpected server response', txt.slice(0,2000));
             throw new Error('Non-JSON response received');
           }
           const json = await res.json();
@@ -613,6 +651,10 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       /* Empty chart notice improvements */
       .empty-notice{ position:absolute; top:48%; left:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,0.95); padding:14px 18px; border-radius:8px; box-shadow:0 8px 24px rgba(16,24,40,0.06); color:var(--text-secondary); }
+
+      /* Friendly error banner shown in the chart header when API errors occur */
+      .forecast-error{ background: linear-gradient(90deg, rgba(253,224,71,0.12), rgba(255,255,255,0.02)); border:1px solid rgba(250,204,21,0.12); padding:10px 12px; border-radius:8px; color:var(--text-secondary); margin-top:8px; }
+      .debug-panel{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px; }
 
       /* Hero tweaks */
       .hero-card-amount{ font-size:38px; }
