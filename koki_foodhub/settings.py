@@ -59,6 +59,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Ensure DB connections are fresh at each request to avoid stale
+    # 'connection already closed' errors in long-running workers.
+    'core.middleware.db.DBConnectionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
