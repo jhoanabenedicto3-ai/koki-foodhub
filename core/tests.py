@@ -110,7 +110,6 @@ class Seed(TestCase):
         ctx = resp.context
         self.assertIn('today_sales', ctx)
         self.assertAlmostEqual(float(ctx['today_sales']), expected, places=2)
-        # Also verify units are present and accurate
-        expected_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
-        self.assertIn('today_units', ctx)
-        self.assertEqual(int(ctx['today_units']), expected_units)
+        # Ensure units are not displayed in the hero tiles (visual requirement)
+        content = resp.content.decode('utf-8')
+        self.assertNotIn('units /', content)
