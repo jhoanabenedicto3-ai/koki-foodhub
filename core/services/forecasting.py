@@ -67,15 +67,19 @@ def csv_aggregate_series(limit=100):
 
     return {'daily': daily_series, 'weekly': weekly_series, 'monthly': monthly_series}
 
-def get_csv_forecast(csv_path=None, limit=None):
+def get_csv_forecast(csv_path=None, limit=100):
     """
-    Train ML model on CSV data and return forecasts for each product
+    Train ML model on CSV data and return forecasts for each product.
+
+    By default this function limits processing to the most recent 100 rows of the CSV
+    (to keep production CPU/memory bounded). Pass a different `limit` to override.
+
     Returns dict: product_name -> { 'forecast': units, 'trend': str, 'confidence': float, 'history': [...] }
     """
     df = load_csv_data(csv_path)
     if df is None:
         return {}
-    # Optionally limit to most recent `limit` rows to keep processing bounded
+    # Limit to most recent `limit` rows to keep processing bounded
     if limit is not None:
         try:
             df = df.sort_values('date').tail(limit)
@@ -180,8 +184,8 @@ def moving_average_forecast(window=3, lookback_days=21):
         forecast = round(avg)
         results[pid] = {"history": hist, "forecast": forecast, "avg": avg}
     
-    # Also get CSV-based forecasts
-    csv_forecasts = get_csv_forecast()
+    # Also get CSV-based forecasts (limit to most recent 100 rows by default)
+    csv_forecasts = get_csv_forecast(limit=100)
     
     return {
         'db_forecasts': results,
