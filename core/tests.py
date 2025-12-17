@@ -113,3 +113,15 @@ class Seed(TestCase):
         # Ensure units are not displayed in the hero tiles (visual requirement)
         content = resp.content.decode('utf-8')
         self.assertNotIn('units /', content)
+        # Parse JSON blob embedded in template to ensure daily series has today's label and value
+        import json
+        daily_json = json.loads(resp.context['daily_json'])
+        labels = daily_json.get('labels', [])
+        actual = daily_json.get('actual', [])
+        from django.utils import timezone
+        today = timezone.localdate().isoformat()
+        if labels:
+            self.assertEqual(labels[-1], today)
+            # Check last actual equals DB aggregate for today's units
+            expected_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+            self.assertEqual(int(actual[-1]), expected_units)

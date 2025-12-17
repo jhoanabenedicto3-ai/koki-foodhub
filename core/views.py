@@ -631,6 +631,52 @@ def forecast_view(request):
         weekly_series = db_weekly
         monthly_series = db_monthly
 
+        # Ensure the 'actual' series reflect the server's notion of "today".
+        # This prevents mismatches between hero tiles (direct DB aggregates) and
+        # the chart series which may lag if they were computed from older data.
+        try:
+            # Today's units (for daily point)
+            today_units_current = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+
+            # Update daily_series: if last label is today, replace its value; otherwise append today's value
+            if daily_series:
+                if daily_series[-1][0] == today.isoformat():
+                    daily_series[-1] = (daily_series[-1][0], today_units_current)
+                else:
+                    daily_series.append((today.isoformat(), today_units_current))
+            else:
+                daily_series = [(today.isoformat(), today_units_current)]
+
+            # Weekly: ensure last week entry includes today's week
+            week_start = (today - timedelta(days=today.weekday())).isoformat()
+            if weekly_series:
+                if weekly_series[-1][0] == week_start:
+                    # recompute the week's total to be safe
+                    week_total = int(Sale.objects.filter(date__gte=today - timedelta(days=today.weekday()), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                    weekly_series[-1] = (weekly_series[-1][0], week_total)
+                else:
+                    week_total = int(Sale.objects.filter(date__gte=today - timedelta(days=today.weekday()), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                    weekly_series.append((week_start, week_total))
+            else:
+                week_total = int(Sale.objects.filter(date__gte=today - timedelta(days=today.weekday()), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                weekly_series = [(week_start, week_total)]
+
+            # Monthly: ensure last month entry includes today's month
+            month_start = today.replace(day=1).strftime('%Y-%m')
+            if monthly_series:
+                if monthly_series[-1][0] == month_start:
+                    month_total = int(Sale.objects.filter(date__gte=today.replace(day=1), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                    monthly_series[-1] = (monthly_series[-1][0], month_total)
+                else:
+                    month_total = int(Sale.objects.filter(date__gte=today.replace(day=1), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                    monthly_series.append((month_start, month_total))
+            else:
+                month_total = int(Sale.objects.filter(date__gte=today.replace(day=1), date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+                monthly_series = [(month_start, month_total)]
+        except Exception:
+            # If any of these auxiliary aggregates fail, leave the original series intact
+            pass
+
         # Forecasts for each horizon
         daily_fore = forecast_time_series(forecast_daily_base, horizon=30)
         weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12)
