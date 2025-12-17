@@ -886,6 +886,52 @@ def admin_user_list(request):
 
 
 @group_required("Admin")
+def forecast_diag(request):
+    """Compact diagnostics for deployed instances so admins can quickly verify data source and counts."""
+    logger = logging.getLogger(__name__)
+    try:
+        from .services.forecasting import csv_aggregate_series, aggregate_sales
+    except Exception as e:
+        logger.exception('Diag import failed: %s', str(e))
+        return JsonResponse({'error': 'diagnostics unavailable', 'details': str(e)}, status=500)
+
+    try:
+        csv_agg = None
+        try:
+            csv_agg = csv_aggregate_series(limit=100)
+        except Exception:
+            csv_agg = None
+
+        if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
+            src = 'csv'
+            daily = csv_agg.get('daily', [])
+            weekly = csv_agg.get('weekly', [])
+            monthly = csv_agg.get('monthly', [])
+        else:
+            src = 'db'
+            daily = aggregate_sales('daily', lookback=60)
+            weekly = aggregate_sales('weekly', lookback=12)
+            monthly = aggregate_sales('monthly', lookback=12)
+
+        def first_last(series):
+            if not series:
+                return {'count': 0, 'first': None, 'last': None}
+            return {'count': len(series), 'first': series[0][0], 'last': series[-1][0]}
+
+        payload = {
+            'data_source': src,
+            'daily': first_last(daily),
+            'weekly': first_last(weekly),
+            'monthly': first_last(monthly),
+            'now': timezone.now().isoformat()
+        }
+        return JsonResponse(payload)
+    except Exception as e:
+        logger.exception('Error building diag response: %s', str(e))
+        return JsonResponse({'error': 'failed to build diag', 'details': str(e)}, status=500)
+
+
+@group_required("Admin")
 @require_http_methods(["POST"])
 def admin_toggle_group(request):
     user_id = request.POST.get('user_id')

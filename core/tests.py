@@ -72,3 +72,19 @@ class Seed(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn('daily', data)
+
+    def test_forecast_diag_endpoint(self):
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin4', 'a4@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+        resp = c.get('/forecast/diag/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('data_source', data)
+        self.assertIn(data['data_source'], ('csv','db','unknown'))
+        self.assertIn('daily', data)
+        self.assertIn('weekly', data)
+        self.assertIn('monthly', data)
