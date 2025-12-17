@@ -94,6 +94,7 @@
       <div style="position: relative; margin-bottom: 12px;" data-insert-charts>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
+            <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts" style="margin-right:6px;"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh</span></button>
             <h3 style="margin:0; font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">📊 Sales Prediction
               <canvas id="headerSpark" class="header-spark" role="img" aria-label="Mini forecast sparkline" width="160" height="32"></canvas>
             </h3>
@@ -132,7 +133,6 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           </div>
             <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
               <div style="display:flex; gap:8px; align-items:center;">
-                <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh</span></button>
                 <span id="forecastStatusRight" class="muted small-text"></span>
               </div>
             </div>
