@@ -140,6 +140,33 @@ class Seed(TestCase):
             if had:
                 setattr(mod, 'moving_average_forecast', saved)
 
+    def test_forecast_api_returns_error_id_on_unexpected_exception(self):
+        """When the API encounters an unexpected exception it should return a JSON error with an id for lookup."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_err', 'ae@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        import importlib
+        mod = importlib.import_module('core.services.forecasting')
+        # Temporarily replace forecast_time_series to force an exception during API processing
+        saved = getattr(mod, 'forecast_time_series', None)
+        def boom(*a, **k):
+            raise Exception('boom!')
+        setattr(mod, 'forecast_time_series', boom)
+        try:
+            resp = c.get('/forecast/api/')
+            self.assertEqual(resp.status_code, 500)
+            data = resp.json()
+            self.assertIn('error', data)
+            self.assertIn('id', data)
+            self.assertTrue(len(data['id']) > 0)
+        finally:
+            if saved is not None:
+                setattr(mod, 'forecast_time_series', saved)
+
     def test_aggregate_sales_caps_per_sale(self):
         """Ensure extremely large per-sale unit counts are capped when aggregating."""
         from .services.forecasting import aggregate_sales

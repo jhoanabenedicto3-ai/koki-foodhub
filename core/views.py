@@ -842,20 +842,22 @@ def forecast_view(request):
         response['Pragma'] = 'no-cache'
         return response
     except Exception as render_exc:
-        import traceback
+        import traceback, uuid
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
         logger = logging.getLogger(__name__)
-        logger.exception('Error rendering forecast template: %s', str(render_exc))
+        # Log the full traceback with an identifier so we can correlate production logs
+        logger.exception('Error rendering forecast template (id=%s): %s\n%s', error_id, str(render_exc), tb)
         # If an admin requests with ?debug=1, return the full stack trace (temporary safe debugging aid)
         try:
             is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
             if request.GET.get('debug') and is_admin:
-                tb = traceback.format_exc()
-                return HttpResponse('<pre style="white-space:pre-wrap;">Server Error (500)\n\n' + tb + '</pre>', status=500)
+                return HttpResponse('<pre style="white-space:pre-wrap;">Server Error (500) (id=' + error_id + ')\n\n' + tb + '</pre>', status=500)
         except Exception:
             # ignore and fall back to friendly message
             pass
-        # Show a friendly error page instead of Django's raw 500
-        return HttpResponse('Server Error (500) - Forecasts temporarily unavailable. Please check logs.', status=500)
+        # Show a friendly error page with an error id so admins can look up logs
+        return HttpResponse(f'Server Error (500) - Forecasts temporarily unavailable. Error ID: {error_id}', status=500)
 
 
 @group_required("Admin")
@@ -909,16 +911,17 @@ def forecast_data_api(request):
             })
     except Exception as e:
         # Catch-all: return JSON error; include traceback when admin requests debug=1
-        import traceback
+        import traceback, uuid
         tb = traceback.format_exc()
-        logger.exception('Unexpected error in forecast_data_api: %s', str(e))
+        error_id = uuid.uuid4().hex[:8]
+        logger.exception('Unexpected error in forecast_data_api (id=%s): %s\n%s', error_id, str(e), tb)
         try:
             is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
             if request.GET.get('debug') and is_admin:
-                return JsonResponse({'error': 'Internal Server Error', 'trace': tb}, status=500)
+                return JsonResponse({'error': 'Internal Server Error', 'trace': tb, 'id': error_id}, status=500)
         except Exception:
             pass
-        return JsonResponse({'error': 'Internal Server Error'}, status=500)
+        return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
 
     # Prefer CSV-based series when available
     try:
@@ -975,9 +978,22 @@ def forecast_data_api(request):
     if product_filter:
         products = [p for p in products if p.get('product') == product_filter]
 
-    daily_fore = forecast_time_series(daily_series, horizon=30)
-    weekly_fore = forecast_time_series(weekly_series, horizon=12)
-    monthly_fore = forecast_time_series(monthly_series, horizon=6)
+    try:
+        daily_fore = forecast_time_series(daily_series, horizon=30)
+        weekly_fore = forecast_time_series(weekly_series, horizon=12)
+        monthly_fore = forecast_time_series(monthly_series, horizon=6)
+    except Exception as e:
+        import traceback, uuid
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
+        logger.exception('Error running forecast_time_series (id=%s): %s\n%s', error_id, str(e), tb)
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return JsonResponse({'error': 'Internal Server Error', 'trace': tb, 'id': error_id}, status=500)
+        except Exception:
+            pass
+        return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
 
     try:
         from .services.forecasting import compute_period_overview, generate_insight
