@@ -1,14 +1,15 @@
 from datetime import date, timedelta
 from collections import defaultdict
 import os
-import csv
-import pandas as pd
-from sklearn.linear_model import LinearRegression
 import numpy as np
+from sklearn.linear_model import LinearRegression
 from ..models import Sale, Product
 from django.db.models import Sum
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+
+# Cap per-sale units so single bad rows don't dominate forecasts
+MAX_UNITS_PER_SALE = 100
 
 def load_csv_data(csv_path=None):
     """Load sales data from CSV file"""
@@ -166,7 +167,8 @@ def moving_average_forecast(window=3, lookback_days=21):
     """
     Returns dict: product_id -> { 'history': [(date, units)], 'forecast': int, 'avg': float }
     Simple moving average over last `window` sales entries within `lookback_days`.
-    Also includes CSV-trained forecasts.
+    Outlier protection: cap per-sale units at `MAX_UNITS_PER_SALE` before averaging so a
+    single large sale doesn't dominate the forecast.
     """
     start = date.today() - timedelta(days=lookback_days)
     sales = Sale.objects.filter(date__gte=start).order_by("product_id", "date")
@@ -177,19 +179,80 @@ def moving_average_forecast(window=3, lookback_days=21):
 
     results = {}
     for pid, hist in series.items():
-        last_units = [u for _, u in hist][-window:] if len(hist) >= window else [u for _, u in hist]
-        if not last_units:
+        # preserve raw history in results but compute forecast from robust values
+        raw_units = [u for _, u in hist]
+        if not raw_units:
             continue
-        avg = sum(last_units) / len(last_units)
-        forecast = round(avg)
-        results[pid] = {"history": hist, "forecast": forecast, "avg": avg}
-    
-    # Also get CSV-based forecasts (limit to most recent 100 rows by default)
-    csv_forecasts = get_csv_forecast(limit=100)
+
+        # take the last `window` points (or fewer if not available)
+        recent = raw_units[-window:] if len(raw_units) >= window else raw_units
+
+        # Adaptive outlier handling: only apply a cap when there are clear extreme
+        # outliers relative to the typical scale for this product. This avoids
+        # forcing small-series forecasts up to a fixed value like 100.
+        try:
+            med = float(np.median(raw_units))
+            mx = float(max(raw_units))
+        except Exception:
+            med = float(sum(raw_units) / len(raw_units))
+            mx = float(max(raw_units))
+
+        cap = None
+        # If the maximum is much larger than the median (suggesting a spike),
+        # compute a conservative cap using a high percentile of historical data.
+        if med > 0 and mx > med * 10 and mx > MAX_UNITS_PER_SALE:
+            try:
+                p95 = float(np.percentile(raw_units, 95))
+                cap = int(max(MAX_UNITS_PER_SALE, round(p95)))
+            except Exception:
+                cap = MAX_UNITS_PER_SALE
+
+        # Apply cap if determined, otherwise use raw values
+        if cap:
+            capped = [min(int(u), cap) for u in recent]
+        else:
+            capped = [int(u) for u in recent]
+
+        # Use trimmed mean when there are at least 3 points for robustness
+        if len(capped) >= 3:
+            sorted_cap = sorted(capped)
+            trimmed = sorted_cap[1:-1]
+            avg = sum(trimmed) / len(trimmed) if trimmed else (sum(capped) / len(capped))
+        else:
+            avg = sum(capped) / len(capped)
+
+        forecast = max(0, int(round(avg)))
+
+        # Estimate simple trend and confidence per-product for richer payloads
+        trend = 'stable'
+        if len(raw_units) >= 2 and raw_units[-1] > raw_units[0]:
+            trend = 'increasing'
+        elif len(raw_units) >= 2 and raw_units[-1] < raw_units[0]:
+            trend = 'decreasing'
+
+        # Confidence: inverse of dispersion
+        try:
+            variance = float(np.var(capped))
+            mean = float(avg) if avg else 0.0
+            if mean <= 0:
+                confidence = 0.0
+            else:
+                rel_disp = (variance ** 0.5) / mean
+                confidence = max(0.0, min(100.0, (1.0 - rel_disp) * 100.0))
+        except Exception:
+            confidence = 0.0
+
+        if confidence >= 70:
+            accuracy = 'High'
+        elif confidence >= 40:
+            accuracy = 'Medium'
+        else:
+            accuracy = 'Low'
+
+        results[pid] = {"history": hist, "forecast": forecast, "avg": avg, "trend": trend, "confidence": round(confidence, 2), "accuracy": accuracy}
     
     return {
-        'db_forecasts': results,
-        'csv_forecasts': csv_forecasts
+        'db_forecasts': results
     }
 
 

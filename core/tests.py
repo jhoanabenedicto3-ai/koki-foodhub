@@ -193,6 +193,27 @@ class Seed(TestCase):
             if saved is not None:
                 setattr(mod, 'forecast_time_series', saved)
 
+    def test_moving_average_forecast_uses_historical_values(self):
+        """Ensure the simple moving-average forecast reflects recent history (not a fixed cap)."""
+        from .services.forecasting import moving_average_forecast
+        # Create a product and attach some small unit sales
+        p = Product.objects.create(name="Test Item", category="Test", price=Decimal("50.00"))
+        from datetime import date, timedelta
+        today = date.today()
+        # Sales with small values (should not be rounded up to 100)
+        Sale.objects.create(product=p, date=today - timedelta(days=2), units_sold=2, revenue=Decimal("100.00"))
+        Sale.objects.create(product=p, date=today - timedelta(days=1), units_sold=3, revenue=Decimal("150.00"))
+        Sale.objects.create(product=p, date=today, units_sold=4, revenue=Decimal("200.00"))
+
+        res = moving_average_forecast(window=3, lookback_days=7)
+        dbf = res.get('db_forecasts', {})
+        self.assertIn(p.id, dbf)
+        pred = dbf[p.id].get('forecast', None)
+        # Forecast should be roughly the recent average (2-4 => ~3) and must NOT be 100
+        self.assertIsNotNone(pred)
+        self.assertNotEqual(pred, 100)
+        self.assertTrue(1 <= pred <= 10, f'Unexpected forecast {pred}')
+
     def test_forecast_exception_middleware_returns_id(self):
         """The middleware should catch uncaught exceptions and return an error id."""
         from django.test.client import RequestFactory
@@ -247,3 +268,100 @@ class Seed(TestCase):
 
         # The per-sale cap in production code is 100 units per sale; expected total is min(3000,100) + 14 = 114
         self.assertEqual(total, 114)
+
+    def test_forecast_prefers_db_when_db_has_recent_data(self):
+        """Ensure that when the DB has recent meaningful data, the view uses DB series for forecasting (not stale CSV)."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_pref', 'ap@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Request the forecast page and inspect context
+        resp = c.get('/forecast/?debug=1')
+        self.assertEqual(resp.status_code, 200)
+        ctx = resp.context
+        # Our test DB seeded in setUp contains non-zero last-week units; the view should therefore prefer DB
+        self.assertEqual(ctx.get('data_source'), 'db')
+        # weekly forecast payload should be generated from DB weekly series and not be a flat 100 series
+        weekly_json = ctx.get('weekly_json')
+        import json
+        weekly = json.loads(weekly_json)
+        self.assertFalse(all(v == 100 for v in weekly.get('forecast', [])), 'Weekly forecast should not be a flat 100 from stale CSV')
+
+    def test_stale_csv_is_ignored(self):
+        """If the CSV has only very old data, the view should ignore it and prefer DB series (or show no data) to avoid flat 100 forecasts."""
+        from django.contrib.auth.models import User, Group
+        import importlib
+        admin = User.objects.create_superuser('admin_stale', 'astale@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Monkeypatch csv_aggregate_series to return a single very old row
+        # Even if the CSV helper returns stale values, the forecast view must rely on DB-only data
+        mod = importlib.import_module('core.services.csv_forecasting')
+        saved = getattr(mod, 'csv_aggregate_series', None)
+        def stale_csv(limit=100):
+            return {'daily': [('2015-12-31', 100)], 'weekly': [('2015-12-28', 100)], 'monthly': [('2015-12', 100)]}
+        setattr(mod, 'csv_aggregate_series', stale_csv)
+        try:
+            resp = c.get('/forecast/?debug=1')
+            self.assertEqual(resp.status_code, 200)
+            ctx = resp.context
+            # CSV is irrelevant -> view must still report DB as source
+            self.assertEqual(ctx.get('data_source'), 'db')
+            import json
+            weekly = json.loads(ctx.get('weekly_json'))
+            # Weekly forecast should not be flat 100 repeated
+            self.assertFalse(all(v == 100 for v in weekly.get('forecast', [])))
+        finally:
+            if saved is not None:
+                setattr(mod, 'csv_aggregate_series', saved)
+
+    def test_forecast_ignores_csv_errors(self):
+        """Ensure that CSV-related errors (or the presence of CSV helpers) do not affect DB-only forecasting."""
+        import importlib
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_csverr', 'acsv@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Monkeypatch get_csv_forecast to raise if called; ensure forecast ignores CSV module errors
+        mod = importlib.import_module('core.services.csv_forecasting')
+        saved_get = getattr(mod, 'get_csv_forecast', None)
+        def explode(*args, **kwargs):
+            raise RuntimeError('CSV should not be called')
+        setattr(mod, 'get_csv_forecast', explode)
+
+        try:
+            # View page should render and report DB as source
+            resp = c.get('/forecast/?debug=1')
+            self.assertEqual(resp.status_code, 200)
+            ctx = resp.context
+            self.assertEqual(ctx.get('data_source'), 'db')
+
+            # API should also return data_source=db and status 200
+            resp2 = c.get('/forecast/api/')
+            self.assertEqual(resp2.status_code, 200)
+            data = resp2.json()
+            self.assertIn('data_source', data)
+            self.assertEqual(data['data_source'], 'db')
+
+            # Also assert that a per-product forecast influenced by a giant outlier
+            # is clamped so the API doesn't return absurd values. Create a contrived
+            # sale with an enormous units_sold and confirm moving_average_forecast caps it.
+            from core.services.forecasting import moving_average_forecast
+            large = Sale.objects.create(product=Product.objects.first(), units_sold=3000, revenue=3000.0, date='2025-11-30')
+            prod = moving_average_forecast(window=3).get('db_forecasts', {})
+            # Every forecast must be below or equal to our MAX_UNITS_PER_SALE after the cap
+            from core.services.forecasting import MAX_UNITS_PER_SALE
+            for p, r in prod.items():
+                self.assertLessEqual(int(r.get('forecast', 0)), MAX_UNITS_PER_SALE)
+        finally:
+            if saved_get is not None:
+                setattr(mod, 'get_csv_forecast', saved_get)
