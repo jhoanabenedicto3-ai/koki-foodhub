@@ -281,13 +281,13 @@ def aggregate_sales(period='daily', lookback=90):
     return series
 
 
-def forecast_time_series(series, horizon=7, method='ma', window=3):
+def forecast_time_series(series, horizon=7, method='linear', window=3):
     """
     Given a time series list of (label, value), produce a forecast for `horizon` steps ahead.
 
     Methods:
-      - 'linear': fit a linear regression (previous default)
-      - 'ma': moving-median / moving-average style (robust to outliers/spikes)
+      - 'linear': fit a linear regression to capture trends (default, best for showing real patterns)
+      - 'ma': moving-median / moving-average style (robust to outliers/spikes but flattens trends)
 
     Returns dict with keys: 'forecast' (list), 'upper', 'lower', 'confidence', 'accuracy'
     """
