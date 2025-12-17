@@ -44,8 +44,8 @@
   {% if data %}
     <!-- Sales Overview & Prediction Chart -->
     <!-- Sales Overview Cards -->
-    <div class="overview-grid">
-      <div class="overview-card">
+    <div class="overview-grid" style="display:flex; gap:16px; align-items:stretch; overflow-x:auto; padding-bottom:6px;">
+      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
@@ -59,7 +59,7 @@
         </div>
       </div>
 
-      <div class="overview-card">
+      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
@@ -73,7 +73,7 @@
         </div>
       </div>
 
-      <div class="overview-card">
+      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
