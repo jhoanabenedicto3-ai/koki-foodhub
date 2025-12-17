@@ -656,7 +656,36 @@ def forecast_view(request):
     growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
 
     # Compute period summaries (use DB actuals shown on charts)
-    from .services.forecasting import compute_period_overview, generate_insight
+    # Import helpers with defensive fallback so a missing dependency in production
+    # doesn't cause the whole view to 500. If the import fails, we log and
+    # provide simple stub implementations that return safe defaults.
+    try:
+        from .services.forecasting import compute_period_overview, generate_insight
+    except Exception as e:
+        logger.exception('Error importing period overview helpers: %s', str(e))
+
+        def compute_period_overview(series):
+            if not series:
+                return {'total': 0, 'previous': 0, 'pct_change': 0.0, 'arrow': 'same'}
+            cur_label, cur_val = series[-1]
+            prev_val = series[-2][1] if len(series) >= 2 else 0
+            total = int(cur_val)
+            previous = int(prev_val)
+            if previous == 0:
+                pct = 100.0 if total > 0 else 0.0
+            else:
+                pct = round(((total - previous) / float(previous)) * 100.0, 2)
+            if pct > 0:
+                arrow = 'up'
+            elif pct < 0:
+                arrow = 'down'
+            else:
+                arrow = 'same'
+            return {'total': total, 'previous': previous, 'pct_change': pct, 'arrow': arrow}
+
+        def generate_insight(period_name, series, forecast_payload):
+            return ''
+    # Compute period summaries
     daily_summary = compute_period_overview(daily_series)
     weekly_summary = compute_period_overview(weekly_series)
     monthly_summary = compute_period_overview(monthly_series)
