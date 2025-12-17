@@ -738,8 +738,8 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .hero-card-sub { margin-top:8px; color:var(--text-secondary); font-weight:700; font-size:13px; }
       .hero-badge { align-self:center; padding:8px 12px; background:#f3f4f6; border-radius:8px; font-weight:700; font-size:13px; color:var(--text-secondary); }
 
-      .overview-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:18px; }
-      .overview-card { background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04); min-height:92px; }
+      .overview-grid { display:flex; gap:16px; margin-bottom:18px; flex-wrap:wrap; align-items:stretch; }
+      .overview-card { flex: 1 1 30%; min-width:220px; background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04); min-height:92px; }
       .badge { padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; }
       .badge-warning { background:#fef3c7; color:#92400e; }
       .badge-danger { background:#fff3f2; color:#7f1d1d; }
@@ -809,7 +809,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       /* Responsive tweak: reduce x-label density for small screens */
       @media (max-width: 520px) { .filters-row { flex-direction: column; align-items: stretch; } .filters-actions{ margin-left:0; justify-content:flex-end; }
-        .overview-grid { grid-template-columns: 1fr; }
+        .overview-grid { flex-direction: column; }
         .card.chart-card { padding:16px; }
         .legend-row { justify-content:center; }
       }
@@ -824,7 +824,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       /* Responsive tweaks */
       @media (max-width: 520px) { .filters-row { flex-direction: column; align-items: stretch; } .filters-actions{ margin-left:0; justify-content:flex-end; }
-        .overview-grid { grid-template-columns: 1fr; }
+        .overview-grid { flex-direction: column; }
       }
     </style>
   {% else %}
