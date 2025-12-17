@@ -605,7 +605,7 @@ def forecast_view(request):
         csv_agg = None
         try:
             from .services.forecasting import csv_aggregate_series
-                csv_agg = csv_aggregate_series(limit=100)
+            csv_agg = csv_aggregate_series(limit=100)
         except Exception:
             csv_agg = None
 
