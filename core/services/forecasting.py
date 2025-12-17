@@ -299,32 +299,42 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
     if n == 0:
         return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
+    # If we have very few data points (less than 2), we can't fit a meaningful linear model
+    # Fall back to moving average / median approach
+    if n < 2 and method == 'linear':
+        method = 'ma'
+
     if method == 'linear':
+
         # Original linear-regression-based implementation
         X = np.arange(n).reshape(-1, 1)
         y = np.array(values)
-        model = LinearRegression()
-        model.fit(X, y)
-        r2 = model.score(X, y)
+        try:
+            model = LinearRegression()
+            model.fit(X, y)
+            r2 = model.score(X, y)
 
-        future_X = np.arange(n, n + horizon).reshape(-1, 1)
-        preds = model.predict(future_X)
-        preds = [max(0, float(round(p))) for p in preds]
+            future_X = np.arange(n, n + horizon).reshape(-1, 1)
+            preds = model.predict(future_X)
+            preds = [max(0, float(round(p))) for p in preds]
 
-        resid = y - model.predict(X)
-        std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
-        upper = [int(round(p + 1.5 * std)) for p in preds]
-        lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+            resid = y - model.predict(X)
+            std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
+            upper = [int(round(p + 1.5 * std)) for p in preds]
+            lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
 
-        confidence = max(0.0, min(100.0, r2 * 100))
-        if confidence >= 70:
-            accuracy = 'High'
-        elif confidence >= 40:
-            accuracy = 'Medium'
-        else:
-            accuracy = 'Low'
+            confidence = max(0.0, min(100.0, r2 * 100))
+            if confidence >= 70:
+                accuracy = 'High'
+            elif confidence >= 40:
+                accuracy = 'Medium'
+            else:
+                accuracy = 'Low'
 
-        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+            return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+        except Exception:
+            # If linear regression fails (e.g., invalid data), fall back to moving average
+            pass
 
     # Default: moving-median/average method (robust to spikes)
     # Use the median of the recent `window` points as the forecast value
