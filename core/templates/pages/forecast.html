@@ -49,12 +49,12 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewDailyTotal">—</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewDailyPct">—</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewDailyTotal">{{ daily_summary.total|default:'—' }}</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewDailyPct">{% if daily_summary %}{{ daily_summary.pct_change }}% {{ daily_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
             <div class="badge badge-warning">Predicted</div>
-            <div id="overviewDailyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+            <div id="overviewDailyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ daily_confidence|floatformat:0 }}%</div>
           </div>
         </div>
       </div>
@@ -63,12 +63,12 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewWeeklyTotal">—</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewWeeklyPct">—</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewWeeklyTotal">{{ weekly_summary.total|default:'—' }}</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewWeeklyPct">{% if weekly_summary %}{{ weekly_summary.pct_change }}% {{ weekly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-            <div class="badge badge-danger">Forecasted</div>
-            <div id="overviewWeeklyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+            <div class="badge badge-danger">Predicted</div>
+            <div id="overviewWeeklyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ weekly_confidence|floatformat:0 }}%</div>
           </div>
         </div>
       </div>
@@ -77,12 +77,12 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div>
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewMonthlyTotal">—</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewMonthlyPct">—</div>
+            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewMonthlyTotal">{{ monthly_summary.total|default:'—' }}</div>
+            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewMonthlyPct">{% if monthly_summary %}{{ monthly_summary.pct_change }}% {{ monthly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
             <div class="badge badge-warning">Predicted</div>
-            <div id="overviewMonthlyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: —</div>
+            <div id="overviewMonthlyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ monthly_confidence|floatformat:0 }}%</div>
           </div>
         </div>
       </div>
@@ -95,7 +95,24 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
             <h3 style="margin:0; font-size:16px; font-weight:700;">📊 Sales Prediction</h3>
-            <div style="display:flex; gap:6px; margin-left:12px;">
+              <span id="forecastStatus" class="muted small-text"></span>
+            </div>
+        </div>
+        <div style="margin-top:8px;">
+          <pre id="forecastDebug" style="display:none; max-height:140px; overflow:auto; background:#111; color:#fff; padding:8px; border-radius:6px; font-size:12px;"></pre>
+          {% if debug_mode %}
+            <pre id="serverDebug" style="display:block; max-height:240px; overflow:auto; background:#f8fafc; color:#111; padding:8px; border-radius:6px; font-size:12px; border:1px solid var(--border); margin-top:6px;">Server context:\n
+Data source: {{ data_source }}\n
+Counts - daily: {{ daily_count }} weekly: {{ weekly_count }} monthly: {{ monthly_count }}\n
+Daily summary: {{ daily_summary }}\n
+Weekly summary: {{ weekly_summary }}\n
+Monthly summary: {{ monthly_summary }}\n
+Daily confidence: {{ daily_confidence }}\n
+Weekly confidence: {{ weekly_confidence }}\n
+Monthly confidence: {{ monthly_confidence }}\n
+JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {{ weekly_json|truncatechars:400 }}\n monthly_json: {{ monthly_json|truncatechars:400 }}
+            </pre>
+          {% endif %}
               <button id="btnDaily" class="btn btn-ghost" style="font-weight:700;" aria-label="Daily view">Daily</button>
               <button id="btnWeekly" class="btn btn-ghost btn-active" style="font-weight:700;" aria-label="Weekly view">Weekly</button>
               <button id="btnMonthly" class="btn btn-ghost" style="font-weight:700;" aria-label="Monthly view">Monthly</button>
@@ -116,31 +133,97 @@
       <div class="legend-row">
         <div class="legend-item">
           <div class="legend-swatch actual"></div>
-          <span class="muted">Today's Sales</span>
+          <span class="muted">Actual</span>
         </div>
         <div class="legend-item">
           <div class="legend-swatch predicted"></div>
           <span class="muted">Forecast</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-swatch bound"></div>
+          <span class="muted">Prediction bounds</span>
         </div>
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-      // Parse server-provided JSON data for charts
-      const daily = JSON.parse('{{ daily_json|escapejs }}');
-      const weekly = JSON.parse('{{ weekly_json|escapejs }}');
-      const monthly = JSON.parse('{{ monthly_json|escapejs }}');
+      // Safely parse server-provided JSON data for charts (defensive: avoid halting script)
+      let daily = {labels: [], actual: [], forecast: [], upper: [], lower: [], confidence: 0};
+      let weekly = {labels: [], actual: [], forecast: [], upper: [], lower: [], confidence: 0};
+      let monthly = {labels: [], actual: [], forecast: [], upper: [], lower: [], confidence: 0};
+      try { daily = JSON.parse('{{ daily_json|escapejs }}') || daily; } catch(e){ console.warn('daily_json parse failed', e); }
+      try { weekly = JSON.parse('{{ weekly_json|escapejs }}') || weekly; } catch(e){ console.warn('weekly_json parse failed', e); }
+      try { monthly = JSON.parse('{{ monthly_json|escapejs }}') || monthly; } catch(e){ console.warn('monthly_json parse failed', e); }
       // Expose to window for simplified single-chart updates
       window.daily = daily;
       window.weekly = weekly;
       window.monthly = monthly;
 
-      function renderAreaChart(canvasId, data, label) {
+      // Helper: build forecast labels using actual dates when possible (daily/weekly/monthly)
+      function buildForecastLabels(existingLabels, forecastLen, granularity){
+        if(!forecastLen || forecastLen <= 0) return [];
+        if(!existingLabels || existingLabels.length === 0){
+          return Array.from({length: forecastLen}, (_, i) => 'F+' + (i+1));
+        }
+        const lastLabel = existingLabels[existingLabels.length - 1];
+        try {
+          if(granularity === 'daily'){
+            const base = new Date(lastLabel);
+            return Array.from({length: forecastLen}, (_, i) => {
+              const d = new Date(base);
+              d.setDate(base.getDate() + (i+1));
+              return d.toISOString().slice(0,10);
+            });
+          } else if(granularity === 'weekly'){
+            const base = new Date(lastLabel);
+            return Array.from({length: forecastLen}, (_, i) => {
+              const d = new Date(base);
+              d.setDate(base.getDate() + 7*(i+1));
+              return d.toISOString().slice(0,10);
+            });
+          } else if(granularity === 'monthly'){
+            // lastLabel expected 'YYYY-MM'
+            const parts = (lastLabel||'').split('-').map(Number);
+            if(parts.length >= 2){
+              const y = parts[0]; const m = parts[1] - 1;
+              return Array.from({length: forecastLen}, (_, i) => {
+                const d = new Date(y, m + (i+1), 1);
+                return d.toISOString().slice(0,7);
+              });
+            }
+          }
+        } catch(e){ /* fall back */ }
+        return Array.from({length: forecastLen}, (_, i) => 'F+' + (i+1));
+      }
+
+      // Format labels for display (e.g., 'Nov 24' or 'Nov 2025') but keep raw ISO labels accessible for tooltips
+      function formatLabel(label, granularity){
+        if(!label) return label;
+        try{
+          if(granularity === 'daily' || granularity === 'weekly'){
+            const d = new Date(label);
+            const opts = { month: 'short', day: 'numeric' };
+            return d.toLocaleDateString(undefined, opts); // e.g., 'Nov 24'
+          } else if(granularity === 'monthly'){
+            const parts = (label||'').split('-').map(Number);
+            if(parts.length >= 2){
+              const d = new Date(parts[0], parts[1]-1, 1);
+              const opts = { month: 'short', year: 'numeric' };
+              return d.toLocaleDateString(undefined, opts); // e.g., 'Nov 2025'
+            }
+          }
+        }catch(e){ /* fallback */ }
+        return label;
+      }
+
+      function renderAreaChart(canvasId, data, granularity) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         const labels = data.labels.slice();
-        // Prepare combined arrays: extend labels for forecast horizon
-        const forecastLabels = labels.concat(Array.from({length: data.forecast.length}, (_, i) => 'F+' + (i+1)));
+        // Prepare combined arrays: extend labels with date-aware forecast labels
+        const forecastLabelsRaw = buildForecastLabels(labels, data.forecast.length, granularity);
+        const combinedRaw = labels.concat(forecastLabelsRaw);
+        const displayLabels = combinedRaw.map(l => formatLabel(l, granularity));
 
         const actualExtended = data.actual.slice();
         // Pad actual with nulls for forecast region so Chart.js shows forecast as separate series
@@ -150,10 +233,10 @@
         const upperPadding = Array(labels.length).fill(null).concat(data.upper);
         const lowerPadding = Array(labels.length).fill(null).concat(data.lower);
 
-        return new Chart(ctx, {
+        const chart = new Chart(ctx, {
           type: 'line',
           data: {
-            labels: forecastLabels,
+            labels: displayLabels,
             datasets: [
               {
                 label: 'Actual',
@@ -198,7 +281,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              tooltip: { mode: 'index', intersect: false }
+              tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context){ const idx = context[0].dataIndex; return this.chart._rawLabels ? this.chart._rawLabels[idx] : context[0].label; } } }
             },
             scales: {
               y: { beginAtZero: true },
@@ -206,11 +289,36 @@
             }
           }
         });
+        // Store raw labels on the chart instance for tooltip titles
+        chart._rawLabels = combinedRaw;
+        chart._granularity = granularity;
+        return chart;
       }
 
-      // Render a single chart (default to weekly)
+      // Render a single chart (default to weekly) only if we have a canvas and data
       window.currentView = 'weekly';
-      window.mainChart = renderAreaChart('salesChart', weekly, 'Weekly Sales');
+      window.mainChart = null;
+      try {
+        if(document.getElementById('salesChart') && weekly && Array.isArray(weekly.labels) && weekly.labels.length){
+          window.mainChart = renderAreaChart('salesChart', weekly, 'weekly');
+        } else if(document.getElementById('salesChart')){
+          // show empty notice overlay if no series
+          const parent = document.getElementById('salesChart').parentElement;
+          const notice = document.createElement('div');
+          notice.className = 'empty-notice';
+          notice.style.position = 'absolute';
+          notice.style.top = '50%';
+          notice.style.left = '50%';
+          notice.style.transform = 'translate(-50%, -50%)';
+          notice.style.background = 'rgba(255,255,255,0.9)';
+          notice.style.padding = '12px 16px';
+          notice.style.borderRadius = '8px';
+          notice.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+          notice.textContent = 'No historical data available to render chart';
+          parent.style.position = 'relative';
+          parent.appendChild(notice);
+        }
+      } catch(e){ console.warn('chart init failed', e); }
 
       function setActiveButton(view){
         document.getElementById('btnDaily').classList.toggle('btn-active', view === 'daily');
@@ -221,25 +329,30 @@
       document.getElementById('btnDaily').addEventListener('click', function(){
         setActiveButton('daily');
         window.currentView = 'daily';
-        updateChart(window.mainChart, daily);
+        // if chart exists, update it; otherwise, create a new one for the view
+        if(window.mainChart){ updateChart(window.mainChart, daily); } else { window.mainChart = renderAreaChart('salesChart', daily, 'daily'); }
       });
       document.getElementById('btnWeekly').addEventListener('click', function(){
         setActiveButton('weekly');
         window.currentView = 'weekly';
-        updateChart(window.mainChart, weekly);
+        if(window.mainChart){ updateChart(window.mainChart, weekly); } else { window.mainChart = renderAreaChart('salesChart', weekly, 'weekly'); }
       });
       document.getElementById('btnMonthly').addEventListener('click', function(){
         setActiveButton('monthly');
         window.currentView = 'monthly';
-        updateChart(window.mainChart, monthly);
+        if(window.mainChart){ updateChart(window.mainChart, monthly); } else { window.mainChart = renderAreaChart('salesChart', monthly, 'monthly'); }
       });
 
       // Helper to update existing Chart.js chart with new data
       function updateChart(chartObj, newData) {
         if(!chartObj) return;
         const labels = newData.labels.slice();
-        const paddedLabels = labels.concat(Array.from({length: newData.forecast.length}, (_, i) => 'F+' + (i+1)));
-        chartObj.data.labels = paddedLabels;
+        const gran = window.currentView || 'weekly';
+        const forecastLabelsRaw = buildForecastLabels(labels, newData.forecast.length, gran);
+        const combinedRaw = labels.concat(forecastLabelsRaw);
+        const displayLabels = combinedRaw.map(l => formatLabel(l, gran));
+        chartObj.data.labels = displayLabels;
+        chartObj._rawLabels = combinedRaw;
 
         // Actual padded
         const actualPadded = newData.actual.concat(Array(newData.forecast.length).fill(null));
@@ -281,8 +394,21 @@
           refreshBtn.querySelector('.btn-text').textContent = 'Updating...';
           // Simplified: fetch forecasts without extra filter params (no UI filters in simplified view)
           const url = '{% url "forecast_api" %}';
-          const res = await fetch(url);
-          if (!res.ok) throw new Error('Network response not ok');
+          const res = await fetch(url, { credentials: 'same-origin' });
+          // Check HTTP status first
+          if (!res.ok) {
+            const text = await res.text().catch(()=>'');
+            const debugEl = document.getElementById('forecastDebug');
+            if(debugEl){ debugEl.style.display='block'; debugEl.textContent = `HTTP ${res.status} ${res.statusText}\n\n${text.slice(0,2000)}`; }
+            throw new Error('Network response not ok: ' + res.status);
+          }
+          const contentType = (res.headers.get('content-type') || '').toLowerCase();
+          if (!contentType.includes('application/json')){
+            const txt = await res.text().catch(()=>'');
+            const debugEl = document.getElementById('forecastDebug');
+            if(debugEl){ debugEl.style.display='block'; debugEl.textContent = `Expected JSON but got: ${contentType || 'unknown'}\n\nResponse snippet:\n${txt.slice(0,2000)}`; }
+            throw new Error('Non-JSON response received');
+          }
           const json = await res.json();
           // simplified: no debug panel; do not dump JSON to the page
           document.getElementById('dataSource').textContent = json.data_source || 'unknown';

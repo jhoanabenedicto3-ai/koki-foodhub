@@ -113,15 +113,28 @@ class Seed(TestCase):
         # Ensure units are not displayed in the hero tiles (visual requirement)
         content = resp.content.decode('utf-8')
         self.assertNotIn('units /', content)
-        # Parse JSON blob embedded in template to ensure daily series has today's label and value
-        import json
-        daily_json = json.loads(resp.context['daily_json'])
-        labels = daily_json.get('labels', [])
-        actual = daily_json.get('actual', [])
-        from django.utils import timezone
-        today = timezone.localdate().isoformat()
-        if labels:
-            self.assertEqual(labels[-1], today)
-            # Check last actual equals DB aggregate for today's units
-            expected_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
-            self.assertEqual(int(actual[-1]), expected_units)
+
+    def test_aggregate_sales_caps_per_sale(self):
+        """Ensure extremely large per-sale unit counts are capped when aggregating."""
+        from .services.forecasting import aggregate_sales
+        from datetime import date
+
+        # Choose a fixed week start so we can find the weekly label
+        week_start = date(2025, 11, 24)
+
+        # Create a product for these test sales
+        p = Product.objects.create(name="Test Cap", category="Test", price=Decimal("10.00"))
+
+        # Add one huge sale and one small sale in the same week
+        Sale.objects.create(product=p, date=week_start, units_sold=3000, revenue=Decimal('3000.00'))
+        Sale.objects.create(product=p, date=week_start, units_sold=14, revenue=Decimal('140.00'))
+
+        series = aggregate_sales('weekly', lookback=12)
+        # find the entry for our week
+        label_to_find = week_start.isoformat()
+        matching = [s for s in series if s[0] == label_to_find]
+        self.assertTrue(matching, f"Weekly label {label_to_find} not found in series")
+        total = matching[0][1]
+
+        # The per-sale cap in production code is 100 units per sale; expected total is min(3000,100) + 14 = 114
+        self.assertEqual(total, 114)

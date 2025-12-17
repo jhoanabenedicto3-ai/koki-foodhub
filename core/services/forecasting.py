@@ -202,11 +202,25 @@ def aggregate_sales(period='daily', lookback=90):
     """
     today = date.today()
     series = []
+
+    # Cap suspiciously large per-sale unit counts to avoid single bad rows
+    # from skewing aggregated charts (e.g. mis-imported rows with units_sold >> typical values).
+    # This caps each *individual* Sale.units_sold at MAX_UNITS_PER_SALE before summing.
+    MAX_UNITS_PER_SALE = 100
+    from django.db.models import Case, When, Value, IntegerField
+
     if period == 'daily':
         start = today - timedelta(days=lookback - 1)
         # Initialize dict with zeros
         counts = { (start + timedelta(days=i)): 0 for i in range(lookback) }
-        qs = Sale.objects.filter(date__gte=start).values('date').annotate(total=Sum('units_sold'))
+        # Annotate using a capped per-row value so extreme outliers don't dominate totals
+        qs = Sale.objects.filter(date__gte=start).values('date').annotate(
+            total=Sum(Case(
+                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
+                default='units_sold',
+                output_field=IntegerField()
+            ))
+        )
         for row in qs:
             d = row['date']
             counts[d] = counts.get(d, 0) + int(row['total'] or 0)
@@ -224,7 +238,13 @@ def aggregate_sales(period='daily', lookback=90):
             wk_start = wk_start - timedelta(days=wk_start.weekday())
             weeks.append(wk_start)
         counts = { w: 0 for w in weeks }
-        qs = Sale.objects.filter(date__gte=weeks[0]).values('date').annotate(total=Sum('units_sold'))
+        qs = Sale.objects.filter(date__gte=weeks[0]).values('date').annotate(
+            total=Sum(Case(
+                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
+                default='units_sold',
+                output_field=IntegerField()
+            ))
+        )
         for row in qs:
             d = row['date']
             wk_start = d - timedelta(days=d.weekday())
@@ -242,7 +262,13 @@ def aggregate_sales(period='daily', lookback=90):
             months.append(cur)
             cur = (cur + relativedelta(months=1)).replace(day=1)
         counts = { m: 0 for m in months }
-        qs = Sale.objects.filter(date__gte=months[0]).values('date').annotate(total=Sum('units_sold'))
+        qs = Sale.objects.filter(date__gte=months[0]).values('date').annotate(
+            total=Sum(Case(
+                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
+                default='units_sold',
+                output_field=IntegerField()
+            ))
+        )
         for row in qs:
             d = row['date']
             m = d.replace(day=1)
@@ -255,10 +281,15 @@ def aggregate_sales(period='daily', lookback=90):
     return series
 
 
-def forecast_time_series(series, horizon=7, method='linear', window=3):
+def forecast_time_series(series, horizon=7, method='ma', window=3):
     """
-    Given a time series of numeric values, produce a forecast for `horizon` steps ahead.
-    Returns dict with 'forecast' list and 'upper' and 'lower' bounds.
+    Given a time series list of (label, value), produce a forecast for `horizon` steps ahead.
+
+    Methods:
+      - 'linear': fit a linear regression (previous default)
+      - 'ma': moving-median / moving-average style (robust to outliers/spikes)
+
+    Returns dict with keys: 'forecast' (list), 'upper', 'lower', 'confidence', 'accuracy'
     """
     import numpy as np
     from sklearn.linear_model import LinearRegression
@@ -268,34 +299,64 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
     if n == 0:
         return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
-    X = np.arange(n).reshape(-1, 1)
-    y = np.array(values)
+    if method == 'linear':
+        # Original linear-regression-based implementation
+        X = np.arange(n).reshape(-1, 1)
+        y = np.array(values)
+        model = LinearRegression()
+        model.fit(X, y)
+        r2 = model.score(X, y)
 
-    # Use linear regression for trend
-    model = LinearRegression()
-    model.fit(X, y)
-    r2 = model.score(X, y)
+        future_X = np.arange(n, n + horizon).reshape(-1, 1)
+        preds = model.predict(future_X)
+        preds = [max(0, float(round(p))) for p in preds]
 
-    future_X = np.arange(n, n + horizon).reshape(-1, 1)
-    preds = model.predict(future_X)
-    preds = [max(0, float(round(p))) for p in preds]
+        resid = y - model.predict(X)
+        std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
+        upper = [int(round(p + 1.5 * std)) for p in preds]
+        lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
 
-    # Compute simple bounds using std deviation
-    resid = y - model.predict(X)
-    std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
-    upper = [int(round(p + 1.5 * std)) for p in preds]
-    lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+        confidence = max(0.0, min(100.0, r2 * 100))
+        if confidence >= 70:
+            accuracy = 'High'
+        elif confidence >= 40:
+            accuracy = 'Medium'
+        else:
+            accuracy = 'Low'
 
-    confidence = max(0.0, min(100.0, r2 * 100))
-    # Simple accuracy label
-    if confidence >= 70:
-        accuracy = 'High'
-    elif confidence >= 40:
-        accuracy = 'Medium'
-    else:
-        accuracy = 'Low'
+        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
 
-    return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+    # Default: moving-median/average method (robust to spikes)
+    # Use the median of the recent `window` points as the forecast value
+    try:
+        recent = values[-window:] if window and len(values) >= 1 else values
+        med = float(np.median(recent)) if recent else 0.0
+        preds = [max(0, int(round(med))) for _ in range(horizon)]
+
+        # Measure dispersion with std of recent values (or full series if very short)
+        disp_source = recent if len(recent) >= 2 else values
+        std = float(np.std(disp_source)) if len(disp_source) > 0 else 0.0
+        upper = [int(round(p + 1.5 * std)) for p in preds]
+        lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+
+        # Confidence: inverse of normalized dispersion (higher dispersion -> lower confidence)
+        if med <= 0:
+            confidence = 0.0
+        else:
+            rel_disp = std / (med + 1e-9)
+            confidence = max(0.0, min(100.0, (1.0 - rel_disp) * 100.0))
+
+        if confidence >= 70:
+            accuracy = 'High'
+        elif confidence >= 40:
+            accuracy = 'Medium'
+        else:
+            accuracy = 'Low'
+
+        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+    except Exception:
+        # Fallback safe defaults
+        return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
 
 def compute_period_overview(series):
