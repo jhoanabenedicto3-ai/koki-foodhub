@@ -816,7 +816,11 @@ def forecast_view(request):
             context['error_message'] = 'No historical data available to generate forecasts.'
 
     try:
-        return render(request, "pages/forecast.html", context)
+        # Render and set no-cache headers so browsers always fetch fresh computed values
+        response = render(request, "pages/forecast.html", context)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        return response
     except Exception as render_exc:
         logger = logging.getLogger(__name__)
         logger.exception('Error rendering forecast template: %s', str(render_exc))
