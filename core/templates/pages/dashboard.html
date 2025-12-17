@@ -211,7 +211,8 @@
       id: {{ product.id }},
       name: '{{ product.name }}',
       category: '{{ product.category }}',
-      price: {{ product.price }}
+      price: {{ product.price }},
+      quantity: {{ product.quantity|default:0 }}
     };
     {% endfor %}
 
@@ -375,9 +376,21 @@
       const existing = cart.find(item => item.id === product.id && item.size === size);
 
       if (existing) {
-        existing.quantity += 1;
+          // Prevent exceeding available inventory
+          const avail = (products[existing.id] && products[existing.id].quantity) || 0;
+          if (existing.quantity + 1 > avail) {
+            alert(`Cannot add more of ${existing.name}: only ${avail} available`);
+            return;
+          }
+          existing.quantity += 1;
       } else {
-        cart.push({ ...product, quantity: 1, size: size, price: adjustedPrice });
+          // Check availability before adding
+          const avail = (products[product.id] && products[product.id].quantity) || 0;
+          if (avail <= 0) {
+            alert(`Cannot add ${product.name}: item is out of stock`);
+            return;
+          }
+          cart.push({ ...product, quantity: 1, size: size, price: adjustedPrice });
       }
       updateCart();
     }
@@ -433,7 +446,14 @@
             const id = parseInt(btn.dataset.id);
             const size = btn.dataset.size || 'Regular';
             const item = cart.find(p => p.id === id && p.size === size);
-            if (item) item.quantity++;
+            if (item) {
+              const avail = (products[item.id] && products[item.id].quantity) || 0;
+              if (item.quantity + 1 > avail) {
+                alert(`Cannot increase ${item.name}: only ${avail} available`);
+                return;
+              }
+              item.quantity++;
+            }
             updateCart();
           });
         });
@@ -456,6 +476,23 @@
       }
 
       updateSummary();
+
+      // Disable + buttons when item reaches available inventory
+      document.querySelectorAll('.qty-plus').forEach(btn => {
+        const id = parseInt(btn.dataset.id);
+        const size = btn.dataset.size || 'Regular';
+        const item = cart.find(p => p.id === id && p.size === size);
+        const avail = (products[id] && products[id].quantity) || 0;
+        if (item && item.quantity >= avail) {
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.title = `Max available: ${avail}`;
+        } else {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.title = '';
+        }
+      });
     }
 
     function updateSummary() {
@@ -813,7 +850,29 @@
       })
       .catch(error => {
         console.error('Error processing payment:', error);
-        alert('Error processing payment: ' + error.message);
+        // Try to detect insufficient inventory errors and auto-correct the cart
+        const msg = error.message || '';
+        const insufficientRegex = /Insufficient inventory for ([^.]+)\. Available: (\d+), Requested: (\d+)/i;
+        const m = msg.match(insufficientRegex);
+        if (m) {
+          const prodName = m[1].trim();
+          const avail = parseInt(m[2], 10) || 0;
+          alert(`Insufficient inventory for ${prodName}. Adjusting cart to available quantity (${avail}).`);
+          // Find matching cart items by name and reduce quantity
+          cart.forEach(it => {
+            if (it.name && it.name.toLowerCase() === prodName.toLowerCase()) {
+              if (avail <= 0) {
+                // remove item
+                cart = cart.filter(p => !(p.id === it.id && p.size === it.size));
+              } else if (it.quantity > avail) {
+                it.quantity = avail;
+              }
+            }
+          });
+          updateCart();
+        } else {
+          alert('Error processing payment: ' + msg);
+        }
       });
     }
 
