@@ -123,8 +123,8 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
               <span id="forecastStatus" class="muted small-text"></span>
             </div>
         </div>
-        <div style="position:relative; height:360px;">
-          <canvas id="salesChart" style="height:100%; width:100%;" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
+        <div class="chart-area">
+          <canvas id="salesChart" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
         </div>
       </div>
 
@@ -292,8 +292,10 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { left: 8, right: 16, top: 6, bottom: 12 } },
+            layout: { padding: { left: 18, right: 18, top: 18, bottom: 16 } },
             plugins: {
+              // Use our HTML legend instead of Chart.js internal legend to avoid overlap
+              legend: { display: false },
               tooltip: {
                 mode: 'index', intersect: false,
                 callbacks: {
@@ -304,7 +306,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
             },
             scales: {
               y: { beginAtZero: true, ticks: { callback: function(v){ return (v === 0 ? '0' : formatCurrency(v)); } } },
-              x: { display: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12 } }
+              x: { display: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12 }, grid: { drawOnChartArea: true } }
             }
           }
         });
@@ -592,7 +594,9 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .badge-warning { background:#fef3c7; color:#92400e; }
       .badge-danger { background:#fff3f2; color:#7f1d1d; }
 
-      .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; }
+      .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; overflow:hidden; }
+      .card.chart-card .chart-area { position:relative; height:360px; }
+      .card.chart-card canvas{ display:block; width:100% !important; height:100% !important; }
       .card.chart-card h2{ font-size:18px; margin-bottom:8px; }
       .forecast-header-mini { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
       .btn-group .btn { border-radius:8px; }
