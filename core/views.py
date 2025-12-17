@@ -836,8 +836,18 @@ def forecast_view(request):
         response['Pragma'] = 'no-cache'
         return response
     except Exception as render_exc:
+        import traceback
         logger = logging.getLogger(__name__)
         logger.exception('Error rendering forecast template: %s', str(render_exc))
+        # If an admin requests with ?debug=1, return the full stack trace (temporary safe debugging aid)
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                tb = traceback.format_exc()
+                return HttpResponse('<pre style="white-space:pre-wrap;">Server Error (500)\n\n' + tb + '</pre>', status=500)
+        except Exception:
+            # ignore and fall back to friendly message
+            pass
         # Show a friendly error page instead of Django's raw 500
         return HttpResponse('Server Error (500) - Forecasts temporarily unavailable. Please check logs.', status=500)
 
