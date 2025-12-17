@@ -217,6 +217,14 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         return label;
       }
 
+      // Format currency values simply using the page 'currency' context variable (symbol)
+      window.currencySymbol = '{{ currency|escapejs }}' || '';
+      function formatCurrency(v){
+        if(v === null || v === undefined) return '-';
+        // Use toLocaleString for thousands separators
+        return (window.currencySymbol || '') + Number(v).toLocaleString();
+      }
+
       function renderAreaChart(canvasId, data, granularity) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         const labels = data.labels.slice();
@@ -242,10 +250,12 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
                 label: 'Actual',
                 data: actualPadded,
                 borderColor: '#2563eb',
-                backgroundColor: 'rgba(59,130,246,0.06)',
+                backgroundColor: 'rgba(59,130,246,0.08)',
                 fill: true,
-                tension: 0.3,
-                pointRadius: 3
+                tension: 0.36,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2
               },
               {
                 label: 'Forecast',
@@ -253,9 +263,11 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16,185,129,0.06)',
                 fill: false,
-                borderDash: [5,4],
+                borderDash: [6,4],
                 tension: 0.3,
-                pointRadius: 3
+                pointRadius: 4,
+                pointStyle: 'circle',
+                borderWidth: 2
               },
               {
                 label: 'Upper',
@@ -270,7 +282,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
                 label: 'Lower',
                 data: lowerPadding,
                 borderColor: 'rgba(254,202,202,0.9)',
-                backgroundColor: 'rgba(254,202,202,0.08)',
+                backgroundColor: 'rgba(254,202,202,0.04)',
                 fill: '-1',
                 pointRadius: 0,
                 borderWidth: 1
@@ -280,12 +292,19 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: { padding: { left: 8, right: 16, top: 6, bottom: 12 } },
             plugins: {
-              tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context){ const idx = context[0].dataIndex; return this.chart._rawLabels ? this.chart._rawLabels[idx] : context[0].label; } } }
+              tooltip: {
+                mode: 'index', intersect: false,
+                callbacks: {
+                  title: function(context){ const idx = context[0].dataIndex; return this.chart._rawLabels ? this.chart._rawLabels[idx] : context[0].label; },
+                  label: function(ctx){ const v = ctx.raw; return ctx.dataset.label + ': ' + formatCurrency(v); }
+                }
+              }
             },
             scales: {
-              y: { beginAtZero: true },
-              x: { display: true }
+              y: { beginAtZero: true, ticks: { callback: function(v){ return (v === 0 ? '0' : formatCurrency(v)); } } },
+              x: { display: true, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 12 } }
             }
           }
         });
@@ -573,16 +592,34 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .badge-warning { background:#fef3c7; color:#92400e; }
       .badge-danger { background:#fff3f2; color:#7f1d1d; }
 
-      .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:8px; padding:24px; box-shadow:var(--shadow-sm); margin-bottom:32px; }
+      .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; }
+      .card.chart-card h2{ font-size:18px; margin-bottom:8px; }
       .forecast-header-mini { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-      .btn-group .btn { border-radius:6px; }
+      .btn-group .btn { border-radius:8px; }
+      .btn-ghost.btn-active{ background:var(--accent); color:#000; box-shadow:0 6px 18px rgba(16,24,40,0.06); }
+      .btn{ transition: all .12s ease-in-out; }
 
-      .legend-row { display:flex; justify-content:center; gap:24px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border); }
-      .legend-item { display:flex; align-items:center; gap:8px; }
-      .legend-swatch { width:16px; height:16px; border-radius:2px; }
+      /* Move legend to top-left and make it lighter */
+      .legend-row { display:flex; justify-content:flex-start; gap:18px; flex-wrap:wrap; padding:8px 0 18px 0; border-top:0; margin-top:8px; }
+      .legend-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); }
+      .legend-swatch { width:16px; height:16px; border-radius:4px; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
       .legend-swatch.actual { background:#2563eb; }
-      .legend-swatch.predicted { background:#10b981; }
-      .legend-swatch.bound { background:#fecaca; opacity:0.6; }
+      .legend-swatch.predicted { background:#10b981; border:2px dashed rgba(16,185,129,0.25); }
+      .legend-swatch.bound { background:#fecaca; opacity:0.9; border-radius:2px; }
+
+      /* Empty chart notice improvements */
+      .empty-notice{ position:absolute; top:48%; left:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,0.95); padding:14px 18px; border-radius:8px; box-shadow:0 8px 24px rgba(16,24,40,0.06); color:var(--text-secondary); }
+
+      /* Hero tweaks */
+      .hero-card-amount{ font-size:38px; }
+      .hero-card-sub{ opacity:0.95; }
+
+      /* Responsive tweak: reduce x-label density for small screens */
+      @media (max-width: 520px) { .filters-row { flex-direction: column; align-items: stretch; } .filters-actions{ margin-left:0; justify-content:flex-end; }
+        .overview-grid { grid-template-columns: 1fr; }
+        .card.chart-card { padding:16px; }
+        .legend-row { justify-content:center; }
+      }
 
       /* Product forecast grid and pagination removed */
 
