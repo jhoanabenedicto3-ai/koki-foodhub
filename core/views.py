@@ -551,7 +551,8 @@ def forecast_view(request):
 
     try:
         from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series
-        csv_data = get_csv_forecast()
+        # Use last 100 rows from CSV for model training (per user request)
+        csv_data = get_csv_forecast(limit=100)
         import_error = None
     except Exception as import_error:
         # Log the import error but continue with empty/fallback data so page renders
@@ -604,23 +605,36 @@ def forecast_view(request):
         csv_agg = None
         try:
             from .services.forecasting import csv_aggregate_series
-            csv_agg = csv_aggregate_series(limit=100)
+                csv_agg = csv_aggregate_series(limit=100)
         except Exception:
             csv_agg = None
 
+        # Forecast models should be trained using CSV (limited to 100 rows).
+        # Actual sales shown on charts should come from customer purchases (DB aggregation).
+        db_daily = aggregate_sales('daily', lookback=60)
+        db_weekly = aggregate_sales('weekly', lookback=12)
+        db_monthly = aggregate_sales('monthly', lookback=12)
+
         if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
-            daily_series = csv_agg.get('daily', [])
-            weekly_series = csv_agg.get('weekly', [])
-            monthly_series = csv_agg.get('monthly', [])
+            # Use CSV for model training/forecasting
+            forecast_daily_base = csv_agg.get('daily', [])
+            forecast_weekly_base = csv_agg.get('weekly', [])
+            forecast_monthly_base = csv_agg.get('monthly', [])
         else:
-            daily_series = aggregate_sales('daily', lookback=60)
-            weekly_series = aggregate_sales('weekly', lookback=12)
-            monthly_series = aggregate_sales('monthly', lookback=12)
+            # Fallback: train on DB aggregated series
+            forecast_daily_base = db_daily
+            forecast_weekly_base = db_weekly
+            forecast_monthly_base = db_monthly
+
+        # Use DB series as the 'actual' shown on charts
+        daily_series = db_daily
+        weekly_series = db_weekly
+        monthly_series = db_monthly
 
         # Forecasts for each horizon
-        daily_fore = forecast_time_series(daily_series, horizon=30)
-        weekly_fore = forecast_time_series(weekly_series, horizon=12)
-        monthly_fore = forecast_time_series(monthly_series, horizon=6)
+        daily_fore = forecast_time_series(forecast_daily_base, horizon=30)
+        weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12)
+        monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6)
 
         series_error = None
     except Exception as series_exc:
@@ -640,6 +654,17 @@ def forecast_view(request):
     peak_orders = int(total_forecasted_units * 1.2)
     last_week_total = sum(item['last_7_days'] for item in data)
     growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
+
+    # Compute period summaries (use DB actuals shown on charts)
+    from .services.forecasting import compute_period_overview, generate_insight
+    daily_summary = compute_period_overview(daily_series)
+    weekly_summary = compute_period_overview(weekly_series)
+    monthly_summary = compute_period_overview(monthly_series)
+
+    # Forecast preview values (next period forecast) from forecast payloads
+    today_forecast = (daily_fore.get('forecast') or [0])[0] if daily_fore.get('forecast') else 0
+    week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
+    month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
 
     # determine which source we used for series
     data_source = 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db'
@@ -663,6 +688,12 @@ def forecast_view(request):
         "peak_day": peak_day,
         "peak_orders": peak_orders,
         "growth_percentage": growth_percentage,
+        "today_sales": daily_summary.get('total', 0),
+        "this_week_sales": weekly_summary.get('total', 0),
+        "this_month_sales": monthly_summary.get('total', 0),
+        "today_forecast_preview": today_forecast,
+        "week_forecast_preview": week_forecast,
+        "month_forecast_preview": month_forecast,
         "currency": "PHP",
         # JSON for charts
         "daily_json": json.dumps({
@@ -738,7 +769,7 @@ def forecast_data_api(request):
 
     # Per-product CSV forecasts
     try:
-        csv_data = get_csv_forecast()
+        csv_data = get_csv_forecast(limit=100)
     except Exception as e:
         logger.exception('Error running get_csv_forecast: %s', str(e))
         csv_data = {}

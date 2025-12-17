@@ -67,7 +67,7 @@ def csv_aggregate_series(limit=100):
 
     return {'daily': daily_series, 'weekly': weekly_series, 'monthly': monthly_series}
 
-def get_csv_forecast(csv_path=None):
+def get_csv_forecast(csv_path=None, limit=None):
     """
     Train ML model on CSV data and return forecasts for each product
     Returns dict: product_name -> { 'forecast': units, 'trend': str, 'confidence': float, 'history': [...] }
@@ -75,6 +75,12 @@ def get_csv_forecast(csv_path=None):
     df = load_csv_data(csv_path)
     if df is None:
         return {}
+    # Optionally limit to most recent `limit` rows to keep processing bounded
+    if limit is not None:
+        try:
+            df = df.sort_values('date').tail(limit)
+        except Exception:
+            pass
     
     results = {}
     

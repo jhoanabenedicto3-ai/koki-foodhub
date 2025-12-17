@@ -8,6 +8,26 @@
     <p class="muted">Predictive insights for better planning</p>
   </div>
 
+  <div class="forecast-dark">
+    <div class="hero-tiles">
+      <div class="tile">
+        <div class="tile-label">Today's Sales</div>
+        <div class="tile-amount">{{ currency }}{{ today_sales|floatformat:0 }}</div>
+        <div class="tile-sub">Forecast: {{ currency }}{{ today_forecast_preview }}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">This Week's Sales</div>
+        <div class="tile-amount">{{ currency }}{{ this_week_sales|floatformat:0 }}</div>
+        <div class="tile-sub">Forecast: {{ currency }}{{ week_forecast_preview }}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">This Month's Sales</div>
+        <div class="tile-amount">{{ currency }}{{ this_month_sales|floatformat:0 }}</div>
+        <div class="tile-sub">Forecast: {{ currency }}{{ month_forecast_preview }}</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Controls: Date range and product filter -->
   <div class="filters-card">
     <div class="filters-row">
@@ -172,8 +192,8 @@
               {
                 label: 'Actual',
                 data: actualPadded,
-                borderColor: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(59,130,246,0.06)',
                 fill: true,
                 tension: 0.3,
                 pointRadius: 3
@@ -181,8 +201,8 @@
               {
                 label: 'Forecast',
                 data: forecastPadding,
-                borderColor: '#f59e0b',
-                backgroundColor: 'rgba(245, 158, 11, 0.06)',
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.06)',
                 fill: false,
                 borderDash: [5,4],
                 tension: 0.3,
@@ -279,8 +299,8 @@
         const dsForecast = {
           label: label + ' Forecast',
           data: data.forecast,
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,0.06)',
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.06)',
           borderWidth: 3,
           fill: false,
           tension: 0.3,
@@ -572,6 +592,14 @@
       .btn .btn-icon { margin-right:6px; }
       .btn.loading { opacity:0.8; pointer-events:none; }
 
+      /* Dark theme hero tiles */
+      .forecast-dark { background: linear-gradient(180deg, #0b1220, #102033); padding: 22px; border-radius: 12px; margin-bottom: 18px; }
+      .hero-tiles { display:flex; gap:16px; align-items:stretch; }
+      .tile { flex:1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04); padding:18px; border-radius:8px; color:#e6eef8; }
+      .tile-label { font-size:13px; color:#bcd3ee; font-weight:700; }
+      .tile-amount { font-size:28px; font-weight:800; margin-top:8px; color:#fff; }
+      .tile-sub { margin-top:6px; color:#9fb6d9; font-weight:600; font-size:13px; }
+
       .overview-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:18px; }
       .overview-card { background:#fff; border-radius:10px; padding:18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.04); min-height:92px; }
       .badge { padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; }
@@ -585,8 +613,8 @@
       .legend-row { display:flex; justify-content:center; gap:24px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border); }
       .legend-item { display:flex; align-items:center; gap:8px; }
       .legend-swatch { width:16px; height:16px; border-radius:2px; }
-      .legend-swatch.actual { background:#10b981; }
-      .legend-swatch.predicted { background:#f59e0b; }
+      .legend-swatch.actual { background:#2563eb; }
+      .legend-swatch.predicted { background:#10b981; }
       .legend-swatch.bound { background:#fecaca; opacity:0.6; }
 
       /* Product forecast grid and pagination removed */
