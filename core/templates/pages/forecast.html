@@ -135,9 +135,27 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           </div>
 
 
-            <!-- Main chart area now explicitly inside the card -->
-            <div class="chart-area">
-              <canvas id="salesChart" role="img" aria-label="Sales chart showing actual and forecasted sales"></canvas>
+            <!-- Split view: Actual and Forecast cards -->
+            <div class="two-up">
+              <div class="card small-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="font-weight:700;">Actual</div>
+                  <div class="muted small-text">Historical data</div>
+                </div>
+                <div class="chart-area small-chart-area">
+                  <canvas id="actualChart" role="img" aria-label="Actual sales chart"></canvas>
+                </div>
+              </div>
+
+              <div class="card small-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="font-weight:700;">Forecast</div>
+                  <div class="muted small-text">Predicted values (upper/lower)</div>
+                </div>
+                <div class="chart-area small-chart-area">
+                  <canvas id="forecastChart" role="img" aria-label="Forecast chart"></canvas>
+                </div>
+              </div>
             </div>
 
         </div>
@@ -330,30 +348,26 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         return chart;
       }
 
-      // Render a single chart (default to weekly) only if we have a canvas and data
+      // Render separate actual and forecast charts (default to weekly)
       window.currentView = 'weekly';
-      window.mainChart = null;
+      window.actualChart = null;
+      window.forecastChart = null;
       try {
-        if(document.getElementById('salesChart') && weekly && Array.isArray(weekly.labels) && weekly.labels.length){
-          window.mainChart = renderAreaChart('salesChart', weekly, 'weekly');
-          // Render the mini sparkline next to the chart title
-          try { renderSparkline('headerSpark', weekly, { height: 28, limit: 8, color: '#10b981', bg: 'rgba(16,185,129,0.06)' }); } catch(e){ console.warn('header sparkline init failed', e); }
-        } else if(document.getElementById('salesChart')){
-          // show empty notice overlay if no series
-          const parent = document.getElementById('salesChart').parentElement;
+        // Render header sparkline
+        try { renderSparkline('headerSpark', weekly, { height: 28, limit: 8, color: '#10b981', bg: 'rgba(16,185,129,0.06)' }); } catch(e){ console.warn('header sparkline init failed', e); }
+
+        // Actual chart: only plot historical actuals
+        if(document.getElementById('actualChart') && weekly && Array.isArray(weekly.labels) && weekly.labels.length){
+          window.actualChart = renderLineOnlyChart('actualChart', weekly, 'weekly');
+        } else if(document.getElementById('actualChart')){
+          const parent = document.getElementById('actualChart').parentElement;
           const notice = document.createElement('div');
-          notice.className = 'empty-notice';
-          notice.style.position = 'absolute';
-          notice.style.top = '50%';
-          notice.style.left = '50%';
-          notice.style.transform = 'translate(-50%, -50%)';
-          notice.style.background = 'rgba(255,255,255,0.9)';
-          notice.style.padding = '12px 16px';
-          notice.style.borderRadius = '8px';
-          notice.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
-          notice.textContent = 'No historical data available to render chart';
-          parent.style.position = 'relative';
-          parent.appendChild(notice);
+          notice.className = 'empty-notice'; notice.style.position = 'absolute'; notice.style.top = '50%'; notice.style.left = '50%'; notice.style.transform = 'translate(-50%, -50%)'; notice.style.background = 'rgba(255,255,255,0.9)'; notice.style.padding = '12px 16px'; notice.style.borderRadius = '8px'; notice.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; notice.textContent = 'No historical data available'; parent.style.position = 'relative'; parent.appendChild(notice);
+        }
+
+        // Forecast chart: show forecast series and bounds
+        if(document.getElementById('forecastChart') && weekly && Array.isArray(weekly.labels)){
+          window.forecastChart = renderForecastOnlyChart('forecastChart', weekly, 'weekly');
         }
       } catch(e){ console.warn('chart init failed', e); }
 
@@ -383,7 +397,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         try { updateSparkline('headerSpark', monthly); } catch(e){ console.warn('update sparkline failed', e); }
       });
 
-      // Helper to update existing Chart.js chart with new data
+      // Helper to update existing Chart.js chart with new data (legacy single-chart)
       function updateChart(chartObj, newData) {
         if(!chartObj) return;
         const labels = newData.labels.slice();
@@ -407,6 +421,46 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         chartObj.data.datasets[3].data = Array(newData.actual.length).fill(null).concat(newData.lower);
 
         chartObj.update();
+      }
+
+      // Render a simple line-only chart for historical actuals
+      function renderLineOnlyChart(canvasId, data, granularity){
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const labels = data.labels.slice().map(l => formatLabel(l, granularity));
+        const chart = new Chart(ctx, {
+          type: 'line',
+          data:{ labels: labels, datasets:[{ label: 'Actual', data: data.actual, borderColor: '#2563eb', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.36, pointRadius: 3, borderWidth: 2 }] },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ title: function(ctx){ return this.chart._rawLabels ? this.chart._rawLabels[ctx[0].dataIndex] : ctx[0].label; }, label: function(ctx){ return ctx.dataset.label + ': ' + formatCurrency(ctx.raw); } } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: function(v){ return (v===0? '0': formatCurrency(v)); } } }, x:{ ticks:{ maxRotation:30, autoSkip:true, maxTicksLimit:8 } } } }
+        });
+        chart._rawLabels = data.labels.slice();
+        chart._granularity = granularity;
+        return chart;
+      }
+
+      // Render forecast-only chart (forecast + bounds)
+      function renderForecastOnlyChart(canvasId, data, granularity){
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const labels = data.labels.slice();
+        const forecastLabelsRaw = buildForecastLabels(labels, data.forecast.length, granularity);
+        const combinedRaw = labels.concat(forecastLabelsRaw);
+        const displayLabels = combinedRaw.map(l => formatLabel(l, granularity));
+
+        const forecastOnly = Array(labels.length).fill(null).concat(data.forecast);
+        const upperOnly = Array(labels.length).fill(null).concat(data.upper);
+        const lowerOnly = Array(labels.length).fill(null).concat(data.lower);
+
+        const chart = new Chart(ctx, {
+          type:'line',
+          data:{ labels: displayLabels, datasets:[
+            { label:'Forecast', data: forecastOnly, borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.06)', fill:false, borderDash:[6,4], tension:0.3, pointRadius:3, borderWidth:2 },
+            { label:'Upper', data: upperOnly, borderColor:'rgba(254,202,202,0.9)', backgroundColor:'rgba(254,202,202,0.08)', fill:'-1', pointRadius:0, borderWidth:1 },
+            { label:'Lower', data: lowerOnly, borderColor:'rgba(254,202,202,0.9)', backgroundColor:'rgba(254,202,202,0.04)', fill:'-1', pointRadius:0, borderWidth:1 }
+          ] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ mode:'index', intersect:false, callbacks:{ title:function(context){ const idx = context[0].dataIndex; return this.chart._rawLabels ? this.chart._rawLabels[idx] : context[0].label; }, label:function(ctx){ return ctx.dataset.label + ': ' + formatCurrency(ctx.raw); } } } }, scales:{ y:{ beginAtZero:true, ticks:{ callback:function(v){ return (v===0? '0': formatCurrency(v)); } } }, x:{ ticks:{ maxRotation:30, autoSkip:true, maxTicksLimit:8 } } } }
+        });
+        chart._rawLabels = combinedRaw;
+        chart._granularity = granularity;
+        return chart;
       }
 
       // Small sparkline utility supporting multiple canvas instances
@@ -564,9 +618,11 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           const currentSeries = (window.currentView === 'daily' ? window.daily : window.currentView === 'monthly' ? window.monthly : window.weekly);
           if(!currentSeries || !currentSeries.labels || !currentSeries.labels.length){ showEmptyNotice('salesChart', 'No data available for the selected view'); }
 
-          // Update main chart with the currently selected view
+          // Update both actual and forecast charts with the currently selected view
           const mapping = { 'daily': window.daily, 'weekly': window.weekly, 'monthly': window.monthly };
-          updateChart(window.mainChart, mapping[window.currentView] || window.weekly);
+          const series = mapping[window.currentView] || window.weekly;
+          if(window.actualChart){ try{ window.actualChart.destroy(); }catch(e){} window.actualChart = renderLineOnlyChart('actualChart', series, window.currentView); }
+          if(window.forecastChart){ try{ window.forecastChart.destroy(); }catch(e){} window.forecastChart = renderForecastOnlyChart('forecastChart', series, window.currentView); }
           try { updateSparkline('headerSpark', mapping[window.currentView] || window.weekly); } catch(e){ console.warn('refresh sparkline failed', e); }
 
           // AI insights area removed in simplified UI
@@ -672,6 +728,11 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; overflow:hidden; }
       .card.chart-card .chart-area { position:relative; height:300px; }
+      /* Two column layout for actual / forecast */
+      .two-up{ display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-top:12px; }
+      .small-card{ padding:14px; min-height:180px; }
+      .small-chart-area{ height:160px; }
+      @media (max-width:720px){ .two-up{ grid-template-columns: 1fr; } .small-chart-area{ height:200px; } }
       .card.chart-card canvas{ display:block; width:100% !important; height:100% !important; }
       .header-spark{ width:140px; height:28px; display:inline-block; vertical-align:middle; margin-left:6px; }
       .card.chart-card h2{ font-size:18px; margin-bottom:8px; }
