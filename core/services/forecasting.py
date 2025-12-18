@@ -1,12 +1,19 @@
 from datetime import date, timedelta
 from collections import defaultdict
 import os
-import numpy as np
-from sklearn.linear_model import LinearRegression
+import logging
 from ..models import Sale, Product
 from django.db.models import Sum
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+
+# NOTE: numpy, pandas and scikit-learn are optional runtime dependencies used
+# for CSV-based helpers and linear-regression forecasts. Importing them at
+# module import time caused some deployed instances to raise ImportError and
+# produce a Server Error (500) when those packages weren't available. To be
+# resilient we import heavy numeric libs only inside the functions that need
+# them and provide safe fallbacks when they're missing.
+logger = logging.getLogger(__name__)
 
 # Cap per-sale units so single bad rows don't dominate forecasts
 MAX_UNITS_PER_SALE = 100
@@ -20,11 +27,18 @@ def load_csv_data(csv_path=None):
         return None
     
     try:
+        # Import pandas only when CSV helpers are invoked
+        import pandas as pd
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        logger.exception('Pandas unavailable; CSV helpers disabled: %s', exc)
+        return None
+
+    try:
         df = pd.read_csv(csv_path)
         df['date'] = pd.to_datetime(df['date'])
         return df
     except Exception as e:
-        print(f"Error loading CSV: {e}")
+        logger.exception('Error loading CSV: %s', e)
         return None
 
 
@@ -90,6 +104,14 @@ def get_csv_forecast(csv_path=None, limit=100):
     results = {}
     
     # Group by product name
+    # Try to import numeric libs lazily; if they're not present return empty results
+    try:
+        import numpy as np
+        from sklearn.linear_model import LinearRegression
+    except Exception as exc:  # pragma: no cover - only triggers when libs absent
+        logger.exception('Numeric libs unavailable for CSV forecasting: %s', exc)
+        return {}
+
     for product_name, group in df.groupby('name'):
         # Count units sold per day
         daily_sales = group.groupby('date').size().reset_index(name='units')
@@ -100,11 +122,11 @@ def get_csv_forecast(csv_path=None, limit=100):
         # Prepare training data
         X = np.arange(len(daily_sales)).reshape(-1, 1)
         y = daily_sales['units'].values
-        
+
         # Train linear regression model
         model = LinearRegression()
         model.fit(X, y)
-        
+
         # Get forecast for next day
         next_day = np.array([[len(daily_sales)]])
         forecast = max(1, int(model.predict(next_day)[0]))
@@ -190,11 +212,14 @@ def moving_average_forecast(window=3, lookback_days=21):
         # Adaptive outlier handling: only apply a cap when there are clear extreme
         # outliers relative to the typical scale for this product. This avoids
         # forcing small-series forecasts up to a fixed value like 100.
+        # Use numpy when available for robust stats, otherwise fallback to Python stdlib
         try:
+            import numpy as np
             med = float(np.median(raw_units))
             mx = float(max(raw_units))
         except Exception:
-            med = float(sum(raw_units) / len(raw_units))
+            import statistics as stats
+            med = float(stats.median(raw_units))
             mx = float(max(raw_units))
 
         cap = None
@@ -202,10 +227,18 @@ def moving_average_forecast(window=3, lookback_days=21):
         # compute a conservative cap using a high percentile of historical data.
         if med > 0 and mx > med * 10 and mx > MAX_UNITS_PER_SALE:
             try:
+                import numpy as np
                 p95 = float(np.percentile(raw_units, 95))
                 cap = int(max(MAX_UNITS_PER_SALE, round(p95)))
             except Exception:
-                cap = MAX_UNITS_PER_SALE
+                # Fallback percentile implementation (approximate using sorted values)
+                try:
+                    sorted_vals = sorted(raw_units)
+                    idx = int(round(0.95 * (len(sorted_vals) - 1)))
+                    p95 = float(sorted_vals[idx])
+                    cap = int(max(MAX_UNITS_PER_SALE, round(p95)))
+                except Exception:
+                    cap = MAX_UNITS_PER_SALE
 
         # Apply cap if determined, otherwise use raw values
         if cap:
@@ -232,7 +265,12 @@ def moving_average_forecast(window=3, lookback_days=21):
 
         # Confidence: inverse of dispersion
         try:
-            variance = float(np.var(capped))
+            try:
+                import numpy as np
+                variance = float(np.var(capped))
+            except Exception:
+                import statistics as stats
+                variance = float(stats.pvariance(capped)) if len(capped) > 1 else 0.0
             mean = float(avg) if avg else 0.0
             if mean <= 0:
                 confidence = 0.0
@@ -354,8 +392,15 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
 
     Returns dict with keys: 'forecast' (list), 'upper', 'lower', 'confidence', 'accuracy'
     """
-    import numpy as np
-    from sklearn.linear_model import LinearRegression
+    # Import numeric libs lazily and tolerate their absence
+    try:
+        import numpy as np
+    except Exception:
+        np = None
+    try:
+        from sklearn.linear_model import LinearRegression
+    except Exception:
+        LinearRegression = None
 
     values = [v for _, v in series]
     n = len(values)
@@ -369,35 +414,39 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
 
     if method == 'linear':
 
-        # Original linear-regression-based implementation
-        X = np.arange(n).reshape(-1, 1)
-        y = np.array(values, dtype=float)
-        try:
-            model = LinearRegression()
-            model.fit(X, y)
-            r2 = model.score(X, y)
+        # If linear regression libs are not available, fall back to moving-average method
+        if (np is None) or (LinearRegression is None):
+            method = 'ma'
+        else:
+            # Original linear-regression-based implementation
+            X = np.arange(n).reshape(-1, 1)
+            y = np.array(values, dtype=float)
+            try:
+                model = LinearRegression()
+                model.fit(X, y)
+                r2 = model.score(X, y)
 
-            future_X = np.arange(n, n + horizon).reshape(-1, 1)
-            preds = model.predict(future_X)
-            preds = [max(0, float(round(p))) for p in preds]
+                future_X = np.arange(n, n + horizon).reshape(-1, 1)
+                preds = model.predict(future_X)
+                preds = [max(0, float(round(p))) for p in preds]
 
-            resid = y - model.predict(X)
-            std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
-            upper = [int(round(p + 1.5 * std)) for p in preds]
-            lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+                resid = y - model.predict(X)
+                std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
+                upper = [int(round(p + 1.5 * std)) for p in preds]
+                lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
 
-            confidence = max(0.0, min(100.0, r2 * 100))
-            if confidence >= 70:
-                accuracy = 'High'
-            elif confidence >= 40:
-                accuracy = 'Medium'
-            else:
-                accuracy = 'Low'
+                confidence = max(0.0, min(100.0, r2 * 100))
+                if confidence >= 70:
+                    accuracy = 'High'
+                elif confidence >= 40:
+                    accuracy = 'Medium'
+                else:
+                    accuracy = 'Low'
 
-            return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
-        except Exception:
-            # If linear regression fails (e.g., invalid data), fall back to moving average
-            pass
+                return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+            except Exception:
+                # If linear regression fails (e.g., invalid data), fall back to moving average
+                method = 'ma'
 
     # Default: moving-median/average method (robust to spikes)
     # Use the median of the recent `window` points as the forecast value

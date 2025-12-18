@@ -166,6 +166,40 @@ class Seed(TestCase):
             if had:
                 setattr(mod, 'forecast_time_series', saved)
 
+    def test_forecast_view_handles_missing_numeric_libs(self):
+        """If numpy/pandas/sklearn are unavailable the forecast page should still render (no 500)."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_missing_libs', 'aml@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        import importlib, builtins
+        real_import = builtins.__import__
+
+        def broken_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name.startswith('numpy') or name.startswith('sklearn') or name.startswith('pandas'):
+                raise ImportError('simulated missing dependency')
+            return real_import(name, globals, locals, fromlist, level)
+
+        try:
+            # Patch import to simulate missing libs and reload the forecasting module
+            builtins.__import__ = broken_import
+            mod = importlib.import_module('core.services.forecasting')
+            importlib.reload(mod)
+
+            resp = c.get('/forecast/')
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
+        finally:
+            builtins.__import__ = real_import
+            # Reload module to restore original behavior
+            try:
+                importlib.reload(importlib.import_module('core.services.forecasting'))
+            except Exception:
+                pass
+
     def test_forecast_api_returns_error_id_on_unexpected_exception(self):
         """When the API encounters an unexpected exception it should return a JSON error with an id for lookup."""
         from django.contrib.auth.models import User, Group
