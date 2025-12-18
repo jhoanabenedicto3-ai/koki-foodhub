@@ -44,7 +44,7 @@
       <nav class="sidebar-menu">
         <!-- Persistent menu item to ensure visibility on all screen sizes and cached views -->
         <div class="sidebar-menu-item">
-          <a id="product-forecast-btn" href="{% url 'product_forecast' %}" class="{ % if '/product-forecast' in request.path %}active{% endif %}" style="display:flex;align-items:center;gap:10px;">
+          <a id="product-forecast-btn" href="{% url 'product_forecast' %}" class="{% if '/product-forecast' in request.path %}active{% endif %}" style="display:flex;align-items:center;gap:10px;">
             <span class="sidebar-icon">🧾</span>
             <span class="sidebar-label">Product Forecast</span>
           </a>
