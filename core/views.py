@@ -849,7 +849,9 @@ def forecast_view(request):
         return HttpResponse(f'Server Error (500) - Forecasts temporarily unavailable. Error ID: {error_id}', status=500)
 
 
-@group_required("Admin")
+from django.contrib.auth.decorators import login_required
+
+@login_required
 def forecast_data_api(request):
     """Return JSON with aggregated series and forecasts for daily/weekly/monthly and per-product summaries."""
     logger = logging.getLogger(__name__)

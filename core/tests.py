@@ -41,12 +41,10 @@ class Seed(TestCase):
         # unauthenticated clients should be redirected to login
         self.assertNotEqual(resp.status_code, 200)
 
-        # create admin and test access
-        admin = User.objects.create_superuser('admin2', 'a2@example.com', 'pass')
-        grp, _ = Group.objects.get_or_create(name='Admin')
-        admin.groups.add(grp)
+        # create a regular authenticated user and test access (the API should be available to logged-in users)
+        user = User.objects.create_user('user_api', 'uapi@example.com', 'pass')
         c = self.client
-        c.force_login(admin)
+        c.force_login(user)
         resp = c.get('/forecast/api/')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
