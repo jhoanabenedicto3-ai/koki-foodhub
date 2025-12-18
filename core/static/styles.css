@@ -573,6 +573,10 @@ textarea {
 /* Forecast page specific styles - polished dashboard look */
 .forecast-wrapper { max-width: 1200px; margin: 0 auto; }
 
+.hero-grid { margin-bottom: 12px; }
+.hero-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm); }
+.hero-card .muted { color: var(--text-secondary); }
+
 .analytics-grid.three-up {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -621,6 +625,25 @@ textarea {
 .btn.small { padding: 8px 12px; border-radius:10px; }
 .input.small { min-width:160px; }
 .input.tiny { min-width:90px; }
+
+/* Export dropdown styling */
+.dropdown { position: relative; }
+.dropdown #exportMenu { min-width: 200px; border-radius:8px; overflow:hidden; }
+.dropdown #exportMenu button { display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:#fff; }
+.dropdown #exportMenu button:hover { background: #f7f9fb; }
+
+/* Hero icons */
+.hero-card svg { display:block; }
+.hero-card .muted { color:var(--text-secondary); }
+.hero-card { padding:16px; }
+
+/* Chart forecast fill helper */
+.chart-area .forecast-fill { opacity:0.9; }
+
+/* Small spacing polish */
+.hero-grid { gap:18px; }
+.range-btn { min-width:56px; }
+
 
 
 /* Table: cleaner, stripe, sticky header */

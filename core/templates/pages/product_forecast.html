@@ -6,55 +6,74 @@
     <p class="muted" style="font-size:15px; margin-top:8px;">Predict best-selling products for the next day, week, and month.</p>
   </div>
 
-  <div class="controls-row">
-    <div class="analytics-grid three-up" style="flex:1; min-width:360px;">
-      <div class="analytics-card">
-        <h3>Best prediction</h3>
-        <div id="best-product" class="insight-large">—</div>
-        <div class="meta small muted" id="best-product-meta">—</div>
-      </div>
-      <div class="analytics-card">
-        <h3>Projected sales</h3>
-        <div id="proj-sales" class="insight-large">—</div>
-        <div class="meta small muted" id="proj-sales-meta">—</div>
-      </div>
-      <div class="analytics-card">
-        <h3>Projected revenue</h3>
-        <div id="proj-revenue" class="insight-large">—</div>
-        <div class="meta small muted" id="proj-revenue-meta">—</div>
+<div class="hero-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px; align-items:start; margin-bottom:12px;">
+    <div class="hero-card">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div style="width:72px; height:72px; border-radius:10px; overflow:hidden; background:#fff; border:1px solid rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center;">
+          <div id="hero-image" style="width:64px; height:64px; background:#f3f4f6; border-radius:8px;"></div>
+        </div>
+        <div>
+          <div style="font-weight:800; font-size:14px;">Best Selling Forecast</div>
+          <div id="hero-best-name" style="font-weight:700; font-size:18px; margin-top:6px;">—</div>
+          <div id="hero-best-meta" class="muted" style="font-size:13px;">—</div>
+        </div>
       </div>
     </div>
 
-    <div class="controls-actions">
-      <div class="btn-group" role="radiogroup" aria-label="Time range">
-        <button class="btn small range-btn active" data-range="7">Weekly</button>
-        <button class="btn small range-btn" data-range="1">Daily</button>
-        <button class="btn small range-btn" data-range="30">Monthly</button>
+    <div class="hero-card" style="display:flex; flex-direction:column; justify-content:center; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:700; color:#444;">Projected sales</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn small range-btn" data-range="1">Daily</button>
+          <button class="btn small range-btn active" data-range="7">Weekly</button>
+          <button class="btn small range-btn" data-range="30">Monthly</button>
+        </div>
       </div>
-
-      <select id="categorySelect" class="input small" aria-label="Filter by category">
-        <option value="">All categories</option>
-        {% for cat in categories %}
-          <option value="{{ cat }}">{{ cat }}</option>
-        {% endfor %}
-      </select>
-
-      <input id="searchInput" class="input small" placeholder="Search product" aria-label="Search product" />
-
-      <label class="input small" style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="activeOnly" /> Active only
-      </label>
-      <label class="input small" style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" id="inStockOnly" /> In stock only
-      </label>
-
-      <input id="minPrice" class="input tiny" type="number" step="0.01" placeholder="Min price" aria-label="Minimum price" style="width:90px;" />
-      <input id="maxPrice" class="input tiny" type="number" step="0.01" placeholder="Max price" aria-label="Maximum price" style="width:90px;" />
-
-      <div style="display:flex; gap:6px;">
-        <button id="exportCsv" class="btn small">Export CSV</button>
-        <button id="exportJson" class="btn small">Export JSON</button>
+      <div style="display:flex; gap:12px; align-items:baseline;">
+        <div id="hero-proj-sales" style="font-size:28px; font-weight:800;">—</div>
+        <div class="muted" id="hero-proj-sales-meta">—</div>
       </div>
+    </div>
+
+    <div class="hero-card" style="display:flex; flex-direction:column; justify-content:center; gap:8px; align-items:flex-end;">
+      <div style="font-weight:700; color:#444;">Projected revenue</div>
+      <div style="font-weight:800; font-size:22px;" id="hero-proj-revenue">—</div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <div class="dropdown" style="position:relative;">
+          <button id="exportBtn" class="btn" style="padding:8px 12px;">Export ▾</button>
+          <div id="exportMenu" style="display:none; position:absolute; right:0; top:38px; background:#fff; border:1px solid rgba(0,0,0,0.06); box-shadow:var(--shadow-md); border-radius:8px; overflow:hidden; min-width:160px; z-index:10;">
+            <button class="btn" id="exportCsvMenu" style="display:block; width:100%; text-align:left; padding:10px 12px; background:#fff; border:none;">Export CSV</button>
+            <button class="btn" id="exportJsonMenu" style="display:block; width:100%; text-align:left; padding:10px 12px; background:#fff; border:none;">Export JSON</button>
+          </div>
+        </div>
+        <button id="downloadBtn" class="btn primary">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="filters-row" style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+    <select id="categorySelect" class="input small" aria-label="Filter by category">
+      <option value="">All categories</option>
+      {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+      {% endfor %}
+    </select>
+
+    <input id="searchInput" class="input small" placeholder="Search product" aria-label="Search product" />
+
+    <label class="input small" style="display:flex; align-items:center; gap:6px;">
+      <input type="checkbox" id="activeOnly" /> Active only
+    </label>
+    <label class="input small" style="display:flex; align-items:center; gap:6px;">
+      <input type="checkbox" id="inStockOnly" /> In stock only
+    </label>
+
+    <input id="minPrice" class="input tiny" type="number" step="0.01" placeholder="Min price" aria-label="Minimum price" />
+    <input id="maxPrice" class="input tiny" type="number" step="0.01" placeholder="Max price" aria-label="Maximum price" />
+
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <button id="exportCsv" class="btn small">Export CSV</button>
+      <button id="exportJson" class="btn small">Export JSON</button>
     </div>
   </div>
 
@@ -108,21 +127,54 @@
       function formatCurrency(n){ return '£' + Number(n).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
       function renderSummary(summary, best){
+        // Legacy small cards
         document.getElementById('proj-sales').innerText = formatNumber(summary.total_forecast_units || 0);
         document.getElementById('proj-sales-meta').innerText = `${summary.count || 0} products`;
         document.getElementById('proj-revenue').innerText = formatCurrency(summary.projected_revenue || 0);
         document.getElementById('proj-revenue-meta').innerText = 'Projected for selected horizon';
+        // Hero cards
+        document.getElementById('hero-proj-sales').innerText = formatNumber(summary.total_forecast_units || 0);
+        document.getElementById('hero-proj-sales-meta').innerText = `${summary.count || 0} products`;
+        document.getElementById('hero-proj-revenue').innerText = formatCurrency(summary.projected_revenue || 0);
 
         if(best){
+          // Small card compatibility
           document.getElementById('best-product').innerText = best.product + ' — ' + formatNumber(best.forecast_h);
           document.getElementById('best-product-meta').innerText = 'Confidence: ' + Math.round(best.confidence) + '%';
           document.getElementById('best-name').innerText = best.product;
           document.getElementById('best-details').innerText = `Forecast: ${formatNumber(best.forecast_h)} • Growth: ${best.growth_rate}% • ${best.category}`;
+
+          // Hero fields
+          document.getElementById('hero-best-name').innerText = best.product;
+          document.getElementById('hero-best-meta').innerText = `${formatNumber(best.forecast_h)} • Confidence: ${Math.round(best.confidence)}%`;
+          // Placeholder image if not available
+          const heroImg = document.getElementById('hero-image');
+          heroImg.style.background = 'linear-gradient(90deg,#fff,#f5f5f5)';
+          heroImg.innerHTML = `
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
+            </svg>`;
+
+          const bestImg = document.getElementById('best-image');
+          bestImg.innerHTML = `
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
+            </svg>`;
         } else {
           document.getElementById('best-product').innerText = '—';
           document.getElementById('best-product-meta').innerText = '—';
+          document.getElementById('hero-best-name').innerText = '—';
+          document.getElementById('hero-best-meta').innerText = '—';
         }
       }
+
+      // Export dropdown handlers
+      document.getElementById('exportBtn').addEventListener('click', function(ev){ ev.preventDefault(); const menu = document.getElementById('exportMenu'); menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none'; });
+      document.getElementById('exportCsvMenu').addEventListener('click', function(){ exportCSV(); document.getElementById('exportMenu').style.display = 'none'; });
+      document.getElementById('exportJsonMenu').addEventListener('click', function(){ exportJSON(); document.getElementById('exportMenu').style.display = 'none'; });
+      document.getElementById('downloadBtn').addEventListener('click', function(){ exportCSV(); });
+      // Close export menu when clicking outside
+      document.addEventListener('click', function(e){ if(!e.target.closest('.dropdown') && !e.target.closest('#exportMenu') && document.getElementById('exportMenu').style.display === 'block'){ document.getElementById('exportMenu').style.display = 'none'; } });
 
       let barChart = null;
       let lineChart = null;
@@ -158,7 +210,16 @@
 
         const ctx = document.getElementById(canvasId).getContext('2d');
         if(lineChart){ try{ lineChart.destroy(); }catch(e){} }
-        lineChart = new Chart(ctx, { type:'line', data:{ labels: combinedLabels, datasets:[ { label:'Actual', data: actual.concat(Array(futureLabels.length).fill(null)), borderColor: 'rgba(34,139,230,0.9)', backgroundColor: 'rgba(34,139,230,0.08)', fill:true }, { label:'Forecast', data: forecastPadded, borderColor:'rgba(235, 85, 95,0.9)', borderDash:[4,2], pointRadius:0 } ] }, options:{ responsive:true, plugins:{ tooltip:{ mode:'index', intersect:false } }, scales:{ y:{ beginAtZero:true } } } });
+
+        // Create gradient for forecast area (soft shaded fill)
+        const g = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+        g.addColorStop(0, 'rgba(235,85,95,0.18)');
+        g.addColorStop(1, 'rgba(235,85,95,0.02)');
+
+        lineChart = new Chart(ctx, { type:'line', data:{ labels: combinedLabels, datasets:[
+          { label:'Actual', data: actual.concat(Array(futureLabels.length).fill(null)), borderColor: 'rgba(34,139,230,0.95)', backgroundColor: 'rgba(34,139,230,0.08)', fill:true, tension:0.22, pointRadius:2 },
+          { label:'Forecast', data: forecastPadded, borderColor:'rgba(235, 85, 95,0.95)', backgroundColor: g, fill:true, borderDash:[6,3], pointRadius:0, tension:0.22 }
+        ] }, options:{ responsive:true, plugins:{ tooltip:{ mode:'index', intersect:false } }, scales:{ y:{ beginAtZero:true } } } });
       }
 
       async function fetchData(){
