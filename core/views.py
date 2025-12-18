@@ -1112,16 +1112,20 @@ def product_forecast(request):
         tb = traceback.format_exc()
         logger.exception('Error rendering product_forecast: %s\n%s', str(e), tb)
         # Try to render a minimal static fallback page so the endpoint remains functional
-        try:
-            fallback_ctx = {
-                'title': 'Product Forecast (offline)',
-                'error_message': 'Product Forecast temporarily unavailable. Showing an offline view.'
-            }
-            resp = render(request, 'pages/product_forecast_static.html', fallback_ctx)
-            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-            return resp
-        except Exception:
-            logger.exception('Fallback render also failed for product_forecast')
+        # Render a minimal inline fallback without using templates to avoid any further DB queries
+        simple_html = """
+          <!doctype html>
+          <html>
+            <head><meta charset='utf-8'><title>Product Forecast (offline)</title></head>
+            <body style="font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;">
+              <h1>Product Forecast (offline)</h1>
+              <p>The interactive dashboard is temporarily unavailable. You can still access raw data at <a href="/product-forecast/api/">/product-forecast/api/</a></p>
+            </body>
+          </html>
+        """
+        resp = HttpResponse(simple_html, content_type='text/html')
+        resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
 
     # Last resort: return a simple textual error for monitoring
     return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
