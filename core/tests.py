@@ -23,6 +23,17 @@ class Seed(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
 
+    def test_forecast_view_renders_for_authenticated_user(self):
+        """Ensure a regular authenticated user can load the forecast page."""
+        from django.contrib.auth.models import User, Group
+        user = User.objects.create_user('user1', 'u1@example.com', 'pass')
+        c = self.client
+        c.force_login(user)
+        resp = c.get('/forecast/')
+        # Regular users are allowed to view the page (redirecting to login would be wrong)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
+
     def test_forecast_api_permissions_and_payload(self):
         from django.contrib.auth.models import User, Group
         anon = self.client
