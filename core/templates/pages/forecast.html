@@ -667,20 +667,20 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
     </script>
 
     <!-- Analytics Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px;">
+    <div class="analytics-grid">
       <!-- Next Week Sales (horizontal layout) -->
       <div class="analytics-card-horizontal">
         <div style="display:flex; gap:12px; align-items:center;">
-          <div>
-            <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Next Week Sales</h3>
-            <h2 style="margin: 8px 0 8px 0; color: var(--fg);">{{ currency }}{{ total_forecast|floatformat:0 }}</h2>
-            <p style="margin: 0; font-size: 13px; color: #22c55e; font-weight: 600;">
+          <div class="meta">
+            <h3 class="title">Next Week Sales</h3>
+            <div class="value">{{ currency }}{{ total_forecast|floatformat:0 }}</div>
+            <div class="sub">
               {% if growth_percentage >= 0 %}
                 +{{ growth_percentage|floatformat:1 }}% increase expected
               {% else %}
                 {{ growth_percentage|floatformat:1 }}% decrease expected
               {% endif %}
-            </p>
+            </div>
           </div>
         </div>
         <div class="card-icon">📈</div>
@@ -689,10 +689,10 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       <!-- Forecast Accuracy (horizontal layout) -->
       <div class="analytics-card-horizontal">
         <div style="display:flex; gap:12px; align-items:center;">
-          <div>
-            <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Forecast Accuracy</h3>
-            <h2 style="margin: 8px 0 8px 0; color: var(--fg);">{{ avg_confidence|floatformat:1 }}%</h2>
-            <p style="margin: 0; font-size: 13px; color: #0ea5e9; font-weight: 600;">High confidence</p>
+          <div class="meta">
+            <h3 class="title">Forecast Accuracy</h3>
+            <div class="value">{{ avg_confidence|floatformat:1 }}%</div>
+            <div class="sub">High confidence</div>
           </div>
         </div>
         <div class="card-icon">✓</div>
@@ -701,10 +701,10 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       <!-- Peak Day (horizontal layout) -->
       <div class="analytics-card-horizontal">
         <div style="display:flex; gap:12px; align-items:center;">
-          <div>
-            <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-secondary);">Peak Day</h3>
-            <h2 style="margin: 8px 0 8px 0; color: var(--fg);">{{ peak_day }}</h2>
-            <p style="margin: 0; font-size: 13px; color: #f97316; font-weight: 600;">Expected: {{ peak_orders }} orders</p>
+          <div class="meta">
+            <h3 class="title">Peak Day</h3>
+            <div class="value">{{ peak_day }}</div>
+            <div class="sub">Expected: {{ peak_orders }} orders</div>
           </div>
         </div>
         <div class="card-icon">📅</div>
@@ -780,26 +780,30 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .badge-danger { background:#fff3f2; color:#7f1d1d; }
 
       /* Horizontal analytics cards (aligned visually with hero summary cards) */
+      .analytics-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-bottom:32px; align-items:stretch; }
       .analytics-card-horizontal {
-        background:#fff;
+        background:#ffffff;
         border:1px solid var(--border);
-        border-radius:12px; /* match hero-card rounding */
-        padding:18px 20px; /* match hero-card padding */
-        box-shadow:var(--shadow-sm);
+        border-radius:14px;
+        padding:18px 22px;
+        box-shadow:0 6px 18px rgba(16,24,40,0.06);
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:16px;
-        min-height:140px; /* slightly taller to match hero visual weight */
+        min-height:140px;
+        transition: transform 140ms ease, box-shadow 140ms ease;
       }
-      /* Make the headline number match Today's Sales weight and size */
-      .analytics-card-horizontal h2 { font-size:36px; font-weight:900; margin: 8px 0 8px 0; color:var(--fg); }
-      .analytics-card-horizontal h3 { margin:0; font-size:14px; font-weight:600; color:var(--text-secondary); }
+      .analytics-card-horizontal:hover { transform: translateY(-4px); box-shadow:0 12px 28px rgba(16,24,40,0.08); }
+      .analytics-card-horizontal .meta { display:flex; flex-direction:column; gap:6px; }
+      .analytics-card-horizontal .meta .title { font-size:13px; color:var(--text-secondary); font-weight:700; }
+      .analytics-card-horizontal .meta .value { font-size:36px; font-weight:900; color:var(--fg); }
+      .analytics-card-horizontal .meta .sub { font-size:13px; font-weight:600; }
       .analytics-card-horizontal .card-icon {
-        font-size:28px;
+        font-size:24px;
         background: rgba(15,23,36,0.03);
-        padding:10px 12px;
-        border-radius:10px;
+        padding:12px;
+        border-radius:12px;
         display:flex;
         align-items:center;
         justify-content:center;
@@ -809,8 +813,21 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       @media (max-width: 720px) {
         .analytics-card-horizontal { flex-direction:column; align-items:flex-start; }
         .analytics-card-horizontal .card-icon { align-self:flex-end; }
-        .analytics-card-horizontal h2 { font-size:28px; }
+        .analytics-card-horizontal .meta .value { font-size:28px; }
       }
+
+      /* Chart card visual polish */
+      .card.chart-card { background: linear-gradient(180deg, #fff, #fbfbff); border:1px solid rgba(0,0,0,0.04); border-radius:12px; padding:20px; box-shadow:0 10px 24px rgba(16,24,40,0.06); margin-bottom:32px; overflow:hidden; }
+      .card.chart-card .chart-area { position:relative; height:340px; border-radius:8px; background:linear-gradient(180deg, rgba(249,250,252,1), rgba(255,255,255,1)); padding:8px; }
+
+      /* Slight header tweak */
+      .section-title { font-size:22px; margin-bottom:6px; font-weight:800; }
+
+      /* Improve forecast wrapper spacing on wider screens */
+      .forecast-wrapper { max-width: 1180px; margin: 20px auto; padding: 0 22px; padding-left:36px; box-sizing: border-box; }
+      .page-wrapper.sidebar-expanded .main-content .forecast-wrapper,
+      .sidebar:hover + .main-content .forecast-wrapper,
+      .sidebar:hover ~ .main-content .forecast-wrapper { margin-left: auto !important; margin-right: auto !important; padding-left:36px !important; }
 
       .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; overflow:hidden; }
       .card.chart-card .chart-area { position:relative; height:300px; }
