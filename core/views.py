@@ -20,7 +20,6 @@ import base64
 
 from .models import Product, InventoryItem, Sale
 from .forms import ProductForm, InventoryForm, SaleForm
-from .services.forecasting import moving_average_forecast
 from .auth import group_required  # new: role guard
 from django.views.decorators.http import require_http_methods
 
@@ -549,25 +548,19 @@ def forecast_view(request):
     import json
     logger = logging.getLogger(__name__)
 
-    # Track any import errors for later friendly messaging
+    # We will rely only on DB historical sales (Sale objects) for forecasting.
+    # No CSV-based forecasts will be used to avoid stale example data influencing predictions.
     import_error = None
     try:
-        from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
-        # Use last 100 rows from CSV for model training (per user request)
-        csv_data = get_csv_forecast(limit=100)
+        from .services.forecasting import aggregate_sales, forecast_time_series, moving_average_forecast
         import_error = None
     except Exception as exc:
-        # Log the import error but continue with empty/fallback data so page renders
+        # Log the import error but continue with safe stubs so page renders
         logger.exception('Forecasting import failed: %s', str(exc))
         import_error = exc
-        csv_data = {}
-        # If moving_average_forecast isn't available due to import failures, provide a safe stub
         def moving_average_forecast(window=3):
             return {'db_forecasts': {}}
-        # Provide a minimal forecast_time_series fallback so the view can render
-        # even when ML libraries (e.g., scikit-learn) are unavailable in production.
         def forecast_time_series(series, horizon=7, method='linear', window=3):
-            # simple fallback: use recent average and small slope estimation
             vals = [v for _, v in (series or [])]
             if not vals:
                 return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0, 'accuracy': 'Low'}
@@ -577,7 +570,6 @@ def forecast_view(request):
             if len(recent) >= 2:
                 slope = (recent[-1] - recent[0]) / float(len(recent) - 1)
             preds = [max(0, int(round(avg + slope * (i + 1)))) for i in range(horizon)]
-            # basic dispersion estimate
             mean = avg
             var = sum((x - mean) ** 2 for x in recent) / len(recent) if len(recent) else 0.0
             std = var ** 0.5
@@ -588,78 +580,52 @@ def forecast_view(request):
             return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
 
 
-    # Prepare data for template (per-product forecasts)
+    # Build per-product forecasts using DB historical sales only
     data = []
-    for product_name, forecast_info in csv_data.items():
-        confidence = forecast_info.get('confidence', 0)
-        if confidence < 1:  # convert if accidentally in 0-1
-            confidence = confidence * 100
-
-        data.append({
-            "product": product_name,
-            "forecast": int(forecast_info.get('forecast', 0)),
-            "avg": float(forecast_info.get('avg', 0)),
-            "trend": forecast_info.get('trend', 'stable'),
-            "confidence": confidence,
-            "history": forecast_info.get('history', []),
-            "last_7_days": int(forecast_info.get('last_7_days', 0)),
-            "source": "Real Data (CSV)",
-            "is_csv": True
-        })
-
-    # Add fallback DB forecasts (if CSV empty)
-    if not data:
+    try:
         db_results = moving_average_forecast(window=3)
         db_forecasts = db_results.get('db_forecasts', {})
         for pid, r in db_forecasts.items():
             try:
                 product = Product.objects.get(pk=pid)
+                confidence = r.get('confidence', 0)
+                # normalise to percentage if method returned 0-1
+                if confidence and confidence <= 1.0:
+                    confidence = confidence * 100
+
+                hist = r.get('history', []) or []
+                last_7 = sum([u for _, u in hist[-7:]]) if hist else 0
+
                 data.append({
                     "product": product.name,
                     "forecast": int(r.get('forecast', 0)),
                     "avg": float(r.get('avg', 0)),
-                    "trend": "unknown",
-                    "confidence": 0,
-                    "history": r.get('history', []),
-                    "last_7_days": sum([u for _, u in r.get('history', [])[-7:]]),
+                    "trend": r.get('trend', 'unknown'),
+                    "confidence": int(confidence or 0),
+                    "history": hist,
+                    "last_7_days": int(last_7),
                     "source": "Database",
                     "is_csv": False
                 })
             except Product.DoesNotExist:
                 continue
+    except Exception as e:
+        logger.exception('Error generating per-product DB forecasts: %s', str(e))
 
-    # Prefer CSV-based aggregation (limit to 100 rows) so charts reflect historical CSV data
+    # Always use DB aggregate series for charts and forecasting
     try:
-        csv_agg = None
-        try:
-            from .services.forecasting import csv_aggregate_series
-            csv_agg = csv_aggregate_series(limit=100)
-        except Exception:
-            csv_agg = None
-
-        # Forecast models should be trained using CSV (limited to 100 rows).
-        # Actual sales shown on charts should come from customer purchases (DB aggregation).
         db_daily = aggregate_sales('daily', lookback=60)
         db_weekly = aggregate_sales('weekly', lookback=12)
         db_monthly = aggregate_sales('monthly', lookback=12)
 
-        if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
-            # Use CSV for model training/forecasting
-            forecast_daily_base = csv_agg.get('daily', [])
-            forecast_weekly_base = csv_agg.get('weekly', [])
-            forecast_monthly_base = csv_agg.get('monthly', [])
-        else:
-            # Fallback: train on DB aggregated series
-            forecast_daily_base = db_daily
-            forecast_weekly_base = db_weekly
-            forecast_monthly_base = db_monthly
-
-        # Use DB series as the 'actual' shown on charts
         daily_series = db_daily
         weekly_series = db_weekly
         monthly_series = db_monthly
 
-        # Forecasts for each horizon
+        forecast_daily_base = db_daily
+        forecast_weekly_base = db_weekly
+        forecast_monthly_base = db_monthly
+
         daily_fore = forecast_time_series(forecast_daily_base, horizon=30)
         weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12)
         monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6)
@@ -667,7 +633,6 @@ def forecast_view(request):
         series_error = None
     except Exception as series_exc:
         logger.exception('Error generating time series or forecasts: %s', str(series_exc))
-        # Provide safe defaults so template still renders
         daily_series, weekly_series, monthly_series = [], [], []
         daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
         weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
@@ -755,8 +720,8 @@ def forecast_view(request):
     week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
     month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
 
-    # determine which source we used for series
-    data_source = 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db'
+    # Data source: we use database historical sales only for forecasting
+    data_source = 'db'
 
     # counts and date range
     def first_last(series):
@@ -853,9 +818,9 @@ def forecast_view(request):
     elif series_error:
         context['error_message'] = 'Forecast computation failed. Displaying limited results.'
     else:
-        # If CSV was used but produced no data, inform user
+        # If no DB series were produced, show friendly message
         if (not daily_series) and (not weekly_series) and (not monthly_series):
-            context['error_message'] = 'No historical data available to generate forecasts.'
+            context['error_message'] = 'No historical sales data available to generate forecasts.'
 
     try:
         # Render and set no-cache headers so browsers always fetch fresh computed values
@@ -904,33 +869,41 @@ def forecast_data_api(request):
     # Wrap main API logic so unexpected exceptions return a controlled JSON error
     try:
         try:
-            from .services.forecasting import get_csv_forecast, aggregate_sales, forecast_time_series, moving_average_forecast
+            from .services.forecasting import aggregate_sales, forecast_time_series, moving_average_forecast
         except Exception as e:
             logger.exception('Forecast API import failed: %s', str(e))
             return JsonResponse({'error': 'Forecasting libraries unavailable', 'details': str(e)}, status=500)
 
         import json
 
-        # Per-product CSV forecasts
-        try:
-            csv_data = get_csv_forecast(limit=100)
-        except Exception as e:
-            logger.exception('Error running get_csv_forecast: %s', str(e))
-            csv_data = {}
+        # Build per-product forecasts from DB historical sales only
         products = []
-        for pname, finfo in csv_data.items():
-            conf = finfo.get('confidence', 0)
-            if conf < 1:
-                conf = conf * 100
-            products.append({
-                'product': pname,
-                'forecast': int(finfo.get('forecast', 0)),
-                'avg': float(finfo.get('avg', 0)),
-                'trend': finfo.get('trend', 'stable'),
-                'confidence': conf,
-                'accuracy': finfo.get('accuracy', '') or ( 'High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low' ),
-                'last_7_days': int(finfo.get('last_7_days', 0))
-            })
+        try:
+            db_results = moving_average_forecast(window=3)
+            db_forecasts = db_results.get('db_forecasts', {})
+            for pid, r in db_forecasts.items():
+                try:
+                    product_obj = Product.objects.get(pk=pid)
+                except Product.DoesNotExist:
+                    continue
+                conf = r.get('confidence', 0)
+                if conf and conf <= 1.0:
+                    conf = conf * 100
+                accuracy = r.get('accuracy') or ('High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low')
+                history = r.get('history', []) or []
+                products.append({
+                    'product': product_obj.name,
+                    'product_id': pid,
+                    'forecast': int(r.get('forecast', 0)),
+                    'avg': float(r.get('avg', 0)),
+                    'trend': r.get('trend', 'unknown'),
+                    'confidence': int(conf or 0),
+                    'accuracy': accuracy,
+                    'last_7_days': int(sum([u for _, u in history[-7:]]))
+                })
+        except Exception as e:
+            logger.exception('Error building DB product forecasts: %s', str(e))
+            products = []
     except Exception as e:
         # Catch-all: return JSON error; include traceback when admin requests debug=1
         import traceback, uuid
@@ -945,21 +918,10 @@ def forecast_data_api(request):
             pass
         return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
 
-    # Prefer CSV-based series when available
-    try:
-        from .services.forecasting import csv_aggregate_series
-        csv_agg = csv_aggregate_series(limit=100)
-    except Exception as e:
-        csv_agg = None
-
-    if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
-        daily_series = csv_agg.get('daily', [])
-        weekly_series = csv_agg.get('weekly', [])
-        monthly_series = csv_agg.get('monthly', [])
-    else:
-        daily_series = aggregate_sales('daily', lookback=60)
-        weekly_series = aggregate_sales('weekly', lookback=12)
-        monthly_series = aggregate_sales('monthly', lookback=12)
+    # Use DB aggregates for series (daily/weekly/monthly) — CSV is not used for forecasts
+    daily_series = aggregate_sales('daily', lookback=60)
+    weekly_series = aggregate_sales('weekly', lookback=12)
+    monthly_series = aggregate_sales('monthly', lookback=12)
 
     # Optional filters from query params: start (YYYY-MM-DD), end (YYYY-MM-DD), product
     start = request.GET.get('start')
@@ -1031,7 +993,7 @@ def forecast_data_api(request):
 
         payload = {
             'products': products,
-            'data_source': 'csv' if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')) else 'db',
+            'data_source': 'db',
             'summary': {
                 'daily': daily_summary,
                 'weekly': weekly_summary,
@@ -1091,7 +1053,9 @@ def forecast_diag(request):
     """Compact diagnostics for deployed instances so admins can quickly verify data source and counts."""
     logger = logging.getLogger(__name__)
     try:
-        from .services.forecasting import csv_aggregate_series, aggregate_sales
+        # CSV helpers were moved to a separate module to keep runtime forecasts DB-only
+        from .services.csv_forecasting import csv_aggregate_series
+        from .services.forecasting import aggregate_sales
     except Exception as e:
         logger.exception('Diag import failed: %s', str(e))
         return JsonResponse({'error': 'diagnostics unavailable', 'details': str(e)}, status=500)
