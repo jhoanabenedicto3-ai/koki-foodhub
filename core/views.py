@@ -1107,8 +1107,23 @@ def product_forecast(request):
         except Exception:
             logger.exception('Retry render failed for product_forecast')
     except Exception as e:
-        logger.exception('Error rendering product_forecast: %s', str(e))
+        # Log full traceback for post-mortem on deployed systems
+        import traceback, sys
+        tb = traceback.format_exc()
+        logger.exception('Error rendering product_forecast: %s\n%s', str(e), tb)
+        # Try to render a minimal static fallback page so the endpoint remains functional
+        try:
+            fallback_ctx = {
+                'title': 'Product Forecast (offline)',
+                'error_message': 'Product Forecast temporarily unavailable. Showing an offline view.'
+            }
+            resp = render(request, 'pages/product_forecast_static.html', fallback_ctx)
+            resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            return resp
+        except Exception:
+            logger.exception('Fallback render also failed for product_forecast')
 
+    # Last resort: return a simple textual error for monitoring
     return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
 
 

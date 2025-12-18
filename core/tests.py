@@ -31,6 +31,31 @@ class Seed(TestCase):
         content = resp.content.decode('utf-8')
         self.assertIn('Product Forecast', content)
 
+    def test_product_forecast_fallback_on_render_error(self):
+        """If rendering the main template raises an exception, the view should show the static fallback page."""
+        from django.shortcuts import render as real_render
+        import importlib
+        from django.contrib.auth.models import User, Group
+        # Monkeypatch render to raise
+        import core.views as mod_views
+        def boomed(request, template_name, ctx=None, *a, **k):
+            if template_name == 'pages/product_forecast.html':
+                raise RuntimeError('simulated render fail')
+            return real_render(request, template_name, ctx, *a, **k)
+        mod_views.render = boomed
+        try:
+            admin = User.objects.create_superuser('admin_f', 'af@example.com', 'pass')
+            grp, _ = Group.objects.get_or_create(name='Admin')
+            admin.groups.add(grp)
+            c = self.client
+            c.force_login(admin)
+            resp = c.get('/product-forecast/')
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn('Product Forecast (offline)', resp.content.decode('utf-8'))
+        finally:
+            # restore
+            importlib.reload(mod_views)
+
         # Test product forecast API
         resp2 = c.get('/product-forecast/api/')
         self.assertEqual(resp2.status_code, 200)
