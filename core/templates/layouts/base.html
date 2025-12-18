@@ -5,7 +5,8 @@
   <title>{% block title %}Koki's Foodhub{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Professional Food Hub Management System">
-  <link rel="stylesheet" href="/static/styles.css?v=3" />
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'styles.css' %}" />
 
   <!-- PWA manifest -->
   <link rel="manifest" href="/static/manifest.json">
