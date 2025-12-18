@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from core.models import Product, Sale
-from core.services.forecasting import get_csv_forecast
+from core.services.csv_forecasting import get_csv_forecast
 from datetime import timedelta
 
 class Command(BaseCommand):

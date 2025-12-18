@@ -589,6 +589,79 @@ def generate_insight(period_name, series, forecast_payload):
         return ''
 
 
+def product_daily_series(product_id, lookback_days=90):
+    """Return a daily aggregated series for a product as list of (iso_date, units).
+    Fills missing days with zeros for the requested lookback window.
+    """
+    from datetime import date, timedelta
+    from django.db.models import Sum, Case, When, Value, IntegerField
+
+    end = date.today()
+    start = end - timedelta(days=lookback_days - 1)
+
+    # Initialize all days to zero
+    counts = { (start + timedelta(days=i)): 0 for i in range(lookback_days) }
+
+    qs = Sale.objects.filter(product_id=product_id, date__gte=start).values('date').annotate(
+        total=Sum(Case(
+            When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
+            default='units_sold',
+            output_field=IntegerField()
+        ))
+    )
+    for row in qs:
+        d = row['date']
+        if d >= start and d <= end:
+            counts[d] = counts.get(d, 0) + int(row.get('total') or 0)
+    series = [(d.isoformat(), counts[d]) for d in sorted(counts.keys())]
+    return series
+
+
+def product_forecast_summary(product_id, horizons=(1, 7, 30), lookback_days=90):
+    """Compute forecasts for a single product for multiple horizons.
+    Returns dict with per-horizon forecasts and summary info.
+    """
+    try:
+        series = product_daily_series(product_id, lookback_days=lookback_days)
+    except Exception:
+        series = []
+
+    # Build a simple summary using the existing forecast_time_series helper
+    payload = {}
+    for h in horizons:
+        try:
+            fore = forecast_time_series(series, horizon=h)
+            payload[f'h_{h}'] = {
+                'forecast': fore.get('forecast', [0])[-1] if fore.get('forecast') else 0,
+                'upper': fore.get('upper', [0])[-1] if fore.get('upper') else 0,
+                'lower': fore.get('lower', [0])[-1] if fore.get('lower') else 0,
+                'confidence': fore.get('confidence', 0),
+                'accuracy': fore.get('accuracy', 'Low')
+            }
+        except Exception:
+            payload[f'h_{h}'] = {'forecast': 0, 'upper': 0, 'lower': 0, 'confidence': 0, 'accuracy': 'Low'}
+
+    # Additional summary metrics
+    vals = [v for _, v in series]
+    last_7 = int(sum(vals[-7:])) if vals else 0
+    avg = float(sum(vals) / len(vals)) if vals else 0.0
+    # crude trend estimate
+    trend = 'stable'
+    if len(vals) >= 2 and vals[-1] > vals[0]:
+        trend = 'increasing'
+    elif len(vals) >= 2 and vals[-1] < vals[0]:
+        trend = 'decreasing'
+
+    return {
+        'product_id': product_id,
+        'series': series,
+        'last_7_days': last_7,
+        'avg': avg,
+        'trend': trend,
+        'horizons': payload
+    }
+
+
 # ------------------------
 # Forecasting helpers
 # ------------------------

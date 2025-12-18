@@ -137,6 +137,65 @@ class Seed(TestCase):
         self.assertIn('weekly', data)
         self.assertIn('monthly', data)
 
+    def test_product_forecast_api_filters_and_summary(self):
+        """Verify the product forecast API supports category filtering and returns summary/trending."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_pf', 'apf@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        from datetime import date, timedelta
+        from decimal import Decimal
+        # Create two categories of products
+        p1 = Product.objects.create(name='Pizza A', category='Pizza', price=Decimal('5.00'))
+        p2 = Product.objects.create(name='Salad B', category='Salad', price=Decimal('4.00'))
+        today = date.today()
+        # Give p1 more recent sales
+        Sale.objects.create(product=p1, date=today, units_sold=10, revenue=Decimal('50.00'))
+        Sale.objects.create(product=p1, date=today - timedelta(days=1), units_sold=12, revenue=Decimal('60.00'))
+        # Give p2 only older small sale
+        Sale.objects.create(product=p2, date=today - timedelta(days=30), units_sold=1, revenue=Decimal('4.00'))
+
+        # Request filtering by category
+        resp = c.get('/product-forecast/api/?category=Pizza')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('summary', data)
+        self.assertIn('top', data)
+        self.assertTrue(all(p.get('category') == 'Pizza' for p in data.get('top', [])))
+        self.assertIn('trending', data)
+        self.assertIsInstance(data.get('trending'), list)
+        # Best product should be present and belong to Pizza category
+        self.assertIn('best', data)
+        if data.get('best'):
+            self.assertEqual(data.get('best').get('category'), 'Pizza')
+
+        # Now test active/in-stock and price filters
+        p3 = Product.objects.create(name='Inactive Item', category='Pizza', price=Decimal('10.00'), is_active=False)
+        inv = InventoryItem.objects.create(product=p1, sku='P1-001', quantity=5)
+        inv2 = InventoryItem.objects.create(product=p2, sku='S1-001', quantity=0)
+
+        # Filter to in_stock only should exclude p2
+        resp2 = c.get('/product-forecast/api/?category=Pizza&in_stock=1')
+        self.assertEqual(resp2.status_code, 200)
+        d2 = resp2.json()
+        self.assertTrue(all(p.get('in_stock') for p in d2.get('top', [])))
+
+        # Filter active only should exclude the inactive item
+        resp3 = c.get('/product-forecast/api/?category=Pizza&active=1')
+        self.assertEqual(resp3.status_code, 200)
+        d3 = resp3.json()
+        self.assertTrue(all(p.get('is_active') for p in d3.get('top', [])))
+
+        # Price range filter should limit results
+        resp4 = c.get('/product-forecast/api/?min_price=4.5&max_price=5.5')
+        self.assertEqual(resp4.status_code, 200)
+        d4 = resp4.json()
+        # All returned products must have price within range
+        self.assertTrue(all(4.5 <= float(p.get('price',0)) <= 5.5 for p in d4.get('top', [])))
+
     def test_forecast_today_sales_matches_sales_page(self):
         """Forecast page should display today's revenue (currency) matching DB aggregates."""
         from django.contrib.auth.models import User, Group

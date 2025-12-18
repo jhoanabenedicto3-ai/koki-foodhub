@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from core.models import Product, Sale
-from core.services.forecasting import load_csv_data
+from core.services.csv_forecasting import load_csv_data
 from django.utils import timezone
 import os
 

@@ -1077,6 +1077,14 @@ def product_forecast(request):
         'api_url': '/product-forecast/api/',
         'title': 'Product Forecast'
     }
+
+    # Provide known product categories to the template for filter controls
+    try:
+        categories_qs = Product.objects.order_by('category').values_list('category', flat=True).distinct()
+        categories = [c for c in categories_qs if c]
+        context['categories'] = categories
+    except Exception:
+        context['categories'] = []
     logger = logging.getLogger(__name__)
     # Close any stale DB connections before rendering to avoid psycopg2.InterfaceError
     try:
@@ -1126,24 +1134,83 @@ def product_forecast_api(request):
         top_n = 10
 
     product_id = request.GET.get('product_id')
+    category = request.GET.get('category')
+    search = request.GET.get('search', '').strip()
+    # New filters: active/in-stock and price range
+    active_only = request.GET.get('active')
+    in_stock_only = request.GET.get('in_stock')
+    try:
+        min_price = float(request.GET.get('min_price')) if request.GET.get('min_price') not in (None, '') else None
+    except Exception:
+        min_price = None
+    try:
+        max_price = float(request.GET.get('max_price')) if request.GET.get('max_price') not in (None, '') else None
+    except Exception:
+        max_price = None
 
     products_payload = []
     try:
+        # Build base queryset with optional filters
+        qs = Product.objects.all().order_by('name')
+        if category:
+            qs = qs.filter(category=category)
+        if search:
+            qs = qs.filter(name__icontains=search)
+        # Apply active filter
+        if active_only in ('1', 'true', 'True'):
+            qs = qs.filter(is_active=True)
+        # Apply price filters
+        if min_price is not None:
+            qs = qs.filter(price__gte=min_price)
+        if max_price is not None:
+            qs = qs.filter(price__lte=max_price)
+        # If in_stock filter requested, narrow queryset to products with inventory quantity > 0
+        if in_stock_only in ('1', 'true', 'True'):
+            qs = qs.filter(inventory_items__quantity__gt=0).distinct()
+
         # Compute per-product summaries
-        for p in Product.objects.all():
+        for p in qs:
             try:
-                summ = product_forecast_summary(p.id, horizons=(1, 7, 30), lookback_days=90)
+                summ = product_forecast_summary(p.id, horizons=(1, 7, 30), lookback_days=180)
                 # pick forecast for requested horizon
                 h_key = f'h_{horizon}'
                 hinfo = summ['horizons'].get(h_key, {'forecast': 0, 'confidence': 0})
+                forecast_h = int(hinfo.get('forecast', 0))
+                last_7 = int(summ.get('last_7_days', 0))
+                # past 30 days
+                vals = [v for _, v in summ.get('series', [])]
+                past_30 = int(sum(vals[-30:])) if vals else 0
+                # growth: compare forecast for horizon to last_7 (if horizon==7) or past_30 if horizon==30
+                if horizon == 7:
+                    denom = last_7 if last_7 > 0 else None
+                elif horizon == 30:
+                    denom = past_30 if past_30 > 0 else None
+                else:
+                    denom = last_7 if last_7 > 0 else None
+                if denom:
+                    growth = round((forecast_h - denom) / float(denom) * 100.0, 1)
+                else:
+                    growth = 0.0
+
+                price = float(p.price) if p.price is not None else 0.0
+                projected_revenue = round(forecast_h * price, 2)
+
+                in_stock = p.inventory_items.filter(quantity__gt=0).exists()
                 products_payload.append({
                     'product_id': p.id,
                     'product': p.name,
-                    'forecast_h': int(hinfo.get('forecast', 0)),
+                    'forecast_h': forecast_h,
                     'confidence': float(hinfo.get('confidence', 0)),
                     'trend': summ.get('trend', 'stable'),
-                    'last_7_days': summ.get('last_7_days', 0),
-                    'avg': summ.get('avg', 0.0)
+                    'last_7_days': last_7,
+                    'past_30_days': past_30,
+                    'avg': summ.get('avg', 0.0),
+                    'growth_rate': growth,
+                    'price': price,
+                    'projected_revenue': projected_revenue,
+                    'category': p.category or '',
+                    'is_active': bool(p.is_active),
+                    'in_stock': bool(in_stock)
                 })
             except Exception:
                 logger.exception('Error computing product summary for product id %s', p.id)
@@ -1155,10 +1222,23 @@ def product_forecast_api(request):
     # Sort by forecast descending
     products_sorted = sorted(products_payload, key=lambda x: x['forecast_h'], reverse=True)
 
+    # Summary aggregates (respecting filters)
+    total_forecast_units = sum(p['forecast_h'] for p in products_sorted)
+    total_projected_revenue = round(sum(p['projected_revenue'] for p in products_sorted), 2)
+
+    # Trending: sort by growth_rate descending
+    trending_sorted = sorted(products_payload, key=lambda x: x.get('growth_rate', 0.0), reverse=True)
+
     result = {
         'horizon': horizon,
         'top': products_sorted[:top_n],
-        'count': len(products_sorted)
+        'trending': trending_sorted[:max(10, top_n)],
+        'best': products_sorted[0] if products_sorted else None,
+        'summary': {
+            'total_forecast_units': total_forecast_units,
+            'projected_revenue': total_projected_revenue,
+            'count': len(products_sorted)
+        }
     }
 
     # If product_id requested, include detailed series and forecasts

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from core.services.forecasting import load_csv_data, get_csv_forecast
+from core.services.csv_forecasting import load_csv_data, get_csv_forecast
 import os
 
 class Command(BaseCommand):
