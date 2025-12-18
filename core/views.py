@@ -4,6 +4,9 @@ from django.db.models import Sum
 from django.db.models.functions import Lower
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from django.db import close_old_connections
+from django.db import utils as db_utils
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login as auth_login
 from django.views.decorators.http import require_http_methods
@@ -197,6 +200,11 @@ def dashboard(request):
         "categories": categories
     }
     return render(request, "pages/dashboard.html", context)
+
+
+def healthz(request):
+    """Lightweight health endpoint used for quick production checks (no DB access)."""
+    return HttpResponse("OK")
 
 # Products: Admin only (read), Cashier can view
 def product_list(request):
@@ -550,6 +558,14 @@ def forecast_view(request):
     import json
     logger = logging.getLogger(__name__)
 
+    # Ensure any stale DB connections are closed before we start heavy DB work
+    # to avoid intermittent "connection already closed" errors seen in prod.
+    try:
+        close_old_connections()
+    except Exception:
+        # Ignore errors closing old connections; proceed and rely on Django to manage
+        pass
+
     # We will rely only on DB historical sales (Sale objects) for forecasting.
     # No CSV-based forecasts will be used to avoid stale example data influencing predictions.
     import_error = None
@@ -830,6 +846,21 @@ def forecast_view(request):
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response['Pragma'] = 'no-cache'
         return response
+    except db_utils.InterfaceError as ie:
+        # Transient DB connection closed errors can occur on some deployments
+        # (e.g. during a worker restart); attempt to close stale connections
+        # and retry the render once before returning a 500.
+        logger = logging.getLogger(__name__)
+        logger.warning('InterfaceError during render; retrying after close_old_connections: %s', str(ie))
+        try:
+            close_old_connections()
+            response = render(request, "pages/forecast.html", context)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            return response
+        except Exception as render_exc:
+            # fall through to the common error handler below
+            pass
     except Exception as render_exc:
         import traceback, uuid
         tb = traceback.format_exc()
@@ -1036,6 +1067,93 @@ def forecast_data_api(request):
     except Exception as out_exc:
         logger.exception('Error building forecast API response: %s', str(out_exc))
         return JsonResponse({'error': 'Failed to build forecast response', 'details': str(out_exc)}, status=500)
+
+
+@login_required
+def product_forecast(request):
+    """Render the product-level forecast page which fetches data from `product_forecast_api` via JS."""
+    # Minimal server-side context; most data is fetched client-side for interactivity
+    context = {
+        'api_url': '/product-forecast/api/',
+        'title': 'Product Forecast'
+    }
+    try:
+        response = render(request, 'pages/product_forecast.html', context)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.exception('Error rendering product_forecast: %s', str(e))
+        return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
+
+
+@login_required
+def product_forecast_api(request):
+    """Return JSON payload with per-product multi-horizon forecasts and top-ranked lists.
+    Optional query params:
+      - horizon: one of '1','7','30' to select ranking horizon (default 7)
+      - top: integer number of top products to return (default 10)
+      - product_id: if provided, include a detailed series and forecast for this product
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        from .services.forecasting import product_forecast_summary
+    except Exception as exc:
+        logger.exception('Forecast helpers unavailable: %s', str(exc))
+        return JsonResponse({'error': 'Forecasting helpers unavailable', 'details': str(exc)}, status=500)
+
+    horizon = int(request.GET.get('horizon', '7'))
+    try:
+        top_n = int(request.GET.get('top', '10'))
+    except Exception:
+        top_n = 10
+
+    product_id = request.GET.get('product_id')
+
+    products_payload = []
+    try:
+        # Compute per-product summaries
+        for p in Product.objects.all():
+            try:
+                summ = product_forecast_summary(p.id, horizons=(1, 7, 30), lookback_days=90)
+                # pick forecast for requested horizon
+                h_key = f'h_{horizon}'
+                hinfo = summ['horizons'].get(h_key, {'forecast': 0, 'confidence': 0})
+                products_payload.append({
+                    'product_id': p.id,
+                    'product': p.name,
+                    'forecast_h': int(hinfo.get('forecast', 0)),
+                    'confidence': float(hinfo.get('confidence', 0)),
+                    'trend': summ.get('trend', 'stable'),
+                    'last_7_days': summ.get('last_7_days', 0),
+                    'avg': summ.get('avg', 0.0)
+                })
+            except Exception:
+                logger.exception('Error computing product summary for product id %s', p.id)
+                continue
+    except Exception as e:
+        logger.exception('Error building product forecast payload: %s', str(e))
+        return JsonResponse({'error': 'Internal Server Error'}, status=500)
+
+    # Sort by forecast descending
+    products_sorted = sorted(products_payload, key=lambda x: x['forecast_h'], reverse=True)
+
+    result = {
+        'horizon': horizon,
+        'top': products_sorted[:top_n],
+        'count': len(products_sorted)
+    }
+
+    # If product_id requested, include detailed series and forecasts
+    if product_id:
+        try:
+            pid = int(product_id)
+            summ = product_forecast_summary(pid, horizons=(1, 7, 30), lookback_days=180)
+            result['product_detail'] = summ
+        except Exception:
+            result['product_detail'] = None
+
+    return JsonResponse(result)
 
 
 # Admin: user management (Admin only)
