@@ -98,13 +98,11 @@
       <div style="position: relative; margin-bottom: 12px;" data-insert-charts>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
-            <h3 style="margin:0; font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">📊 Sales Prediction
-              <canvas id="headerSpark" class="header-spark" role="img" aria-label="Mini forecast sparkline" width="160" height="32"></canvas>
-            </h3>
+            <h3 style="margin:0; font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">📊 Sales Prediction</h3>
               <span id="forecastStatus" class="muted small-text"></span>
             </div>
           <div style="display:flex; gap:8px; align-items:center;">
-            <button id="refreshForecastBtn" class="btn" aria-label="Refresh forecasts"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh</span></button>
+            <!-- Refresh button removed per request -->
           </div>
         </div>
         <div style="margin-top:8px;">
@@ -364,7 +362,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       window.forecastChart = null;
       try {
         // Render header sparkline
-        try { renderSparkline('headerSpark', weekly, { height: 28, limit: 8, color: '#10b981', bg: 'rgba(16,185,129,0.06)' }); } catch(e){ console.warn('header sparkline init failed', e); }
+        // header sparkline removed — no-op
 
         // Actual chart: only plot historical actuals
         if(document.getElementById('actualChart') && weekly && Array.isArray(weekly.labels) && weekly.labels.length){
@@ -479,33 +477,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         return chart;
       }
 
-      // Small sparkline utility supporting multiple canvas instances
-      window.sparklines = window.sparklines || {};
-      function renderSparkline(canvasId, series, opts){
-        const c = document.getElementById(canvasId);
-        if(!c) return null;
-        const ctx = c.getContext('2d');
-        const limit = (opts && opts.limit) || 8;
-        const seriesData = (series && series.forecast && series.forecast.length) ? series.forecast.slice(0,limit) : (series && series.actual ? series.actual.slice(-limit) : []);
-        const height = (opts && opts.height) || c.height || 32;
-        c.style.height = height + 'px';
-        // destroy any existing instance for that canvas
-        if(window.sparklines[canvasId]){ try{ window.sparklines[canvasId].destroy(); }catch(e){} window.sparklines[canvasId] = null; }
-        const chart = new Chart(ctx, {
-          type: 'line',
-          data: { labels: seriesData.map((_,i) => i+1), datasets: [{ data: seriesData, borderColor: (opts && opts.color) || '#10b981', backgroundColor: (opts && opts.bg) || 'rgba(16,185,129,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: (opts && opts.borderWidth) || 2 }] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: !!(opts && opts.tooltip) } }, scales: { x: { display: false }, y: { display: false } }, elements: { line: { capBezierPoints: true } } }
-        });
-        window.sparklines[canvasId] = chart;
-        return chart;
-      }
 
-      function updateSparkline(canvasId, series){
-        const chart = window.sparklines[canvasId];
-        const limit = 8;
-        const d = (series && series.forecast && series.forecast.length) ? series.forecast.slice(0,limit) : (series && series.actual ? series.actual.slice(-limit) : []);
-        if(chart){ chart.data.datasets[0].data = d; chart.update(); } else { renderSparkline(canvasId, series); }
-      }
 
       // Forecast-only chart removed to simplify UI; forecast series are drawn on the main chart.
 
@@ -558,8 +530,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         const refreshBtn = document.getElementById('refreshForecastBtn');
         try {
           statusEl.textContent = 'Updating...';
-          refreshBtn.classList.add('loading');
-          refreshBtn.querySelector('.btn-text').textContent = 'Updating...';
+          if(refreshBtn){ refreshBtn.classList.add('loading'); const tbtn = refreshBtn.querySelector('.btn-text'); if(tbtn) tbtn.textContent = 'Updating...'; }
           // Simplified: fetch forecasts without extra filter params (no UI filters in simplified view)
           const url = '{% url "forecast_api" %}';
           const res = await fetch(url, { credentials: 'same-origin' });
@@ -639,7 +610,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           const series = mapping[window.currentView] || window.weekly;
           if(window.actualChart){ try{ window.actualChart.destroy(); }catch(e){} window.actualChart = renderLineOnlyChart('actualChart', series, window.currentView); }
           if(window.forecastChart){ try{ window.forecastChart.destroy(); }catch(e){} window.forecastChart = renderForecastOnlyChart('forecastChart', series, window.currentView); }
-          try { updateSparkline('headerSpark', mapping[window.currentView] || window.weekly); } catch(e){ console.warn('refresh sparkline failed', e); }
+
 
           // AI insights area removed in simplified UI
 
@@ -650,12 +621,11 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           statusEl.textContent = 'Update failed';
         } finally {
           setTimeout(()=>{ if(statusEl.textContent === 'Update failed' || statusEl.textContent === 'Updated just now') statusEl.textContent = ''; }, 2500);
-          refreshBtn.classList.remove('loading');
-          const t = refreshBtn.querySelector('.btn-text'); if(t) t.textContent = 'Refresh';
+          if(refreshBtn){ refreshBtn.classList.remove('loading'); const t = refreshBtn.querySelector('.btn-text'); if(t) t.textContent = 'Refresh'; }
         }
       }
 
-      document.getElementById('refreshForecastBtn').addEventListener('click', refreshForecast);
+
 
       // Filter controls removed in simplified UI; keep refresh bound
       document.getElementById('applyFilters')?.addEventListener('click', function(){ refreshForecast(); });
@@ -837,7 +807,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .small-chart-area{ height:160px; }
       @media (max-width:720px){ .two-up{ grid-template-columns: 1fr; } .small-chart-area{ height:200px; } }
       .card.chart-card canvas{ display:block; width:100% !important; height:100% !important; }
-      .header-spark{ width:140px; height:28px; display:inline-block; vertical-align:middle; margin-left:6px; }
+
       .card.chart-card h2{ font-size:18px; margin-bottom:8px; }
       .forecast-header-mini { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
       .btn-group .btn { border-radius:8px; }
