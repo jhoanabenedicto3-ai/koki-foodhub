@@ -298,6 +298,64 @@ class Seed(TestCase):
             if had:
                 setattr(mod, 'forecast_time_series', saved)
 
+    def test_product_forecast_product_detail_and_filters(self):
+        """Check that product_detail is returned for a product_id and that price/top filters apply."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_pd', 'apd@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        from datetime import date, timedelta
+        from decimal import Decimal
+        # Create 3 products with different prices and sales
+        p1 = Product.objects.create(name='A1', category='Test', price=Decimal('1.00'))
+        p2 = Product.objects.create(name='A2', category='Test', price=Decimal('5.00'))
+        p3 = Product.objects.create(name='A3', category='Test', price=Decimal('10.00'))
+        today = date.today()
+        # Sales skewed so p3 is top
+        Sale.objects.create(product=p1, date=today - timedelta(days=2), units_sold=1, revenue=Decimal('1.00'))
+        Sale.objects.create(product=p2, date=today - timedelta(days=1), units_sold=2, revenue=Decimal('10.00'))
+        Sale.objects.create(product=p3, date=today, units_sold=20, revenue=Decimal('200.00'))
+
+        # Request product detail payload
+        resp = c.get(f'/product-forecast/api/?product_id={p3.id}&horizon=7')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn('product_detail', data)
+        pd = data['product_detail']
+        self.assertIn('series', pd)
+        self.assertIn('horizons', pd)
+
+        # Test top parameter and price range
+        resp_top = c.get('/product-forecast/api/?top=2')
+        self.assertEqual(resp_top.status_code, 200)
+        top_data = resp_top.json()
+        self.assertTrue(len(top_data.get('top', [])) <= 2)
+
+        resp_price = c.get('/product-forecast/api/?min_price=4.5&max_price=10')
+        self.assertEqual(resp_price.status_code, 200)
+        price_data = resp_price.json()
+        self.assertTrue(all(4.5 <= float(p.get('price',0)) <= 10 for p in price_data.get('top', [])))
+
+    def test_product_forecast_page_contains_js_elements(self):
+        """A small smoke test ensuring required DOM elements for client JS are present."""
+        from django.contrib.auth.models import User, Group
+        user = User.objects.create_user('ujs', 'ujs@example.com', 'pass')
+        c = self.client
+        c.force_login(user)
+        resp = c.get('/product-forecast/')
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode('utf-8')
+        # key elements used by client JS
+        self.assertIn('id="productLineChart"', content)
+        self.assertIn('id="topProductsBar"', content)
+        # class names may include multiple classes; check for the range-btn token
+        self.assertIn('range-btn', content)
+        self.assertIn('id="exportBtn"', content)
+        self.assertIn('id="categorySelect"', content)
+
     def test_forecast_view_handles_missing_numeric_libs(self):
         """If numpy/pandas/sklearn are unavailable the forecast page should still render (no 500)."""
         from django.contrib.auth.models import User, Group

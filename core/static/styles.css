@@ -303,6 +303,23 @@ body {
   transform: scale(0.98);
 }
 
+/* Focus states for accessibility */
+.btn:focus, .btn:focus-visible, .input:focus {
+  outline: 3px solid rgba(59,130,246,0.18);
+  outline-offset: 2px;
+}
+
+.range-btn:focus { box-shadow: 0 0 0 4px rgba(255, 181, 0, 0.12); }
+
+.dropdown #exportMenu button:focus { background:#f3f6fb; outline:none; }
+
+/* Ensure sufficient contrast for active range */
+.range-btn.active { background: linear-gradient(90deg,#ffd54f,#ffb300); color: #0b0b0b; }
+
+/* Make canvases keyboard focus visible */
+canvas:focus { outline: 3px dashed rgba(34,139,230,0.22); outline-offset: 4px; }
+
+
 .btn.primary {
   background: #dc2626;
   border-color: #dc2626;
