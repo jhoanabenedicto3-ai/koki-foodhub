@@ -44,8 +44,8 @@
   {% if data %}
     <!-- Sales Overview & Prediction Chart -->
     <!-- Sales Overview Cards -->
-    <div class="overview-grid" style="display:flex; gap:16px; align-items:stretch; overflow-x:auto; padding-bottom:6px;">
-      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
+    <div class="overview-grid" style="display:flex; gap:16px; align-items:stretch; overflow-x:auto; padding-bottom:6px; flex-wrap:wrap; justify-content:space-between;">
+      <div class="overview-card" style="flex:1 1 calc(33.333% - 16px); min-width:260px; max-width:calc(33.333% - 16px); display:flex;">
         <div style="display:flex; align-items:center; gap:12px; width:100%;">
           <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
@@ -60,7 +60,7 @@
         </div>
       </div>
 
-      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
+      <div class="overview-card" style="flex:1 1 calc(33.333% - 16px); min-width:260px; max-width:calc(33.333% - 16px); display:flex;">
         <div style="display:flex; align-items:center; gap:12px; width:100%;">
           <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
@@ -75,7 +75,7 @@
         </div>
       </div>
 
-      <div class="overview-card" style="flex:0 0 320px; min-width:240px; max-width:320px;">
+      <div class="overview-card" style="flex:1 1 calc(33.333% - 16px); min-width:260px; max-width:calc(33.333% - 16px); display:flex;">
         <div style="display:flex; align-items:center; gap:12px; width:100%;">
           <div class="card-left">
             <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
@@ -741,13 +741,39 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .hero-card-sub { margin-top:8px; color:var(--text-secondary); font-weight:700; font-size:13px; }
       .hero-badge { align-self:center; padding:8px 12px; background:#f3f4f6; border-radius:8px; font-weight:700; font-size:13px; color:var(--text-secondary); }
 
-      .overview-grid { display:flex !important; gap:16px; margin-bottom:18px; align-items:stretch; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
-      .overview-grid .overview-card { flex: 0 0 320px; min-width:240px; max-width:320px; background:#fff; border-radius:10px; padding:14px 18px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.06); min-height:88px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+      .overview-grid { display:flex !important; gap:16px; margin-bottom:18px; align-items:stretch; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; justify-content:space-between; flex-wrap:wrap; position:relative; }
+      .overview-grid .overview-card { flex: 1 1 calc(33.333% - 16px); min-width:260px; max-width:calc(33.333% - 16px); background:#fff; border-radius:10px; padding:20px 24px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.18); min-height:110px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
       .overview-grid .overview-card .card-left { flex:1 1 auto; }
       .overview-grid .overview-card .card-right { display:flex; align-items:center; gap:8px; margin-left:12px; }
       .overview-grid .overview-card .card-icon { width:44px; height:44px; border-radius:8px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
-      /* Keep stacked on very small screens for readability */
-      @media (max-width: 680px) { .overview-grid { flex-wrap:wrap; } .overview-grid .overview-card { flex:1 1 100%; max-width:100%; } }
+      /* Responsive breakpoints: 3-up -> 2-up -> 1-up */
+      @media (max-width: 980px) { .overview-grid .overview-card { flex: 1 1 calc(50% - 12px); max-width: calc(50% - 12px); } }
+      @media (max-width: 680px) { .overview-grid { gap: 12px; } .overview-grid .overview-card { flex:1 1 100%; max-width:100%; } }
+
+      /* When the sidebar overlays or is expanded, keep cards on one horizontal row that can be scrolled into view */
+      .page-wrapper.sidebar-expanded .overview-grid,
+      .sidebar:hover + .main-content .overview-grid,
+      .sidebar:hover ~ .main-content .overview-grid {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .page-wrapper.sidebar-expanded .overview-grid .overview-card { flex: 0 0 320px !important; min-width:320px !important; max-width:320px !important; }
+      .page-wrapper.sidebar-expanded .overview-grid::after { content: ''; position: absolute; right: 0; top: 0; width: 48px; height: 100%; pointer-events: none; background: linear-gradient(to left, rgba(255,255,255,0.95), rgba(255,255,255,0)); }
+
+      /* Shift the inner content container to the right when the sidebar expands or is hovered so cards are not hidden */
+      .page-wrapper.sidebar-expanded .main-content .container,
+      .sidebar:hover + .main-content .container,
+      .sidebar:hover ~ .main-content .container {
+        margin-left: 208px !important;
+        transition: margin-left 220ms ease;
+      }
+      /* If viewport is very small, use a smaller shift so content stays readable */
+      @media (max-width: 900px) {
+        .page-wrapper.sidebar-expanded .main-content .container,
+        .sidebar:hover + .main-content .container,
+        .sidebar:hover ~ .main-content .container { margin-left: 140px !important; }
+      }
       .badge { padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; }
       .badge-warning { background:#fef3c7; color:#92400e; }
       .badge-danger { background:#fff3f2; color:#7f1d1d; }
