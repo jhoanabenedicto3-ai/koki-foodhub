@@ -309,12 +309,12 @@ body {
   outline-offset: 2px;
 }
 
-.range-btn:focus { box-shadow: 0 0 0 4px rgba(255, 181, 0, 0.12); }
+.range-btn:focus { box-shadow: 0 0 0 4px rgba(47,122,59,0.12); }
 
 .dropdown #exportMenu button:focus { background:#f3f6fb; outline:none; }
 
 /* Ensure sufficient contrast for active range */
-.range-btn.active { background: linear-gradient(90deg,#ffd54f,#ffb300); color: #0b0b0b; }
+.range-btn.active { background: linear-gradient(90deg,#3f8b4a,#2f7a3b); color: #ffffff; box-shadow: var(--shadow-md); }
 
 /* Make canvases keyboard focus visible */
 canvas:focus { outline: 3px dashed rgba(34,139,230,0.22); outline-offset: 4px; }
@@ -331,6 +331,16 @@ canvas:focus { outline: 3px dashed rgba(34,139,230,0.22); outline-offset: 4px; }
   border-color: #dc2626;
   box-shadow: var(--shadow-md);
 }
+
+/* Green download button variant for export/download actions */
+.btn.download-green {
+  background: #2f7a3b;
+  border-color: #2f7a3b;
+  color: #ffffff;
+}
+.btn.download-green:hover {
+  box-shadow: var(--shadow-md);
+} 
 
 .btn.danger {
   background: #dc2626;
@@ -676,8 +686,9 @@ textarea {
 .table tbody tr:nth-child(even) { background: #fbfbfd; }
 .table td, .table th { padding: 12px 16px; }
 .table .growth-up { color: #2f7a3b; font-weight:800; }
+.table .growth-down { color: #e25b5b; font-weight:800; }
 .table .growth-flat { color:#9a9a9a; }
-.table .trend-icon { width:18px; height:18px; display:inline-block; }
+.table .trend-icon { display:inline-block; margin-left:6px; font-size:12px; vertical-align:middle; }
 
 /* Export table controls */
 .export-table .btn { padding:8px 12px; border-radius:8px; }
