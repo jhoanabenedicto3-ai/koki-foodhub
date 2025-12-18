@@ -543,8 +543,17 @@ def sales_today_api(request):
     return JsonResponse({'orders': orders, 'revenue': revenue, 'server_today_iso': server_today_iso})
 
 # Forecast: Admin only
-@group_required("Admin")
 def forecast_view(request):
+    # Inline permission guard to avoid decorator-related import/decoration failures
+    try:
+        if not getattr(request, 'user', None) or not getattr(request.user, 'is_authenticated', False) or not request.user.groups.filter(name='Admin').exists():
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("You do not have permission to access this resource.")
+    except Exception as perm_exc:
+        # If permission checks themselves fail, deny access and log a warning
+        logging.getLogger(__name__).warning('forecast_view permission check failed: %s', str(perm_exc))
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("You do not have permission to access this resource.")
     import json
     logger = logging.getLogger(__name__)
 
