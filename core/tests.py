@@ -19,6 +19,32 @@ class Seed(TestCase):
         admin.groups.add(grp)
         c = self.client
         c.force_login(admin)
+        # Dashboard should include a link to the Product Forecast page
+        resp_dash = c.get('/')
+        self.assertEqual(resp_dash.status_code, 200)
+        self.assertIn('/product-forecast/', resp_dash.content.decode('utf-8'))
+        # CTA button should be present for quick access
+        self.assertIn('id="product-forecast-btn"', resp_dash.content.decode('utf-8'))
+        # Now test the new product forecast page renders for authenticated users
+        resp = c.get('/product-forecast/')
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode('utf-8')
+        self.assertIn('Product Forecast', content)
+
+        # Test product forecast API
+        resp2 = c.get('/product-forecast/api/')
+        self.assertEqual(resp2.status_code, 200)
+        j = resp2.json()
+        self.assertIn('top', j)
+        self.assertIn('horizon', j)
+        # If we request a product detail, ensure it exists
+        # pick an existing product id
+        prod = Product.objects.first()
+        if prod:
+            resp3 = c.get(f'/product-forecast/api/?product_id={prod.id}')
+            self.assertEqual(resp3.status_code, 200)
+            j2 = resp3.json()
+            self.assertIn('product_detail', j2)
         resp = c.get('/forecast/')
         self.assertEqual(resp.status_code, 200)
         self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
@@ -33,6 +59,19 @@ class Seed(TestCase):
         # Regular users are allowed to view the page (redirecting to login would be wrong)
         self.assertEqual(resp.status_code, 200)
         self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
+
+    def test_header_link_visible_to_anonymous(self):
+        """Ensure the header-level Product Forecast link is discoverable without login."""
+        c = self.client
+        # Anonymous users are redirected to the login page; ensure the login page
+        # contains a link that routes users to Product Forecast after login.
+        resp = c.get('/')
+        self.assertEqual(resp.status_code, 302)
+        login_resp = c.get('/login/')
+        self.assertEqual(login_resp.status_code, 200)
+        content = login_resp.content.decode('utf-8')
+        # The login page should include a helpful 'next' link pointing to product forecast
+        self.assertIn('?next=/product-forecast/', content)
 
     def test_forecast_api_permissions_and_payload(self):
         from django.contrib.auth.models import User, Group
