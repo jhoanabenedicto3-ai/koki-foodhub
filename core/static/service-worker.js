@@ -1,6 +1,8 @@
-const CACHE_NAME = "foodhub-cache-v1";
+// Bump cache name to force clients to update stale cached pages after deploy
+const CACHE_NAME = "foodhub-cache-v2";
 const urlsToCache = [
   "/",
+  "/login/",
   "/static/styles.css",
   "/static/manifest.json"
 ];
