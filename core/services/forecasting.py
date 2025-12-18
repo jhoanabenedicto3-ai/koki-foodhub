@@ -382,13 +382,15 @@ def aggregate_sales(period='daily', lookback=90):
     return series
 
 
-def forecast_time_series(series, horizon=7, method='linear', window=3):
+def forecast_time_series(series, horizon=7, method='auto', window=3):
     """
     Given a time series list of (label, value), produce a forecast for `horizon` steps ahead.
 
     Methods:
-      - 'linear': fit a linear regression to capture trends (default, best for showing real patterns)
-      - 'ma': moving-median / moving-average style (robust to outliers/spikes but flattens trends)
+      - 'auto' (default): select best method via backtest among linear/holt/ma
+      - 'linear': fit a linear regression to capture trends
+      - 'holt': Holt's linear exponential smoothing (captures trend)
+      - 'ma': moving-average style (robust to outliers)
 
     Returns dict with keys: 'forecast' (list), 'upper', 'lower', 'confidence', 'accuracy'
     """
@@ -407,28 +409,33 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
     if n == 0:
         return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
-    # If we have very few data points (less than 2), we can't fit a meaningful linear model
-    # Fall back to moving average / median approach
-    if n < 2 and method == 'linear':
+    # If the caller asked for 'auto', perform a lightweight model selection
+    if method == 'auto':
+        try:
+            chosen, params, diag = select_best_forecasting_method(values, horizon=horizon)
+            method = chosen
+        except Exception:
+            method = 'ma'
+
+    # If we have very few data points (less than 2), use MA for stability
+    if n < 2:
         method = 'ma'
 
+    # Linear regression approach
     if method == 'linear':
-
-        # If linear regression libs are not available, fall back to moving-average method
         if (np is None) or (LinearRegression is None):
             method = 'ma'
         else:
-            # Original linear-regression-based implementation
-            X = np.arange(n).reshape(-1, 1)
-            y = np.array(values, dtype=float)
             try:
+                X = np.arange(n).reshape(-1, 1)
+                y = np.array(values, dtype=float)
                 model = LinearRegression()
                 model.fit(X, y)
                 r2 = model.score(X, y)
 
                 future_X = np.arange(n, n + horizon).reshape(-1, 1)
                 preds = model.predict(future_X)
-                preds = [max(0, float(round(p))) for p in preds]
+                preds = [max(0, int(round(float(p)))) for p in preds]
 
                 resid = y - model.predict(X)
                 std = float(resid.std()) if len(resid) > 1 else max(1.0, float(y.std() if y.size else 1.0))
@@ -445,42 +452,72 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
 
                 return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
             except Exception:
-                # If linear regression fails (e.g., invalid data), fall back to moving average
                 method = 'ma'
 
-    # Default: moving-median/average method (robust to spikes)
-    # Use the median of the recent `window` points as the forecast value
-    try:
-        recent = values[-window:] if window and len(values) >= 1 else values
-        med = float(np.median(recent)) if recent else 0.0
-        
-        # Instead of a flat median, create a simple trend: use slope of recent data
-        if len(recent) >= 2:
-            recent_x = np.arange(len(recent)).reshape(-1, 1)
-            recent_y = np.array(recent, dtype=float)
-            try:
-                trend_model = LinearRegression()
-                trend_model.fit(recent_x, recent_y)
-                slope = trend_model.coef_[0]
-                # Use recent average as base, then apply slope for each forecast step
-                preds = [max(0, int(round(med + slope * (i + 1)))) for i in range(horizon)]
-            except Exception:
-                # If trend estimation fails, use flat median
-                preds = [max(0, int(round(med))) for _ in range(horizon)]
-        else:
-            preds = [max(0, int(round(med))) for _ in range(horizon)]
+    # Holt's method
+    if method == 'holt':
+        try:
+            # Allow params from selection by re-running a short grid if desired
+            preds, residuals = _holt_linear_forecast(values, horizon=horizon, alpha=0.6, beta=0.1)
+            std = (sum([r * r for r in residuals]) / len(residuals)) ** 0.5 if residuals else 0.0
+            upper = [int(round(p + 1.5 * std)) for p in preds]
+            lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+            # Confidence: inverse of normalized std relative to average
+            avg = (sum(values) / len(values)) if len(values) else 0.0
+            if avg <= 0:
+                confidence = 0.0
+            else:
+                rel = std / (avg + 1e-9)
+                confidence = max(0.0, min(100.0, (1.0 - rel) * 100.0))
+            if confidence >= 70:
+                accuracy = 'High'
+            elif confidence >= 40:
+                accuracy = 'Medium'
+            else:
+                accuracy = 'Low'
+            return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': round(confidence, 2), 'accuracy': accuracy}
+        except Exception:
+            method = 'ma'
 
-        # Measure dispersion with std of recent values (or full series if very short)
-        disp_source = recent if len(recent) >= 2 else values
-        std = float(np.std(disp_source)) if len(disp_source) > 0 else 0.0
+    # Default / Moving Average fallback
+    try:
+        # Use median of recent values and estimate a simple slope if possible
+        recent = values[-window:] if window and len(values) >= 1 else values
+        if recent and len(recent) >= 2:
+            # try a small trend estimate
+            try:
+                if np is not None and LinearRegression is not None:
+                    rx = np.arange(len(recent)).reshape(-1, 1)
+                    ry = np.array(recent, dtype=float)
+                    tm = LinearRegression(); tm.fit(rx, ry)
+                    slope = float(tm.coef_[0])
+                    base = float(np.median(recent)) if np is not None else (sum(recent) / len(recent))
+                    preds = [max(0, int(round(base + slope * (i + 1)))) for i in range(horizon)]
+                    residuals = (ry - tm.predict(rx)).tolist()
+                else:
+                    # fallback simple slope estimate
+                    slope = float(recent[-1] - recent[0]) / (len(recent) - 1)
+                    base = sum(recent) / len(recent)
+                    preds = [max(0, int(round(base + slope * (i + 1)))) for i in range(horizon)]
+                    residuals = [float(v - base) for v in recent]
+            except Exception:
+                base = sum(recent) / len(recent)
+                preds = [max(0, int(round(base))) for _ in range(horizon)]
+                residuals = [float(v - base) for v in recent]
+        else:
+            base = sum(values) / len(values)
+            preds = [max(0, int(round(base))) for _ in range(horizon)]
+            residuals = [float(v - base) for v in values]
+
+        std = (sum([r * r for r in residuals]) / len(residuals)) ** 0.5 if residuals else 0.0
         upper = [int(round(p + 1.5 * std)) for p in preds]
         lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
 
-        # Confidence: inverse of normalized dispersion (higher dispersion -> lower confidence)
-        if med <= 0:
+        avg = (sum(values) / len(values)) if len(values) else 0.0
+        if avg <= 0:
             confidence = 0.0
         else:
-            rel_disp = std / (med + 1e-9)
+            rel_disp = std / (avg + 1e-9)
             confidence = max(0.0, min(100.0, (1.0 - rel_disp) * 100.0))
 
         if confidence >= 70:
@@ -490,9 +527,8 @@ def forecast_time_series(series, horizon=7, method='linear', window=3):
         else:
             accuracy = 'Low'
 
-        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': round(confidence, 2), 'accuracy': accuracy}
     except Exception:
-        # Fallback safe defaults
         return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
 
@@ -551,4 +587,123 @@ def generate_insight(period_name, series, forecast_payload):
         return f"{period_name.capitalize()} sales show {trend_text} behaviour (confidence: {int(forecast_conf)}%)."
     except Exception:
         return ''
+
+
+# ------------------------
+# Forecasting helpers
+# ------------------------
+
+def _mape(actual, predicted):
+    """Mean absolute percentage error, robust to zero actual values (uses 1 as denom when actual == 0)."""
+    if not actual or not predicted:
+        return float('inf')
+    acc = []
+    for a, p in zip(actual, predicted):
+        denom = a if a and a > 0 else 1.0
+        acc.append(abs((a - p) / float(denom)))
+    return (sum(acc) / len(acc)) * 100.0
+
+
+def _holt_linear_forecast(values, horizon=7, alpha=0.8, beta=0.2):
+    """Simple implementation of Holt's linear method (level + trend) without external deps.
+    Returns list of integer forecasts of length `horizon` and residuals list for the training fit.
+    """
+    if not values:
+        return [0] * horizon, []
+    # initialize
+    l = float(values[0])
+    b = (float(values[1]) - float(values[0])) if len(values) >= 2 else 0.0
+    fitted = [l]
+    for t in range(1, len(values)):
+        prev_l = l
+        prev_b = b
+        obs = float(values[t])
+        l = alpha * obs + (1 - alpha) * (prev_l + prev_b)
+        b = beta * (l - prev_l) + (1 - beta) * prev_b
+        fitted.append(l)
+    # Forecast
+    preds = [max(0, int(round(l + b * (i + 1)))) for i in range(horizon)]
+    # residuals: observed - fitted (aligned)
+    residuals = []
+    for obs, fit in zip(values, fitted):
+        residuals.append(float(obs) - float(fit))
+    return preds, residuals
+
+
+def _moving_average_forecast_simple(values, horizon=7, window=3):
+    if not values:
+        return [0] * horizon, []
+    recent = values[-window:] if len(values) >= 1 else values
+    avg = sum(recent) / len(recent)
+    preds = [max(0, int(round(avg))) for _ in range(horizon)]
+    residuals = [float(v) - float(avg) for v in recent]
+    return preds, residuals
+
+
+def select_best_forecasting_method(values, horizon=7):
+    """Simple backtest to select among ['linear', 'holt', 'ma'] using MAPE on a holdout.
+    Returns tuple (best_method_name, best_params_dict, diagnostics)
+    """
+    # require at least 4 points to meaningfully evaluate; otherwise prefer MA
+    n = len(values)
+    if n < 4:
+        return 'ma', {'window': 3}, {'reason': 'too short, using MA'}
+
+    # holdout size: min( max(1, int(20% of n)), 7 )
+    holdout = min(max(1, int(round(n * 0.2))), 7)
+    train = values[:-holdout]
+    test = values[-holdout:]
+
+    results = {}
+
+    # Try linear regression if available
+    try:
+        import numpy as _np  # noqa: N813 - local import
+        from sklearn.linear_model import LinearRegression as _LR
+        X_train = _np.arange(len(train)).reshape(-1, 1)
+        y_train = _np.array(train, dtype=float)
+        model = _LR()
+        model.fit(X_train, y_train)
+        X_test = _np.arange(len(train), len(train) + holdout).reshape(-1, 1)
+        preds = model.predict(X_test).tolist()
+        preds = [max(0, int(round(float(p)))) for p in preds]
+        results['linear'] = _mape(test, preds)
+    except Exception:
+        results['linear'] = float('inf')
+
+    # Try Holt's linear with small grid search
+    best_holt_mape = float('inf')
+    best_holt_params = None
+    for alpha in (0.2, 0.4, 0.6, 0.8):
+        for beta in (0.05, 0.1, 0.2):
+            try:
+                preds, _ = _holt_linear_forecast(train, horizon=holdout, alpha=alpha, beta=beta)
+                m = _mape(test, preds)
+                if m < best_holt_mape:
+                    best_holt_mape = m
+                    best_holt_params = {'alpha': alpha, 'beta': beta}
+            except Exception:
+                continue
+    results['holt'] = best_holt_mape if best_holt_params is not None else float('inf')
+
+    # Try simple moving average
+    try:
+        preds, _ = _moving_average_forecast_simple(train, horizon=holdout, window=3)
+        results['ma'] = _mape(test, preds)
+    except Exception:
+        results['ma'] = float('inf')
+
+    # pick best
+    best = min(results.items(), key=lambda x: x[1])  # (method, mape)
+    method = best[0]
+    diagnostics = {'scores': results}
+    params = {}
+    if method == 'holt':
+        params = best_holt_params or {'alpha': 0.8, 'beta': 0.1}
+    elif method == 'linear':
+        params = {}
+    else:
+        params = {'window': 3}
+
+    return method, params, diagnostics
 

@@ -410,3 +410,39 @@ class Seed(TestCase):
         finally:
             if saved_get is not None:
                 setattr(mod, 'get_csv_forecast', saved_get)
+
+    def test_model_selection_prefers_non_ma_on_trend(self):
+        """Model selection should prefer linear/holt over simple MA for trending data."""
+        from core.services.forecasting import select_best_forecasting_method
+        # create a trending series with small noise
+        values = [10 + i * 2 + (1 if i % 7 == 0 else 0) for i in range(30)]
+        method, params, diag = select_best_forecasting_method(values, horizon=7)
+        self.assertIn(method, ('linear', 'holt'))
+        # chosen model's MAPE should be no worse than MA
+        scores = diag.get('scores', {})
+        self.assertLessEqual(scores.get(method, float('inf')), scores.get('ma', float('inf')))
+
+    def test_selection_works_if_numeric_libs_missing(self):
+        """Even if numpy/sklearn/pandas are unavailable, selection should run and pick a model (holt or ma)."""
+        import builtins, importlib
+        real_import = builtins.__import__
+        def broken_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name.startswith('numpy') or name.startswith('sklearn') or name.startswith('pandas'):
+                raise ImportError('simulated missing dependency')
+            return real_import(name, globals, locals, fromlist, level)
+
+        try:
+            builtins.__import__ = broken_import
+            # reload module to exercise import-time behavior
+            mod = importlib.import_module('core.services.forecasting')
+            importlib.reload(mod)
+            from core.services.forecasting import select_best_forecasting_method
+            values = [50 + (i * 3) + ((-1) ** i) * 2 for i in range(25)]
+            method, params, diag = select_best_forecasting_method(values, horizon=5)
+            self.assertIn(method, ('holt', 'ma'))
+        finally:
+            builtins.__import__ = real_import
+            try:
+                importlib.reload(importlib.import_module('core.services.forecasting'))
+            except Exception:
+                pass
