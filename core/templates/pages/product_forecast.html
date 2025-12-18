@@ -2,11 +2,11 @@
 {% block content %}
 <div class="forecast-wrapper">
   <div class="page-header">
-    <h1>Product Forecast</h1>
-    <p class="muted">Predict best-selling products for the next day, week, and month.</p>
+    <h1 class="section-title">Product Forecast</h1>
+    <p class="muted" style="font-size:15px; margin-top:8px;">Predict best-selling products for the next day, week, and month.</p>
   </div>
 
-  <div class="controls-row" style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+  <div class="controls-row">
     <div class="analytics-grid three-up" style="flex:1; min-width:360px;">
       <div class="analytics-card">
         <h3>Best prediction</h3>
@@ -25,7 +25,7 @@
       </div>
     </div>
 
-    <div style="display:flex; gap:8px; align-items:center;">
+    <div class="controls-actions">
       <div class="btn-group" role="radiogroup" aria-label="Time range">
         <button class="btn small range-btn active" data-range="7">Weekly</button>
         <button class="btn small range-btn" data-range="1">Daily</button>
@@ -60,7 +60,7 @@
 
   <div class="card chart-card two-up">
     <div>
-      <h2 style="margin-bottom:8px;">Product trend (select a product below)</h2>
+      <h2 class="section-sub" style="margin-bottom:8px;">Product trend (select a product below)</h2>
       <div class="chart-area">
         <canvas id="productLineChart" role="img" aria-label="Product sales and forecast chart"></canvas>
       </div>
@@ -74,7 +74,7 @@
     </div>
 
     <div>
-      <h2 style="margin-bottom:8px;">Trending products</h2>
+      <h2 class="section-sub" style="margin-bottom:8px;">Trending products</h2>
       <div class="chart-area small-chart-area">
         <canvas id="topProductsBar" role="img" aria-label="Top products bar chart"></canvas>
       </div>
