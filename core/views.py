@@ -1077,14 +1077,31 @@ def product_forecast(request):
         'api_url': '/product-forecast/api/',
         'title': 'Product Forecast'
     }
+    logger = logging.getLogger(__name__)
+    # Close any stale DB connections before rendering to avoid psycopg2.InterfaceError
+    try:
+        close_old_connections()
+    except Exception:
+        pass
+
     try:
         response = render(request, 'pages/product_forecast.html', context)
         response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return response
+    except db_utils.InterfaceError as ie:
+        # transient DB connection issue: try to close old connections and retry once
+        logger.warning('InterfaceError when rendering product_forecast; retrying after close_old_connections: %s', str(ie))
+        try:
+            close_old_connections()
+            response = render(request, 'pages/product_forecast.html', context)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            return response
+        except Exception:
+            logger.exception('Retry render failed for product_forecast')
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.exception('Error rendering product_forecast: %s', str(e))
-        return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
+
+    return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
 
 
 @login_required
