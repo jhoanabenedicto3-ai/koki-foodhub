@@ -645,9 +645,9 @@ textarea {
 
 /* Export dropdown styling */
 .dropdown { position: relative; }
-.dropdown #exportMenu { min-width: 200px; border-radius:8px; overflow:hidden; }
-.dropdown #exportMenu button { display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:#fff; }
-.dropdown #exportMenu button:hover { background: #f7f9fb; }
+.dropdown #exportMenu, .dropdown #exportMenuTable { min-width: 200px; border-radius:8px; overflow:hidden; }
+.dropdown #exportMenu button, .dropdown #exportMenuTable button { display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:#fff; }
+.dropdown #exportMenu button:hover, .dropdown #exportMenuTable button:hover { background: #f7f9fb; }
 
 /* Hero icons */
 .hero-card svg { display:block; }
@@ -660,6 +660,39 @@ textarea {
 /* Small spacing polish */
 .hero-grid { gap:18px; }
 .range-btn { min-width:56px; }
+
+/* Category chips */
+.category-chips { display:flex; gap:8px; }
+.chip { padding:8px 12px; border-radius:999px; border:1px solid rgba(0,0,0,0.06); background:#fff; cursor:pointer; font-weight:700; color:var(--text-secondary); }
+.chip.active { background:#f0f5f0; border-color:#d8edd8; color:#2f7a3b; box-shadow: 0 2px 6px rgba(47,122,59,0.06); }
+
+/* KPI number emphasis */
+.hero-card .kpi-number { font-size:28px; font-weight:900; color:#111; }
+.hero-card .kpi-sub { color:var(--text-secondary); font-size:13px; }
+
+/* Table styles to match mockup */
+.table { border-radius:10px; overflow: hidden; background: #fff; border: 1px solid rgba(0,0,0,0.06); }
+.table thead th { position: sticky; top: 0; background: #f6f7f9; z-index: 2; color:#444; font-weight:700; }
+.table tbody tr:nth-child(even) { background: #fbfbfd; }
+.table td, .table th { padding: 12px 16px; }
+.table .growth-up { color: #2f7a3b; font-weight:800; }
+.table .growth-flat { color:#9a9a9a; }
+.table .trend-icon { width:18px; height:18px; display:inline-block; }
+
+/* Export table controls */
+.export-table .btn { padding:8px 12px; border-radius:8px; }
+.btn.download-compact { background:#e6f5eb; color:#1b4d2a; border-color: #dfeee0; }
+
+/* Slight shadow and rounded blocks for chart area and best card */
+.chart-area { border-radius:12px; }
+#best-panel { width:100%; }
+
+/* Responsive adjustments */
+@media (max-width: 940px) {
+  .card.chart-card.two-up { grid-template-columns: 1fr; }
+  .export-table { order: 2; }
+}
+
 
 
 
