@@ -3,6 +3,11 @@ name: Deploy to Render
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'static/**'
+      - 'staticfiles/**'
+      - 'core/static/**'
+      - 'media/**'
   workflow_dispatch: {}
 
 jobs:
