@@ -421,7 +421,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 4px;">
               <button class="qty-minus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #ffffff; border: none; cursor: pointer; font-size: 12px; color: var(--fg); border-radius: 3px; font-weight: 700;">−</button>
-              <span style="padding: 4px 8px; font-weight: 600; color: var(--fg); font-size: 12px; min-width: 28px; text-align: center; background: var(--muted); border-radius: 3px;">${item.quantity}</span>
+              <input type="number" class="qty-edit" data-id="${item.id}" data-size="${item.size || 'Regular'}" value="${item.quantity}" min="1" style="width: 50px; padding: 4px 6px; font-weight: 600; color: var(--fg); font-size: 12px; text-align: center; background: var(--muted); border: 1px solid var(--border); border-radius: 3px;" />
               <button class="qty-plus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #ffffff; border: none; cursor: pointer; font-size: 12px; color: var(--fg); border-radius: 3px; font-weight: 700;">+</button>
             </div>
           `;
@@ -469,6 +469,32 @@
               if (item.quantity === 0) {
                 cart = cart.filter(p => !(p.id === id && p.size === size));
               }
+            }
+            updateCart();
+          });
+        });
+
+        document.querySelectorAll('.qty-edit').forEach(input => {
+          input.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const id = parseInt(input.dataset.id);
+            const size = input.dataset.size || 'Regular';
+            const item = cart.find(p => p.id === id && p.size === size);
+            const newQty = parseInt(input.value) || 1;
+            const avail = (products[item.id] && products[item.id].quantity) || 0;
+            
+            if (newQty < 1) {
+              alert('Quantity must be at least 1');
+              input.value = item.quantity;
+              return;
+            }
+            if (newQty > avail) {
+              alert(`Cannot set quantity to ${newQty}: only ${avail} available`);
+              input.value = item.quantity;
+              return;
+            }
+            if (item) {
+              item.quantity = newQty;
             }
             updateCart();
           });
