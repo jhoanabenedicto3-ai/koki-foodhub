@@ -600,6 +600,17 @@ textarea {
 /* Forecast page specific styles - polished dashboard look */
 .forecast-wrapper { max-width: 1200px; margin: 0 auto; }
 
+/* Forecast hero cards (tight, three-up layout matching mock) */
+.forecast-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.forecast-hero-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); padding: 18px; border-radius: 12px; box-shadow: var(--shadow-sm); position: relative; min-height: 120px; display:flex; flex-direction:column; justify-content:space-between; }
+.forecast-hero-card .hero-icon { width:40px; height:40px; background:#f7fafc; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.hero-pct { position:absolute; right:12px; top:12px; background:#ecfdf5; color:#16a34a; font-weight:800; padding:6px 8px; border-radius:999px; font-size:12px; border: 1px solid rgba(34,197,94,0.12); }
+.hero-amount { font-size:20px; font-weight:900; margin-top:8px; color:#111; }
+.hero-sub { margin-top:8px; color:var(--text-secondary); font-size:13px; }
+.conf-pill { background:#fff; border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
+
+@media (max-width: 900px) { .forecast-hero-grid { grid-template-columns: 1fr; } .forecast-hero-card { min-height: auto; } }
+
 .hero-grid { margin-bottom: 12px; }
 .hero-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); padding: 16px; border-radius: 12px; box-shadow: var(--shadow-sm); }
 .hero-card .muted { color: var(--text-secondary); }
