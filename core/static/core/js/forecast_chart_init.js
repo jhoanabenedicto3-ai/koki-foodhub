@@ -70,10 +70,12 @@
           fill: false,
           borderDash: [],
           tension: 0.36,
-          pointRadius: 5,
+          pointRadius: 6,
           pointBackgroundColor: '#fff',
           pointBorderColor: '#f59e0b',
-          borderWidth: 2
+          pointBorderWidth: 2,
+          borderWidth: 3,
+          pointHoverRadius: 8
         }
       ] },
       options: {
