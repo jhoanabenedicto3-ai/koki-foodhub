@@ -96,8 +96,8 @@
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
         elements: { line: { capStyle: 'round', borderJoinStyle: 'round' } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6b7280' } },
-          y: { beginAtZero: true, ticks: { callback: function(v){ if(v === 0) return (window.currencySymbol || '') + '0'; return (window.currencySymbol || '') + Number(v).toLocaleString(); }, color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6b7280' }, grid: { color: 'rgba(15,23,36,0.03)' } }
+          x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 12 } } },
+          y: { beginAtZero: true, ticks: { callback: function(v){ if(v === 0) return (window.currencySymbol || '') + '0'; return (window.currencySymbol || '') + Number(v).toLocaleString(); }, color: '#9ca3af', font: { size: 12 } }, grid: { color: 'rgba(15,23,36,0.03)' } }
         },
         animation: { duration: 400 }
       }
