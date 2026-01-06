@@ -222,9 +222,22 @@
       let lineChart = null;
 
       function renderBarChart(canvasId, top){
+        // Defensive: if Chart.js failed to load (CSP or blocked CDN), avoid throwing and show a placeholder
+        if(typeof Chart === 'undefined'){
+          const canvas = document.getElementById(canvasId);
+          if(canvas){
+            const parent = canvas.parentNode;
+            if(parent && !parent.querySelector('.chart-unavailable')){
+              parent.innerHTML = '<div class="muted small chart-unavailable">Charts unavailable. Please ensure Chart.js is accessible (CDN may be blocked).</div>';
+            }
+          }
+          return;
+        }
         const labels = top.map(p => p.product);
         const data = top.map(p => p.forecast_h);
-        const ctx = document.getElementById(canvasId).getContext('2d');
+        const el = document.getElementById(canvasId);
+        if(!el) return;
+        const ctx = el.getContext('2d');
         if(barChart){ try{ barChart.destroy(); }catch(e){} }
         barChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Forecast', data, backgroundColor: 'rgba(54, 162, 235, 0.85)' }] }, options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } } });
       }
@@ -246,8 +259,20 @@
       }
 
       function renderLine(canvasId, detail){
-        const labels = detail.series.map(s => s[0]);
-        const actual = detail.series.map(s => s[1]);
+        // Defensive: if Chart.js is not available (CDN blocked or CSP), show placeholder and avoid runtime errors
+        if(typeof Chart === 'undefined'){
+          const canvas = document.getElementById(canvasId);
+          if(canvas){
+            const parent = canvas.parentNode;
+            if(parent && !parent.querySelector('.chart-unavailable')){
+              parent.innerHTML = '<div class="muted small chart-unavailable">Chart unavailable. Please ensure Chart.js is accessible (CDN may be blocked).</div>';
+            }
+          }
+          return;
+        }
+
+        const labels = (detail.series || []).map(s => s[0]);
+        const actual = (detail.series || []).map(s => s[1]);
         const next30 = detail.horizons && detail.horizons.h_30 ? detail.horizons.h_30.forecast : 0;
         const futureLabels = [];
         const forecastVals = [];
@@ -255,7 +280,9 @@
         const combinedLabels = labels.concat(futureLabels);
         const forecastPadded = Array(labels.length).fill(null).concat(forecastVals);
 
-        const ctx = document.getElementById(canvasId).getContext('2d');
+        const el = document.getElementById(canvasId);
+        if(!el) return;
+        const ctx = el.getContext('2d');
         if(lineChart){ try{ lineChart.destroy(); }catch(e){} }
 
         // Create gradient for forecast area (soft shaded fill)

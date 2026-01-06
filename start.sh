@@ -44,12 +44,26 @@ echo "✅ INITIALIZATION COMPLETE"
 echo "=========================================="
 echo ""
 
-# Start gunicorn
-exec gunicorn \
-    --bind 0.0.0.0:${PORT:-10000} \
-    --workers 2 \
-    --worker-class sync \
-    --timeout 60 \
-    --access-logfile - \
-    --error-logfile - \
-    koki_foodhub.wsgi:application
+# Choose server: gunicorn (default) or Django runserver (when USE_RUNSERVER=true and DEBUG=true)
+# Prevent accidental use of runserver in production by requiring DEBUG=true
+if [ "${USE_RUNSERVER:-false}" = "true" ]; then
+    DEBUG_LOWER=$(echo "${DEBUG:-false}" | tr '[:upper:]' '[:lower:]')
+    if [ "$DEBUG_LOWER" != "true" ]; then
+        echo "→ ERROR: runserver requires DEBUG=true for safety. Set DEBUG=true and USE_RUNSERVER=true to enable. Aborting."
+        exit 1
+    fi
+
+    echo "→ Starting Django development server (runserver) for debugging"
+    # Bind to the port Render provides; disable the autoreloader to avoid issues in container
+    exec python manage.py runserver 0.0.0.0:${PORT:-8000} --noreload
+else
+    echo "→ Starting gunicorn"
+    exec gunicorn \
+        --bind 0.0.0.0:${PORT:-10000} \
+        --workers 2 \
+        --worker-class sync \
+        --timeout 60 \
+        --access-logfile - \
+        --error-logfile - \
+        koki_foodhub.wsgi:application
+fi

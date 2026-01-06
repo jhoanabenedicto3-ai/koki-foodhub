@@ -40,12 +40,30 @@ print("="*70)
 # Log resolved database URL / host for easier debugging (mask password)
 raw_db_url = os.getenv('DATABASE_URL')
 print(f"→ DATABASE_URL: {_masked_db_url(raw_db_url)}")
+
+# Determine whether a remote DB is configured (not localhost/127.0.0.1)
+remote_db_configured = False
+try:
+    from urllib.parse import urlparse
+    if raw_db_url:
+        p = urlparse(raw_db_url)
+        db_hostname = (p.hostname or '').lower()
+        if db_hostname and db_hostname not in ('localhost', '127.0.0.1'):
+            remote_db_configured = True
+except Exception:
+    remote_db_configured = False
+
+# Also inspect settings if available
 db_host = None
 try:
     db_host = settings.DATABASES.get('default', {}).get('HOST')
+    if db_host and db_host not in ('localhost', '127.0.0.1'):
+        remote_db_configured = True
 except Exception:
     db_host = None
+
 print(f"→ Resolved DB HOST in settings: {db_host or '(not set)'}")
+print(f"→ Remote DB configured: {remote_db_configured}")
 
 try:
     from django.core.management import call_command
@@ -89,18 +107,35 @@ try:
         print(f"✅ Admin user created!")
     
     print(f"📊 Database ready - {User.objects.count()} users")
+    try:
+        settings.DB_AVAILABLE = True
+    except Exception:
+        pass
     
 except Exception as e:
     print(f"⚠️ Startup error: {e}")
     import traceback
     traceback.print_exc()
-    # If running in production (DEBUG=False) fail fast so the deployment shows
-    # an error instead of starting a web process bound to localhost.
+
+    # Set a flag so the rest of the app can respond to DB unavailability.
     try:
-        if not settings.DEBUG:
-            raise
+        settings.DB_AVAILABLE = False
     except Exception:
-        # re-raise the original exception to abort startup
+        pass
+
+    # Decide whether to abort startup on DB failure. By default we will continue
+    # starting the web process so static pages and non-DB endpoints remain accessible.
+    # Set ABORT_ON_DB_FAILURE=true in the environment to force an abort when the DB
+    # is unreachable (useful for strict production safety checks).
+    abort_env = os.getenv('ABORT_ON_DB_FAILURE', '').lower() == 'true'
+    try:
+        if abort_env:
+            print("⚠️ ABORT_ON_DB_FAILURE=true — aborting startup due to DB failure.")
+            raise
+        else:
+            print("⚠️ DB check failed; continuing startup. Some features will remain limited until DB is available.")
+    except Exception:
+        # Re-raise the original exception to abort startup
         raise
 
 print("="*70)

@@ -658,11 +658,30 @@ def forecast_view(request):
         series_error = str(series_exc)
 
     # Simple analytics
+    # Note: use aggregated series forecasts for business-level next-period totals
     total_forecasted_units = sum(item['forecast'] for item in data)
     avg_confidence = sum(item['confidence'] for item in data) / len(data) if data else 0
-    next_week_forecast = total_forecasted_units * 7
-    peak_day = "Saturday"
-    peak_orders = int(total_forecasted_units * 1.2)
+
+    # Prefer aggregated weekly forecast from the series (one-step ahead). Fall back to per-product projection if unavailable.
+    try:
+        series_week_next = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else None
+        next_week_forecast = int(series_week_next) if series_week_next is not None else int(total_forecasted_units * 7)
+    except Exception:
+        next_week_forecast = int(total_forecasted_units * 7)
+
+    # For peak-day and peak-orders, use a heuristic: take the maximal predicted daily value in the next 7 days if available
+    try:
+        upcoming_daily = (daily_fore.get('forecast') or [])[:7]
+        if upcoming_daily:
+            peak_day = 'Next peak'  # label for UI; chart provides dates
+            peak_orders = int(max(upcoming_daily))
+        else:
+            peak_day = "Saturday"
+            peak_orders = int(total_forecasted_units * 1.2)
+    except Exception:
+        peak_day = "Saturday"
+        peak_orders = int(total_forecasted_units * 1.2)
+
     last_week_total = sum(item['last_7_days'] for item in data)
     growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
 
@@ -738,6 +757,75 @@ def forecast_view(request):
     week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
     month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
 
+    # Estimate revenue equivalents for the preview cards using a simple average
+    # unit price computed over the last 30 days (safe fallback to overall history)
+    try:
+        lookback_days = 30
+        lookback_start = today - timedelta(days=lookback_days)
+        rev_units = Sale.objects.filter(date__gte=lookback_start, date__lte=today).aggregate(total_rev=Sum('revenue'), total_units=Sum('units_sold'))
+        total_rev_lb = float(rev_units.get('total_rev') or 0.0)
+        total_units_lb = int(rev_units.get('total_units') or 0)
+        avg_unit_price = (total_rev_lb / total_units_lb) if total_units_lb > 0 else (today_revenue / today_units if today_units > 0 else 0.0)
+    except Exception:
+        avg_unit_price = 0.0
+
+    def fmt_currency(x):
+        try:
+            return f'₱{int(round(x)):,}'
+        except Exception:
+            return f'₱{int(x)}'
+
+    # Revenue projections (currency) derived from unit forecasts
+    today_forecast_revenue = today_forecast * avg_unit_price
+    week_forecast_revenue = week_forecast * avg_unit_price
+    month_forecast_revenue = month_forecast * avg_unit_price
+
+    # Confidence margins: use forecast upper/lower bounds when available and convert to currency
+    def confidence_margin_currency(fore_payload, idx=0):
+        try:
+            upper = (fore_payload.get('upper') or [None])[idx]
+            lower = (fore_payload.get('lower') or [None])[idx]
+            if upper is None or lower is None:
+                return 0.0
+            margin_units = max(0.0, (upper - lower) / 2.0)
+            return margin_units * avg_unit_price
+        except Exception:
+            return 0.0
+
+    today_conf_margin = confidence_margin_currency(daily_fore, 0)
+    week_conf_margin = confidence_margin_currency(weekly_fore, 0)
+    month_conf_margin = confidence_margin_currency(monthly_fore, 0)
+
+    # Confidence percentages (normalize 0-100)
+    today_conf_pct = int(round(daily_fore.get('confidence', 0) or 0))
+    week_conf_pct = int(round(weekly_fore.get('confidence', 0) or 0))
+    month_conf_pct = int(round(monthly_fore.get('confidence', 0) or 0))
+
+    # Human-friendly date labels for hero cards
+    try:
+        tomorrow_date = today + timedelta(days=1)
+        tomorrow_label = tomorrow_date.strftime('%b %d, %Y')
+    except Exception:
+        tomorrow_label = ''
+
+    # Next week: compute next-week range (Mon-Sun)
+    try:
+        week_start = today - timedelta(days=today.weekday())
+        next_week_start = week_start + timedelta(days=7)
+        next_week_end = next_week_start + timedelta(days=6)
+        next_week_label = f"{next_week_start.strftime('%b %d')} - {next_week_end.strftime('%b %d')}"
+    except Exception:
+        next_week_label = ''
+
+    # Next month label (Month Year)
+    try:
+        ny = today.year + 1 if today.month == 12 else today.year
+        nm = 1 if today.month == 12 else today.month + 1
+        from datetime import date as _date
+        next_month_label = _date(ny, nm, 1).strftime('%B %Y')
+    except Exception:
+        next_month_label = ''
+
     # Data source: we use database historical sales only for forecasting
     data_source = 'db'
 
@@ -774,6 +862,21 @@ def forecast_view(request):
         "today_forecast_preview": today_forecast,
         "week_forecast_preview": week_forecast,
         "month_forecast_preview": month_forecast,
+        "today_forecast_revenue": today_forecast_revenue,
+        "week_forecast_revenue": week_forecast_revenue,
+        "month_forecast_revenue": month_forecast_revenue,
+        "today_forecast_revenue_display": fmt_currency(today_forecast_revenue),
+        "week_forecast_revenue_display": fmt_currency(week_forecast_revenue),
+        "month_forecast_revenue_display": fmt_currency(month_forecast_revenue),
+        "today_confidence_pct": today_conf_pct,
+        "week_confidence_pct": week_conf_pct,
+        "month_confidence_pct": month_conf_pct,
+        "today_confidence_margin_display": fmt_currency(today_conf_margin),
+        "week_confidence_margin_display": fmt_currency(week_conf_margin),
+        "month_confidence_margin_display": fmt_currency(month_conf_margin),
+        "tomorrow_label": tomorrow_label,
+        "next_week_label": next_week_label,
+        "next_month_label": next_month_label,
         "currency": "PHP",
         # Period summaries for server-side fallbacks in template
         "daily_summary": daily_summary,

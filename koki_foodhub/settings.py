@@ -14,8 +14,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file only in development or when explicitly enabled.
+# This avoids accidentally loading a checked-in .env in production (e.g., on Render).
+if os.getenv("USE_DOTENV", "").lower() == "true" or os.getenv("ENV", "").lower() in ("development", "dev"):
+    load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +30,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-change-me-in-production-now')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+# Default to False so production environments (that don't set DEBUG) run in safe mode.
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 # Character encoding settings
 FILE_CHARSET = 'utf-8'
@@ -59,6 +62,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # If the DB is unavailable, return a friendly 503 page instead of
+    # exposing raw db errors in templates. Keep this early in the chain so
+    # it catches OperationalError raised by views.
+    'core.middleware.db_unavailable.DBUnavailableMiddleware',
     # Ensure DB connections are fresh at each request to avoid stale
     # 'connection already closed' errors in long-running workers.
     'core.middleware.db.DBConnectionMiddleware',
@@ -130,6 +137,62 @@ def _find_render_database_url():
     return os.getenv('DATABASE_URL')
 
 DATABASE_URL = _find_render_database_url()
+
+# If the chosen DATABASE_URL points to localhost, but another *_DATABASE_URL
+# exists that points to a remote host, prefer the remote one. This prevents
+# accidentally using a local connection string present in the environment.
+def _choose_non_local_db(url_candidate: str):
+    try:
+        from urllib.parse import urlparse
+        if not url_candidate:
+            return None
+        p = urlparse(url_candidate)
+        host = (p.hostname or '').lower()
+        if host and host not in ('localhost', '127.0.0.1'):
+            return url_candidate
+    except Exception:
+        pass
+    # scan for alternatives
+    for name, val in os.environ.items():
+        if name.endswith('_DATABASE_URL') and val:
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(val)
+                host = (p.hostname or '').lower()
+                if host and host not in ('localhost', '127.0.0.1'):
+                    return val
+            except Exception:
+                continue
+    return url_candidate
+
+DATABASE_URL = _choose_non_local_db(DATABASE_URL)
+
+# Fail fast in production when DATABASE_URL is missing or points to localhost.
+# This prevents the app from attempting to connect to a local Postgres that
+# does not exist on hosted platforms (e.g., Render) and surfaces the
+# configuration problem with a clear message.
+if not DEBUG:
+    from django.core.exceptions import ImproperlyConfigured
+    if not DATABASE_URL:
+        raise ImproperlyConfigured(
+            "DATABASE_URL environment variable is required in production. "
+            "Set it to your Render Postgres URL (see RENDER_DEPLOYMENT_STEPS.md)."
+        )
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(DATABASE_URL)
+        host = (p.hostname or "").lower()
+        if host in ("localhost", "127.0.0.1", ""):
+            raise ImproperlyConfigured(
+                f"DATABASE_URL points to localhost ({host}) in production. "
+                "Use the managed Render Postgres DATABASE_URL or set a remote host."
+            )
+    except ImproperlyConfigured:
+        raise
+    except Exception:
+        raise ImproperlyConfigured(
+            "DATABASE_URL is malformed. Ensure it follows: postgresql://user:pass@host:port/dbname"
+        )
 
 # In development (DEBUG=True) prefer the local SQLite fallback even if
 # a DATABASE_URL or POSTGRES_* env vars exist. This prevents the app from

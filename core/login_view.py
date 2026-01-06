@@ -39,7 +39,19 @@ def login(request):
                 logger.info(f"Failed login attempt for username: {username}")
         
         except Exception as e:
-            logger.exception(f"Login error for user {username}: {str(e)}")
-            messages.error(request, f'Login error: {str(e)}')
+            # Prefer to not expose internal DB errors or tracebacks to end users.
+            # If this is a database OperationalError, show a user-friendly message.
+            try:
+                from django.db.utils import OperationalError as DBOperationalError
+                if isinstance(e, DBOperationalError):
+                    logger.exception(f"Login error (DB unreachable) for user {username}: {e}")
+                    messages.error(request, 'Service temporarily unavailable. Please try again in a few minutes.')
+                else:
+                    logger.exception(f"Login error for user {username}: {e}")
+                    messages.error(request, 'Login error. Please try again or contact support.')
+            except Exception:
+                # Fallback: generic message and log
+                logger.exception(f"Login error for user {username}: {e}")
+                messages.error(request, 'Login error. Please try again or contact support.')
     
     return render(request, 'pages/login.html')

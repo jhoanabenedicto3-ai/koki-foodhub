@@ -85,6 +85,28 @@ class Seed(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn('Sales Forecast', resp.content.decode('utf-8'))
 
+    def test_forecast_next_period_cards_present(self):
+        """Verify the Next Day/Week/Month forecast cards appear on the page and show currency."""
+        from django.contrib.auth.models import User
+        import re
+        user = User.objects.create_user('user2', 'u2@example.com', 'pass')
+        c = self.client
+        c.force_login(user)
+        resp = c.get('/forecast/')
+        self.assertEqual(resp.status_code, 200)
+        text = resp.content.decode('utf-8')
+        # Basic presence checks (new headings)
+        self.assertIn("Tomorrow's Sales", text)
+        self.assertIn('Next Week', text)
+        self.assertIn('Next Month', text)
+        # Ensure currency symbol present
+        self.assertIn('₱', text)
+        # Ensure confidence badge appears like '▲ 12%'
+        self.assertRegex(text, r'▲\s*\d+%')
+        # Ensure numeric placeholders are present
+        nums = re.findall(r'\b\d{1,7}\b', text)
+        self.assertTrue(len(nums) >= 1, 'Expected at least one numeric value in the forecast cards')
+
     def test_header_link_visible_to_anonymous(self):
         """Ensure the header-level Product Forecast link is discoverable without login."""
         c = self.client
@@ -161,6 +183,86 @@ class Seed(TestCase):
         self.assertIn('daily', data)
         self.assertIn('weekly', data)
         self.assertIn('monthly', data)
+
+
+class BackupCommandTests(TestCase):
+    def test_sqlite_backup_creates_gz_file(self):
+        import gzip
+        import sqlite3
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from django.core.management import call_command
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            db_file = td_path / "test.db"
+
+            # Create a simple sqlite db
+            conn = sqlite3.connect(db_file)
+            conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, text TEXT)")
+            conn.execute("INSERT INTO t (text) VALUES (?)", ("hello",))
+            conn.commit()
+            conn.close()
+
+            from django.conf import settings
+            db_settings = settings.DATABASES.copy()
+            db_settings["default"] = {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": str(db_file),
+            }
+
+            from django.test import override_settings
+            with override_settings(DATABASES=db_settings):
+                call_command("backup_db", "--output", str(td_path))
+
+            # Find a gz file written
+            gz_files = list(td_path.glob("*.gz"))
+            self.assertTrue(len(gz_files) >= 1, f"No gz backup found in {td_path}")
+
+            # Ensure gzip file can be opened
+            with gzip.open(gz_files[0], "rb") as fh:
+                data = fh.read(100)
+                self.assertTrue(len(data) > 0)
+
+    def test_postgres_prefers_database_url_and_sets_sslmode(self):
+        """When DATABASE_URL is present, pg_dump should be invoked with the full URL and PGSSLMODE should be set from the URL query."""
+        import shutil
+        import subprocess
+        import sqlite3
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from django.core.management import call_command
+        from unittest import mock
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+
+            from django.conf import settings
+            db_settings = settings.DATABASES.copy()
+            db_settings["default"] = {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": "dbname",
+            }
+
+            # Use a DATABASE_URL that contains sslmode
+            url = "postgresql://u:p@host:3333/dbname?sslmode=require"
+
+            with mock.patch("shutil.which", return_value="/usr/bin/pg_dump"):
+                captured = {}
+
+                def fake_run(cmd, check=True, env=None):
+                    captured["cmd"] = cmd
+                    captured["env"] = env
+                    return None
+
+                with mock.patch("subprocess.run", side_effect=fake_run):
+                    from django.test import override_settings
+                    with override_settings(DATABASES=db_settings, DATABASE_URL=url):
+                        call_command("backup_db", "--output", str(td_path))
+
+                # Assertions
+                self.assertIn(url, captured["cmd"])  # the URL is passed to pg_dump
+                self.assertEqual(captured["env"].get("PGSSLMODE"), "require")
 
     def test_product_forecast_api_filters_and_summary(self):
         """Verify the product forecast API supports category filtering and returns summary/trending."""
@@ -580,7 +682,8 @@ class Seed(TestCase):
             # is clamped so the API doesn't return absurd values. Create a contrived
             # sale with an enormous units_sold and confirm moving_average_forecast caps it.
             from core.services.forecasting import moving_average_forecast
-            large = Sale.objects.create(product=Product.objects.first(), units_sold=3000, revenue=3000.0, date='2025-11-30')
+            prod_obj = Product.objects.first() or Product.objects.create(name='Fallback', category='Misc', price=Decimal('100.00'))
+            large = Sale.objects.create(product=prod_obj, units_sold=3000, revenue=3000.0, date='2025-11-30')
             prod = moving_average_forecast(window=3).get('db_forecasts', {})
             # Every forecast must be below or equal to our MAX_UNITS_PER_SALE after the cap
             from core.services.forecasting import MAX_UNITS_PER_SALE

@@ -636,6 +636,48 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       // Debug toggle removed in simplified UI
     </script>
 
+    <!-- Next-period Forecast quick cards (rich hero style) -->
+    <div class="forecast-hero-grid" style="margin-bottom:18px; justify-content:center;">
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Tomorrow's Sales</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ tomorrow_label }}</div>
+          </div>
+          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ today_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ today_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <strong>±{{ today_confidence_margin_display }}</strong></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ today_forecast_preview|default:0 }} &nbsp;•&nbsp; Confidence: {{ today_confidence_pct }}%</div>
+      </div>
+
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Week</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_week_label }}</div>
+          </div>
+          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ week_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ week_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <strong>±{{ week_confidence_margin_display }}</strong></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ week_forecast_preview|default:0 }} &nbsp;•&nbsp; Growth: {{ growth_percentage|floatformat:1 }}%</div>
+      </div>
+
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Month</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_month_label }}</div>
+          </div>
+          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ month_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ month_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <strong>±{{ month_confidence_margin_display }}</strong></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ month_forecast_preview|default:0 }}</div>
+      </div>
+    </div>
+
     <!-- Analytics Cards -->
     <div class="analytics-grid">
       <!-- Next Week Sales (horizontal layout) -->
@@ -643,7 +685,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         <div style="display:flex; gap:12px; align-items:center;">
           <div class="meta">
             <h3 class="title">Next Week Sales</h3>
-            <div class="value">{{ currency }}{{ total_forecast|floatformat:0 }}</div>
+            <div class="value">{{ total_forecast|floatformat:0 }}</div>
             <div class="sub">
               {% if growth_percentage >= 0 %}
                 +{{ growth_percentage|floatformat:1 }}% increase expected
