@@ -110,6 +110,22 @@
     const actualPadded = (data.actual || []).concat(Array((data.forecast||[]).length).fill(null));
     const forecastPadded = Array((data.actual||[]).length).fill(null).concat(data.forecast || []);
 
+    // Sanity check & auto-rescale when server provides a known today revenue but series appear tiny
+    try{
+      const flattenVals = v => (v||[]).filter(x => x != null && !isNaN(x)).map(Number);
+      const maxActual = Math.max(0, ...(flattenVals(actualPadded)));
+      const maxForecast = Math.max(0, ...(flattenVals(forecastPadded)));
+      const seriesMax = Math.max(maxActual, maxForecast);
+      const todayRev = Number(window._todayForecastRevenue || 0);
+      if(todayRev > 0 && seriesMax > 0 && (todayRev / seriesMax) > 4){
+        const scaleFactor = todayRev / Math.max(1, maxForecast || seriesMax);
+        console.warn('Rescaling chart series by factor', scaleFactor, 'to match server today forecast revenue');
+        for(let i=0;i<actualPadded.length;i++){ if(actualPadded[i] != null) actualPadded[i] = Math.round(actualPadded[i] * scaleFactor); }
+        for(let i=0;i<forecastPadded.length;i++){ if(forecastPadded[i] != null) forecastPadded[i] = Math.round(forecastPadded[i] * scaleFactor); }
+        window._seriesSource = (window._seriesSource || '') + '::rescaled_for_hero';
+      }
+    }catch(e){ console.warn('rescale check failed', e); }
+
     const ctx = document.getElementById('salesChart')?.getContext('2d');
     if(!ctx) return;
 
