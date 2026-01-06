@@ -407,6 +407,22 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
         }
       } catch(e){ console.warn('chart init failed', e); }
 
+      // Range selector behaviour: trims historical series then re-renders charts
+      (function(){
+        const sel = document.getElementById('rangeSelect');
+        function daysFor(val){ if(!val) return 30; if(val.indexOf('7')>=0) return 7; if(val.indexOf('90')>=0) return 90; return 30; }
+        function trimSeries(series, days){ if(!series || !series.labels) return series; const s = JSON.parse(JSON.stringify(series)); if(s.labels.length > days){ const start = Math.max(0, s.labels.length - days); s.labels = s.labels.slice(start); s.actual = s.actual.slice(start); } return s; }
+        function refreshForRange(){
+          const days = daysFor(sel && sel.value);
+          const mapping = { 'daily': window.daily, 'weekly': window.weekly, 'monthly': window.monthly };
+          const series = mapping[window.currentView] || window.weekly;
+          const trimmed = trimSeries(series, days);
+          try{ if(window.actualChart){ try{ window.actualChart.destroy(); }catch(e){} window.actualChart = renderLineOnlyChart('actualChart', trimmed, window.currentView); } }catch(e){ console.warn('update actual failed', e); }
+          try{ if(window.forecastChart){ try{ window.forecastChart.destroy(); }catch(e){} window.forecastChart = renderForecastOnlyChart('forecastChart', trimmed, window.currentView); } }catch(e){ console.warn('update forecast failed', e); }
+        }
+        sel?.addEventListener('change', refreshForRange);
+      })();
+
       function setActiveButton(view){
         document.getElementById('btnDaily').classList.toggle('btn-active', view === 'daily');
         document.getElementById('btnWeekly').classList.toggle('btn-active', view === 'weekly');
