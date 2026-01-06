@@ -16,11 +16,36 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'koki_foodhub.settings')
 
 # Initialize Django
 django.setup()
+from django.conf import settings
+
+def _masked_db_url(url: str) -> str:
+    if not url:
+        return "(none)"
+    try:
+        # mask password
+        from urllib.parse import urlparse, urlunparse
+        p = urlparse(url)
+        if p.password:
+            netloc = p.netloc.replace(p.password, '*****')
+            return urlunparse((p.scheme, netloc, p.path, p.params, p.query, p.fragment))
+    except Exception:
+        pass
+    return url
 
 # CRITICAL: Run migrations and setup on first startup
 print("\n" + "="*70)
 print("🚀 DJANGO WSGI STARTUP - CHECKING DATABASE")
 print("="*70)
+
+# Log resolved database URL / host for easier debugging (mask password)
+raw_db_url = os.getenv('DATABASE_URL')
+print(f"→ DATABASE_URL: {_masked_db_url(raw_db_url)}")
+db_host = None
+try:
+    db_host = settings.DATABASES.get('default', {}).get('HOST')
+except Exception:
+    db_host = None
+print(f"→ Resolved DB HOST in settings: {db_host or '(not set)'}")
 
 try:
     from django.core.management import call_command
@@ -66,9 +91,17 @@ try:
     print(f"📊 Database ready - {User.objects.count()} users")
     
 except Exception as e:
-    print(f"⚠️ Startup error (continuing anyway): {e}")
+    print(f"⚠️ Startup error: {e}")
     import traceback
     traceback.print_exc()
+    # If running in production (DEBUG=False) fail fast so the deployment shows
+    # an error instead of starting a web process bound to localhost.
+    try:
+        if not settings.DEBUG:
+            raise
+    except Exception:
+        # re-raise the original exception to abort startup
+        raise
 
 print("="*70)
 print("✅ WSGI STARTUP COMPLETE - App ready\n")
