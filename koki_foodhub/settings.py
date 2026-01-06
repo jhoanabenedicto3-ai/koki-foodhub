@@ -101,7 +101,35 @@ WSGI_APPLICATION = 'koki_foodhub.wsgi.application'
 # DATABASE: SQLite default; set POSTGRES_* envs to switch
 # Prefer explicit DATABASE_URL (Render provides this when using a managed Postgres)
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+def _find_render_database_url():
+    # Common explicit name
+    candidates = [
+        'DATABASE_URL',
+        'KOKI_FOODHUB_DB_DATABASE_URL',
+        'koki-foodhub-db_DATABASE_URL',
+        'kokifoodhub_db_DATABASE_URL',
+        'KOKIFOODHUB_DB_DATABASE_URL',
+    ]
+    for name in candidates:
+        val = os.getenv(name)
+        if val:
+            return val
+
+    # Search environment for any DATABASE_URL variable related to this project
+    for name, val in os.environ.items():
+        if name.endswith('_DATABASE_URL') and val:
+            lname = name.lower()
+            if 'foodhub' in lname or 'koki' in lname or 'kokifoodhub' in lname:
+                return val
+
+    # If there's only a single *_DATABASE_URL set, prefer that
+    db_urls = [v for k, v in os.environ.items() if k.endswith('_DATABASE_URL') and v]
+    if len(db_urls) == 1:
+        return db_urls[0]
+
+    return os.getenv('DATABASE_URL')
+
+DATABASE_URL = _find_render_database_url()
 
 # In development (DEBUG=True) prefer the local SQLite fallback even if
 # a DATABASE_URL or POSTGRES_* env vars exist. This prevents the app from
