@@ -37,18 +37,69 @@
 
     const ctx = document.getElementById('salesChart')?.getContext('2d');
     if(!ctx) return;
+
+    // create a soft vertical gradient for the historical (actual) area
+    const canvasH = ctx.canvas.height || 420;
+    const grad = ctx.createLinearGradient(0, 0, 0, canvasH);
+    grad.addColorStop(0, 'rgba(249,115,22,0.12)');
+    grad.addColorStop(0.5, 'rgba(249,115,22,0.06)');
+    grad.addColorStop(1, 'rgba(249,115,22,0.00)');
+
     if(salesChart){ try{ salesChart.destroy(); }catch(e){} }
     salesChart = new Chart(ctx, {
       type: 'line',
       data: { labels: combined.map(l=>l), datasets: [
-        { label: 'Historical Data', data: actualPadded, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)', fill: true, tension: 0.36, pointRadius: 3, borderWidth: 2 },
-        { label: 'Forecast Projection', data: forecastPadded, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.04)', fill: false, borderDash: [6,4], tension: 0.3, pointRadius: 4, borderWidth: 2 }
+        {
+          label: 'Historical Data',
+          data: actualPadded,
+          borderColor: '#f97316',
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.36,
+          pointRadius: 4,
+          pointBackgroundColor: '#f97316',
+          pointBorderColor: '#fff',
+          borderWidth: 2,
+          pointHoverRadius: 6
+        },
+        {
+          label: 'Forecast Projection',
+          data: forecastPadded,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.02)',
+          fill: false,
+          borderDash: [],
+          tension: 0.36,
+          pointRadius: 5,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#f59e0b',
+          borderWidth: 2
+        }
       ] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + ((window.currencySymbol||'') + Number(ctx.raw).toLocaleString()); } } } },
-        scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return (window.currencySymbol||'') + Number(v).toLocaleString(); } } } }
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: function(ctx){
+                const val = ctx.raw;
+                if(val == null) return ctx.dataset.label + ': —';
+                return ctx.dataset.label + ': ' + (window.currencySymbol || '') + Number(val).toLocaleString();
+              }
+            }
+          }
+        },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        elements: { line: { capStyle: 'round', borderJoinStyle: 'round' } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6b7280' } },
+          y: { beginAtZero: true, ticks: { callback: function(v){ if(v === 0) return (window.currencySymbol || '') + '0'; return (window.currencySymbol || '') + Number(v).toLocaleString(); }, color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6b7280' }, grid: { color: 'rgba(15,23,36,0.03)' } }
+        },
+        animation: { duration: 400 }
       }
     });
   }
