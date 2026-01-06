@@ -110,52 +110,7 @@
   {% if data %}
     <!-- Sales Overview & Prediction Chart -->
     <!-- Sales Overview Cards -->
-    <div class="overview-grid" style="display:flex; gap:16px; align-items:stretch; overflow-x:auto; padding-bottom:6px; flex-wrap:wrap; justify-content:center;">
-      <div class="overview-card" style="flex:0 0 320px; min-width:260px; max-width:320px; display:flex; margin:8px;">
-        <div style="display:flex; align-items:center; gap:12px; width:100%;">
-          <div class="card-left">
-            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Daily Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewDailyTotal">{{ daily_summary.total|default:'—' }}</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewDailyPct">{% if daily_summary %}{{ daily_summary.pct_change }}% {{ daily_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
-          </div>
-          <div class="card-right">
-            <div class="badge badge-warning">Predicted</div>
-            <div id="overviewDailyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ daily_confidence|floatformat:0 }}%</div>
-            <div class="card-icon">📊</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="overview-card" style="flex:0 0 320px; min-width:260px; max-width:320px; display:flex; margin:8px;">
-        <div style="display:flex; align-items:center; gap:12px; width:100%;">
-          <div class="card-left">
-            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Weekly Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewWeeklyTotal">{{ weekly_summary.total|default:'—' }}</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewWeeklyPct">{% if weekly_summary %}{{ weekly_summary.pct_change }}% {{ weekly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
-          </div>
-          <div class="card-right">
-            <div class="badge badge-danger">Predicted</div>
-            <div id="overviewWeeklyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ weekly_confidence|floatformat:0 }}%</div>
-            <div class="card-icon">✔️</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="overview-card" style="flex:0 0 320px; min-width:260px; max-width:320px; display:flex; margin:8px;">
-        <div style="display:flex; align-items:center; gap:12px; width:100%;">
-          <div class="card-left">
-            <div style="font-size:12px; color:var(--text-secondary); font-weight:700;">Monthly Sales</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:800; color:#111;" id="overviewMonthlyTotal">{{ monthly_summary.total|default:'—' }}</div>
-            <div style="margin-top:6px; font-size:12px; color:var(--text-secondary);" id="overviewMonthlyPct">{% if monthly_summary %}{{ monthly_summary.pct_change }}% {{ monthly_summary.arrow|default:'' }}{% else %}—{% endif %}</div>
-          </div>
-          <div class="card-right">
-            <div class="badge badge-warning">Predicted</div>
-            <div id="overviewMonthlyConf" style="font-size:12px; color:var(--text-secondary);">Confidence: {{ monthly_confidence|floatformat:0 }}%</div>
-            <div class="card-icon">📅</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Overview cards removed per user request -->
 
 <!-- forecast-hero-grid: moved earlier in the file to match requested design -->
     <script>
