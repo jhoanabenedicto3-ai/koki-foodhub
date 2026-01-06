@@ -887,29 +887,30 @@ def forecast_view(request):
         "weekly_confidence": weekly_fore.get('confidence', 0),
         "monthly_confidence": monthly_fore.get('confidence', 0),
         # JSON for charts
+        # Convert unit-based series to revenue using avg_unit_price so charts display currency totals
         "daily_json": json.dumps({
             'labels': [d for d, _ in daily_series],
-            'actual': [v for _, v in daily_series],
-            'forecast': daily_fore['forecast'],
-            'upper': daily_fore['upper'],
-            'lower': daily_fore['lower'],
-            'confidence': daily_fore['confidence']
+            'actual': [int(round(v * avg_unit_price)) for _, v in daily_series],
+            'forecast': [int(round(f * avg_unit_price)) for f in daily_fore.get('forecast', [])],
+            'upper': [int(round(f * avg_unit_price)) for f in daily_fore.get('upper', [])],
+            'lower': [int(round(f * avg_unit_price)) for f in daily_fore.get('lower', [])],
+            'confidence': daily_fore.get('confidence', 0)
         }),
         "weekly_json": json.dumps({
             'labels': [d for d, _ in weekly_series],
-            'actual': [v for _, v in weekly_series],
-            'forecast': weekly_fore['forecast'],
-            'upper': weekly_fore['upper'],
-            'lower': weekly_fore['lower'],
-            'confidence': weekly_fore['confidence']
+            'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series],
+            'forecast': [int(round(f * avg_unit_price)) for f in weekly_fore.get('forecast', [])],
+            'upper': [int(round(f * avg_unit_price)) for f in weekly_fore.get('upper', [])],
+            'lower': [int(round(f * avg_unit_price)) for f in weekly_fore.get('lower', [])],
+            'confidence': weekly_fore.get('confidence', 0)
         }),
         "monthly_json": json.dumps({
             'labels': [d for d, _ in monthly_series],
-            'actual': [v for _, v in monthly_series],
-            'forecast': monthly_fore['forecast'],
-            'upper': monthly_fore['upper'],
-            'lower': monthly_fore['lower'],
-            'confidence': monthly_fore['confidence']
+            'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
+            'forecast': [int(round(f * avg_unit_price)) for f in monthly_fore.get('forecast', [])],
+            'upper': [int(round(f * avg_unit_price)) for f in monthly_fore.get('upper', [])],
+            'lower': [int(round(f * avg_unit_price)) for f in monthly_fore.get('lower', [])],
+            'confidence': monthly_fore.get('confidence', 0)
         })
     }
 
