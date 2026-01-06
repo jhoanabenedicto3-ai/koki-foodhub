@@ -5,14 +5,41 @@
 
   async function fetchSeries(){
     try{
+      // Prefer inline server-side series when available (fast, accurate)
+      const range = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
+      function pickServerSeries(){
+        if(range.includes('90')) return window._serverWeekly || window._serverMonthly || window._serverDaily || null;
+        // default to daily for 7/30 day ranges
+        return window._serverDaily || window._serverWeekly || window._serverMonthly || null;
+      }
+      const inline = pickServerSeries();
+      if(inline){ window._seriesSource = 'server_inline'; return inline; }
+
+      // Otherwise fetch from API
       const url = '/forecast/api/';
       const res = await fetch(url, { credentials: 'same-origin' });
       if(!res.ok) throw new Error('Network response not ok: ' + res.status);
       const json = await res.json();
-      // choose the most appropriate granularity
-      const raw = json.weekly || json.daily || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+
+      // choose series based on UI range
+      const rangePref = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
+      let raw = null;
+      if(rangePref.includes('90')){
+        raw = json.weekly_revenue || json.weekly || json.monthly_revenue || json.monthly;
+      } else {
+        raw = json.daily_revenue || json.daily || json.weekly_revenue || json.weekly;
+      }
+      raw = raw || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+
       const scale = json.avg_unit_price || 0;
-      // If avg_unit_price is available, convert unit series to revenue
+
+      // If we have revenue-prefixed series from the server/API, use them directly.
+      if((json.weekly_revenue || json.daily_revenue || json.monthly_revenue)){
+        window._seriesSource = 'revenue_from_server_api';
+        return raw;
+      }
+
+      // Fallback: if avg_unit_price is available, convert unit series to revenue client-side
       if(scale && scale > 0){
         const scaled = {
           labels: raw.labels || [],
@@ -22,10 +49,23 @@
           lower: (raw.lower || []).map(v => (v == null ? null : Math.round(v * scale))),
           confidence: raw.confidence || 0
         };
-        // expose avg price for debugging if needed
         window._avgUnitPrice = scale;
+        window._seriesSource = 'scaled_client_api';
+
+        // sanity-check: if the first forecast point is wildly different from the server-provided today forecast revenue
+        try{
+          const f0 = (scaled.forecast && scaled.forecast[0]) || null;
+          const todayRev = window._todayForecastRevenue || 0;
+          if(f0 && todayRev && Math.abs(f0 - todayRev) / Math.max(todayRev,1) > 0.5){
+            console.warn('Forecast scaling mismatch: client-scaled forecast first value', f0, 'differs from server today forecast revenue', todayRev);
+          }
+        }catch(e){}
+
         return scaled;
       }
+
+      console.warn('Forecast data received in units (no revenue conversion available). Set avg_unit_price or use server-side revenue series to fix display.');
+      window._seriesSource = 'units_fallback_api';
       return raw;
     }catch(e){ console.warn('fetchSeries failed', e); return {labels:[], actual:[], forecast:[], upper:[], lower:[]}; }
   }
@@ -46,9 +86,27 @@
 
   let salesChart = null;
   function renderChart(data){
-    const labels = (data.labels || []).slice();
-    const forecastLabels = buildForecastLabels(labels, (data.forecast || []).length);
-    const combined = labels.concat(forecastLabels);
+    const isoLabels = (data.labels || []).slice();
+    const forecastLabels = buildForecastLabels(isoLabels, (data.forecast || []).length);
+    const combinedIso = isoLabels.concat(forecastLabels);
+
+    // human-friendly labels (e.g., '3 days ago', 'Today', 'Tomorrow', '+1 week')
+    function formatXLabel(d){
+      try{
+        const dt = new Date(d + 'T00:00:00');
+        const today = new Date();
+        const diffDays = Math.round((dt - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / (1000*60*60*24));
+        if(diffDays === 0) return 'Today';
+        if(diffDays === 1) return 'Tomorrow';
+        if(diffDays < 0 && diffDays >= -6) return `${Math.abs(diffDays)} days ago`;
+        if(diffDays >=7 && diffDays % 7 === 0) return `+${diffDays/7} week${diffDays/7 > 1 ? 's' : ''}`;
+        if(Math.abs(diffDays) >= 28 && Math.abs(diffDays) <= 31) return '+1 month';
+        // fallback compact date
+        return dt.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+      }catch(e){ return d; }
+    }
+
+    const labels = combinedIso.map(l => formatXLabel(l));
     const actualPadded = (data.actual || []).concat(Array((data.forecast||[]).length).fill(null));
     const forecastPadded = Array((data.actual||[]).length).fill(null).concat(data.forecast || []);
 
@@ -59,13 +117,40 @@
     const canvasH = ctx.canvas.height || 420;
     const grad = ctx.createLinearGradient(0, 0, 0, canvasH);
     grad.addColorStop(0, 'rgba(249,115,22,0.12)');
-    grad.addColorStop(0.5, 'rgba(249,115,22,0.06)');
+    grad.addColorStop(0.6, 'rgba(249,115,22,0.06)');
     grad.addColorStop(1, 'rgba(249,115,22,0.00)');
+
+    // plugin to draw forecast cutoff/fade
+    const forecastCutoffPlugin = {
+      id: 'forecastCutoff',
+      beforeDraw: (chart) => {
+        try{
+          const ds = chart.data.datasets[1].data || [];
+          const firstForecastIdx = ds.findIndex(v => v != null);
+          if(firstForecastIdx <= 0) return;
+          const x = chart.scales.x.getPixelForValue(firstForecastIdx);
+          const {top, bottom, right} = chart.chartArea;
+          const g = chart.ctx.createLinearGradient(x, top, right, top);
+          g.addColorStop(0, 'rgba(255,255,255,0)');
+          g.addColorStop(1, 'rgba(255,255,255,0.95)');
+          chart.ctx.save();
+          chart.ctx.fillStyle = g;
+          chart.ctx.fillRect(x, top, right - x, bottom - top);
+          chart.ctx.beginPath();
+          chart.ctx.moveTo(x + 0.5, top);
+          chart.ctx.lineTo(x + 0.5, bottom);
+          chart.ctx.strokeStyle = 'rgba(15,23,36,0.06)';
+          chart.ctx.lineWidth = 1;
+          chart.ctx.stroke();
+          chart.ctx.restore();
+        }catch(e){}
+      }
+    };
 
     if(salesChart){ try{ salesChart.destroy(); }catch(e){} }
     salesChart = new Chart(ctx, {
       type: 'line',
-      data: { labels: combined.map(l=>l), datasets: [
+      data: { labels: labels, datasets: [
         {
           label: 'Historical Data',
           data: actualPadded,
@@ -73,11 +158,12 @@
           backgroundColor: grad,
           fill: true,
           tension: 0.36,
-          pointRadius: 4,
-          pointBackgroundColor: '#f97316',
-          pointBorderColor: '#fff',
+          pointRadius: 5,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#f97316',
+          pointBorderWidth: 2,
           borderWidth: 2,
-          pointHoverRadius: 6
+          pointHoverRadius: 7
         },
         {
           label: 'Forecast Projection',
@@ -85,7 +171,6 @@
           borderColor: '#f59e0b',
           backgroundColor: 'rgba(245,158,11,0.02)',
           fill: false,
-          borderDash: [],
           tension: 0.36,
           pointRadius: 6,
           pointBackgroundColor: '#fff',
@@ -104,6 +189,11 @@
             mode: 'index',
             intersect: false,
             callbacks: {
+              title: function(items){
+                const idx = items[0].dataIndex;
+                const raw = combinedIso[idx];
+                try{ return new Date(raw + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'}); }catch(e){ return raw; }
+              },
               label: function(ctx){
                 const val = ctx.raw;
                 if(val == null) return ctx.dataset.label + ': —';
@@ -115,11 +205,12 @@
         interaction: { mode: 'nearest', axis: 'x', intersect: false },
         elements: { line: { capStyle: 'round', borderJoinStyle: 'round' } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 12 } } },
+          x: { grid: { display: false }, ticks: { color: '#9ca3af', font: { size: 12 }, maxRotation: 45, minRotation: 45 } },
           y: { beginAtZero: true, ticks: { callback: function(v){ if(v === 0) return (window.currencySymbol || '') + '0'; return (window.currencySymbol || '') + Number(v).toLocaleString(); }, color: '#9ca3af', font: { size: 12 } }, grid: { color: 'rgba(15,23,36,0.03)' } }
         },
         animation: { duration: 400 }
-      }
+      },
+      plugins: [forecastCutoffPlugin]
     });
   }
 

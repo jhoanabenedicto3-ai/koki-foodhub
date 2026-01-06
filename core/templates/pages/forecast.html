@@ -190,6 +190,13 @@
     <script>
       // Expose currency symbol to static scripts
       window.currencySymbol = '{{ currency|escapejs }}' || '';
+      // Expose server-side pre-computed JSON series so client can use them without extra fetches
+      // These JSON blobs are revenue-converted on the server for accurate display
+      window._serverDaily = {{ daily_json|safe }} || null;
+      window._serverWeekly = {{ weekly_json|safe }} || null;
+      window._serverMonthly = {{ monthly_json|safe }} || null;
+      // Expose today's forecast revenue (currency) so client can sanity-check scaling
+      window._todayForecastRevenue = {{ today_forecast_revenue|default:0 }};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'core/js/forecast_chart_init.js' %}"></script>
