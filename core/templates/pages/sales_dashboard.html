@@ -440,9 +440,9 @@
               entry = serverDaily.find(d => (d.day || '').slice(0,10) === todayISO) || null;
             }
         }
-        // Prefer server-provided explicit today totals when available
-        let orders = (typeof todayOrdersServer === 'number' && todayOrdersServer > 0) ? todayOrdersServer : (entry ? (entry.orders || entry.total_orders || 0) : 0);
-        let revenue = (typeof todayRevenueServer === 'number' && todayRevenueServer > 0) ? todayRevenueServer : (entry ? (entry.revenue || entry.total_revenue || 0) : 0);
+        // Prefer server-provided explicit today totals when available (use exact values from server, even if 0)
+        let orders = (typeof todayOrdersServer === 'number') ? todayOrdersServer : (entry ? (entry.orders || entry.total_orders || 0) : 0);
+        let revenue = (typeof todayRevenueServer === 'number') ? todayRevenueServer : (entry ? (entry.revenue || entry.total_revenue || 0) : 0);
         document.getElementById('ordersTimeframe').textContent = 'Today';
         document.getElementById('totalOrders').textContent = orders;
         document.getElementById('totalSales').textContent = '₱' + (revenue || 0).toFixed(2);
