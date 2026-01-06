@@ -14,25 +14,50 @@
     <p class="muted">Predictive insights for better planning</p>
   </div>
 
-  <!-- Simplified hero tiles (large summary cards) -->
-  <div class="hero-row">
-    <div class="hero-card">
-      <div class="hero-card-label">Today's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ today_sales|floatformat:0 }}</div>
-      <div class="hero-card-sub">Forecast: {{ today_forecast_preview }} units</div>
-    </div>
-    <div class="hero-card">
-      <div class="hero-card-label">This Week's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ this_week_sales|floatformat:0 }}</div>
-      <div class="hero-card-sub">Forecast: {{ week_forecast_preview }} units</div>
-    </div>
-    <div class="hero-card">
-      <div class="hero-card-label">This Month's Sales</div>
-      <div class="hero-card-amount">{{ currency }}{{ this_month_sales|floatformat:0 }}</div>
-      <div class="hero-card-sub">Forecast: {{ month_forecast_preview }} units</div>
-    </div>
-    <div class="hero-badge">Trained on historical DB sales data</div>
-  </div>
+    <!-- Forecast hero cards (moved up to match design) -->
+    <div class="forecast-hero-grid">
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div class="hero-icon">📊</div>
+            <div>
+              <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Tomorrow's Sales</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ tomorrow_label }}</div>
+            </div>
+          </div>
+          <div class="confidence-badge">▲ {{ today_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ today_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ today_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ today_forecast_preview|default:0 }} &nbsp;•&nbsp; Confidence: {{ today_confidence_pct }}%</div>
+      </div>
+
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Week</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_week_label }}</div>
+          </div>
+          <div class="confidence-badge">▲ {{ week_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ week_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ week_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ week_forecast_preview|default:0 }} &nbsp;•&nbsp; Growth: {{ growth_percentage|floatformat:1 }}%</div>
+      </div>
+
+      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Month</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_month_label }}</div>
+          </div>
+          <div class="confidence-badge">▲ {{ month_confidence_pct }}%</div>
+        </div>
+        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ month_forecast_revenue_display }}</div>
+        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ month_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ month_forecast_preview|default:0 }}</div>
+      </div>
+    </div>  
 
   <!-- Compact controls removed for simplified UI to match mock -->
 
@@ -99,11 +124,19 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
             <h3 style="margin:0; font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">📊 Sales Prediction</h3>
-              <span id="forecastStatus" class="muted small-text"></span>
-            </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <!-- Refresh button removed per request -->
+            <span id="forecastStatus" class="muted small-text" style="margin-left:8px;"></span>
           </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="rangeSelect" class="btn" style="min-width:140px; padding:8px 12px;">
+              <option>Last 7 Days</option>
+              <option selected>Last 30 Days</option>
+              <option>Last 90 Days</option>
+            </select>
+          </div>
+        </div>
+        <div class="legend-row" style="display:flex; gap:16px; align-items:center; margin-bottom:12px;">
+          <div class="legend-item"><div class="legend-swatch actual"></div><span class="muted">Historical Data</span></div>
+          <div class="legend-item"><div class="legend-swatch predicted"></div><span class="muted">Forecast Projection</span></div>
         </div>
         <div style="margin-top:8px;">
           <!-- User-facing friendly error banner (hidden by default). Click 'Show details' to reveal raw server response -->
@@ -164,20 +197,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
         <!-- Removed separate forecast-only chart to simplify layout. Forecast is shown on the main chart. -->
 
-      <div class="legend-row">
-        <div class="legend-item">
-          <div class="legend-swatch actual"></div>
-          <span class="muted">Actual</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-swatch predicted"></div>
-          <span class="muted">Forecast</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-swatch bound"></div>
-          <span class="muted">Prediction bounds</span>
-        </div>
-      </div>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -645,50 +665,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       // Debug toggle removed in simplified UI
     </script>
 
-    <!-- Next-period Forecast quick cards (rich hero style) -->
-    <div class="forecast-hero-grid" style="margin-bottom:18px; justify-content:center;">
-      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-          <div style="display:flex; gap:10px; align-items:center;">
-            <div class="hero-icon" style="width:44px; height:44px; border-radius:10px; background:#eef2ff; display:flex; align-items:center; justify-content:center;">📊</div>
-            <div>
-              <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Tomorrow's Sales</div>
-              <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ tomorrow_label }}</div>
-            </div>
-          </div>
-          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ today_confidence_pct }}%</div>
-        </div>
-        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ today_forecast_revenue_display }}</div>
-        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill" style="display:inline-block; padding:6px 8px; background:#f8fafc; border:1px solid rgba(16,24,40,0.04); border-radius:6px; font-weight:700;">±{{ today_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
-        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ today_forecast_preview|default:0 }} &nbsp;•&nbsp; Confidence: {{ today_confidence_pct }}%</div>
-      </div>
-
-      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <div>
-            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Week</div>
-            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_week_label }}</div>
-          </div>
-          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ week_confidence_pct }}%</div>
-        </div>
-        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ week_forecast_revenue_display }}</div>
-        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill" style="display:inline-block; padding:6px 8px; background:#f8fafc; border:1px solid rgba(16,24,40,0.04); border-radius:6px; font-weight:700;">±{{ week_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
-        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ week_forecast_preview|default:0 }} &nbsp;•&nbsp; Growth: {{ growth_percentage|floatformat:1 }}%</div>
-      </div>
-
-      <div class="forecast-hero-card" style="flex:0 0 360px; position:relative;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <div>
-            <div style="font-size:14px; color:var(--text-secondary); font-weight:700;">Next Month</div>
-            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_month_label }}</div>
-          </div>
-          <div class="confidence-badge" style="background:#ecfdf5; color:#047857; font-weight:700; padding:6px 10px; border-radius:999px; font-size:12px;">▲ {{ month_confidence_pct }}%</div>
-        </div>
-        <div style="margin-top:12px; font-size:34px; font-weight:800; color:#0b1220;">{{ month_forecast_revenue_display }}</div>
-        <div style="margin-top:8px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill" style="display:inline-block; padding:6px 8px; background:#f8fafc; border:1px solid rgba(16,24,40,0.04); border-radius:6px; font-weight:700;">±{{ month_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
-        <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Units: {{ month_forecast_preview|default:0 }}</div>
-      </div>
-    </div>
+<!-- forecast-hero-grid: moved earlier in the file to match requested design -->
 
     <!-- Analytics Cards -->
     <div class="analytics-grid">

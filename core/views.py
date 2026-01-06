@@ -877,7 +877,10 @@ def forecast_view(request):
         "tomorrow_label": tomorrow_label,
         "next_week_label": next_week_label,
         "next_month_label": next_month_label,
-        "currency": "PHP",
+        "today_sales_display": fmt_currency(today_revenue),
+        "this_week_sales_display": fmt_currency(this_week_revenue),
+        "this_month_sales_display": fmt_currency(this_month_revenue),
+        "currency": "₱",
         # Period summaries for server-side fallbacks in template
         "daily_summary": daily_summary,
         "weekly_summary": weekly_summary,
