@@ -600,14 +600,41 @@ textarea {
 /* Forecast page specific styles - polished dashboard look */
 .forecast-wrapper { max-width: 1200px; margin: 0 auto; }
 
-/* Forecast hero cards (tight, three-up layout matching mock) */
-.forecast-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
-.forecast-hero-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); padding: 18px; border-radius: 12px; box-shadow: var(--shadow-sm); position: relative; min-height: 120px; display:flex; flex-direction:column; justify-content:space-between; }
-.forecast-hero-card .hero-icon { width:40px; height:40px; background:#f7fafc; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; }
-.hero-pct { position:absolute; right:12px; top:12px; background:#ecfdf5; color:#16a34a; font-weight:800; padding:6px 8px; border-radius:999px; font-size:12px; border: 1px solid rgba(34,197,94,0.12); }
-.hero-amount { font-size:20px; font-weight:900; margin-top:8px; color:#111; }
-.hero-sub { margin-top:8px; color:var(--text-secondary); font-size:13px; }
-.conf-pill { background:#fff; border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; font-weight:700; font-size:12px; }
+/* Forecast hero cards (three-up layout matching mock) */
+/* Make selector specific to prevent accidental overrides from other stylesheets */
+.forecast-wrapper .forecast-hero-grid { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 20px !important; margin-bottom: 20px; align-items: stretch; width: 100%; }
+
+/* Ensure cards take full column width and prevent shrinkage */
+.forecast-wrapper .forecast-hero-card { width: 100% !important; box-sizing: border-box; background: #ffffff; border: 1px solid rgba(15,23,42,0.06); padding: 20px; border-radius: 12px; box-shadow: 0 6px 18px rgba(11,16,31,0.04); position: relative; min-height: 140px; display:flex; flex-direction:column; justify-content:space-between; }
+
+/* Desktop extra-wide layout: keep three cards and center wrapper */
+@media (min-width: 1200px) {
+  .forecast-wrapper { max-width: 1180px; margin-left: auto; margin-right: auto; }
+}
+
+/* Small screens: single column */
+@media (max-width: 900px) { .forecast-wrapper .forecast-hero-grid { grid-template-columns: 1fr !important; } .forecast-hero-card { min-height: auto; } }
+
+/* Header (icon + title/date) */
+.hero-header { display:flex; gap:12px; align-items:center; }
+.forecast-hero-card .hero-icon { width:44px; height:44px; background:#f1f5f9; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#2563eb; }
+.hero-meta .hero-title { font-size:14px; color:#111827; font-weight:700; }
+.hero-meta .hero-date { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+
+/* Growth/percent pill (top-right) */
+.hero-pct { position:absolute; right:14px; top:14px; background:#ecfdf5; color:#0f766e; font-weight:800; padding:6px 10px; border-radius:999px; font-size:12px; border: 1px solid rgba(6,95,70,0.06); display:inline-flex; gap:6px; align-items:center; }
+
+/* Large amount */
+.hero-amount { font-size:32px; font-weight:900; margin-top:8px; color:#0b1220; line-height:1; }
+
+/* Bottom row (confidence + small trend) */
+.hero-row-bottom { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; }
+.hero-sub { color:var(--text-secondary); font-size:13px; display:flex; align-items:center; gap:8px; }
+.conf-pill { background:#f3f4f6; border:1px solid rgba(15,23,42,0.04); padding:6px 10px; border-radius:10px; font-weight:700; font-size:13px; color:#111827; }
+.hero-trend { color:#111827; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
+
+/* Info helper (small circled i) */
+.hero-sub .info { font-size:12px; color:var(--text-secondary); margin-left:4px; }
 
 @media (max-width: 900px) { .forecast-hero-grid { grid-template-columns: 1fr; } .forecast-hero-card { min-height: auto; } }
 
