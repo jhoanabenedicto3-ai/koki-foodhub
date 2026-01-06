@@ -598,22 +598,59 @@ textarea {
 }
 
 /* Forecast page specific styles - polished dashboard look */
+
+/* Typography & color refinements for a modern, minimalist SaaS admin look */
+:root {
+  --bg: #ffffff;
+  --fg: #0b1220;
+  --accent: #2563eb; /* primary blue */
+  --accent-soft: #eef5ff;
+  --success: #10b981; /* green for growth */
+  --muted: #6b7280;
+  --card-bg: #ffffff;
+  --card-border: rgba(15,23,42,0.06);
+  --card-shadow: 0 8px 24px rgba(11,16,31,0.06);
+}
+
 .forecast-wrapper { max-width: 1200px; margin: 0 auto; }
 
 /* Forecast hero cards (three-up layout matching mock) */
-/* Make selector specific to prevent accidental overrides from other stylesheets */
 .forecast-wrapper .forecast-hero-grid { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 20px !important; margin-bottom: 20px; align-items: stretch; width: 100%; }
 
-/* Ensure cards take full column width and prevent shrinkage */
-.forecast-wrapper .forecast-hero-card { width: 100% !important; box-sizing: border-box; background: #ffffff; border: 1px solid rgba(15,23,42,0.06); padding: 20px; border-radius: 12px; box-shadow: 0 6px 18px rgba(11,16,31,0.04); position: relative; min-height: 140px; display:flex; flex-direction:column; justify-content:space-between; }
+/* Hero card visual polish */
+.forecast-wrapper .forecast-hero-card { width: 100% !important; box-sizing: border-box; background: var(--card-bg); border: 1px solid var(--card-border); padding: 22px 22px; border-radius: 12px; box-shadow: var(--card-shadow); position: relative; min-height: 140px; display:flex; flex-direction:column; justify-content:space-between; }
+.forecast-wrapper .hero-header { display:flex; gap:14px; align-items:center; }
+.forecast-wrapper .hero-icon { width:44px; height:44px; background: var(--accent-soft); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--accent); }
+.forecast-wrapper .hero-meta .hero-title { font-size:14px; color:var(--fg); font-weight:700; }
+.forecast-wrapper .hero-meta .hero-date { font-size:12px; color:var(--muted); margin-top:4px; }
 
-/* Desktop extra-wide layout: keep three cards and center wrapper */
-@media (min-width: 1200px) {
-  .forecast-wrapper { max-width: 1180px; margin-left: auto; margin-right: auto; }
-}
+/* Growth/percent pill (top-right) */
+.forecast-wrapper .hero-pct { position:absolute; right:16px; top:16px; background: rgba(16,185,129,0.08); color:var(--success); font-weight:800; padding:6px 10px; border-radius:999px; font-size:12px; border: 1px solid rgba(16,185,129,0.12); display:inline-flex; gap:6px; align-items:center; }
 
-/* Small screens: single column */
-@media (max-width: 900px) { .forecast-wrapper .forecast-hero-grid { grid-template-columns: 1fr !important; } .forecast-hero-card { min-height: auto; } }
+/* Large currency amount */
+.forecast-wrapper .hero-amount { font-size:34px; font-weight:900; margin-top:8px; color:var(--fg); line-height:1; }
+
+/* Bottom row (confidence + small trend) */
+.forecast-wrapper .hero-row-bottom { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; }
+.forecast-wrapper .hero-sub { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:8px; }
+.forecast-wrapper .conf-pill { background:#f3f4f6; border:1px solid rgba(15,23,42,0.04); padding:6px 10px; border-radius:10px; font-weight:700; font-size:13px; color:var(--fg); }
+.forecast-wrapper .hero-trend { color:var(--fg); font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
+
+/* Chart card styling (Revenue Trend) */
+.card.chart-card { padding: 26px; border-radius: 12px; box-shadow: var(--card-shadow); border: 1px solid var(--card-border); background: #fff; }
+.card.chart-card h2 { font-size:16px; font-weight:700; margin-bottom: 18px; }
+.legend-row { display:flex; gap:16px; align-items:center; margin-bottom:12px; }
+.legend-item { display:flex; gap:8px; align-items:center; }
+.legend-swatch { width:12px; height:12px; border-radius:4px; display:inline-block; }
+.legend-swatch.actual { background:#f97316; }
+.legend-swatch.predicted { background:#f59e0b; border:2px solid rgba(245,158,11,0.08); }
+
+/* Ensure the chart area is comfortably tall on desktop */
+.chart-area { min-height:340px; padding:14px; border-radius:10px; }
+
+/* Responsive: single column on small screens */
+@media (max-width: 900px) { .forecast-wrapper .forecast-hero-grid { grid-template-columns: 1fr !important; } .forecast-wrapper .forecast-hero-card { min-height: auto; } }
+
 
 /* Header (icon + title/date) */
 .hero-header { display:flex; gap:12px; align-items:center; }
