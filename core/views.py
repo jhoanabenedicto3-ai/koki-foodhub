@@ -411,15 +411,20 @@ def sales_dashboard(request):
     recent_qs = Sale.objects.select_related('product').order_by('-id')[:20]
     recent_sales = []
     for s in recent_qs:
-        # Format time in a portable way: avoid platform-specific flags like '%-I'
+        # Format time using the timestamp field for accurate time display
         time_str = ''
-        if getattr(s, 'date', None):
+        if getattr(s, 'timestamp', None):
             try:
-                # Use %I for hour (12-hour clock) and strip any leading zero for prettier display
-                time_str = s.date.strftime('%I:%M:%S %p').lstrip('0')
+                # Convert to local timezone and format
+                from django.utils import timezone as tz
+                local_time = tz.localtime(s.timestamp)
+                time_str = local_time.strftime('%I:%M:%S %p').lstrip('0')
             except Exception:
-                # Fallback to ISO format if strftime fails for any reason
-                time_str = getattr(s, 'date').isoformat()
+                # Fallback to ISO format if strftime fails
+                time_str = getattr(s, 'timestamp').isoformat()
+        elif getattr(s, 'date', None):
+            # Fallback to date field if timestamp doesn't exist
+            time_str = '12:00 AM'
 
         recent_sales.append({
             'item': s.product.name,
