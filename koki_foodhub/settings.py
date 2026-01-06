@@ -103,7 +103,12 @@ WSGI_APPLICATION = 'koki_foodhub.wsgi.application'
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-if DATABASE_URL:
+# In development (DEBUG=True) prefer the local SQLite fallback even if
+# a DATABASE_URL or POSTGRES_* env vars exist. This prevents the app from
+# attempting to connect to a non-running local Postgres instance during
+# developer runs. In production (DEBUG=False) DATABASE_URL / POSTGRES_* are
+# honored as before.
+if DATABASE_URL and not DEBUG:
     # Parse DATABASE_URL manually for PostgreSQL connection
     from urllib.parse import urlparse
     url = urlparse(DATABASE_URL)
@@ -119,10 +124,12 @@ if DATABASE_URL:
             'CONN_MAX_AGE': 600,
             'OPTIONS': {
                 'connect_timeout': 10,
+                # Render requires SSL connections; allow override with PGSSLMODE env var
+                'sslmode': os.getenv('PGSSLMODE', 'require'),
             }
         }
     }
-elif os.getenv("POSTGRES_HOST"):
+elif os.getenv("POSTGRES_HOST") and not DEBUG:
     # Fallback to individual POSTGRES_* environment variables
     DATABASES = {
         'default': {
@@ -133,6 +140,9 @@ elif os.getenv("POSTGRES_HOST"):
             'HOST': os.getenv("POSTGRES_HOST", "localhost"),
             'PORT': os.getenv("POSTGRES_PORT", "5432"),
             'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'sslmode': os.getenv('PGSSLMODE', 'require'),
+            },
         }
     }
 else:
