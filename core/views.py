@@ -801,6 +801,49 @@ def forecast_view(request):
     week_conf_pct = int(round(weekly_fore.get('confidence', 0) or 0))
     month_conf_pct = int(round(monthly_fore.get('confidence', 0) or 0))
 
+    # Compute previous-period revenues to show growth/decline badges on hero cards
+    try:
+        yesterday = today - timedelta(days=1)
+        yesterday_revenue = float(Sale.objects.filter(date=yesterday).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        yesterday_revenue = 0.0
+
+    try:
+        prev_week_start = week_start - timedelta(days=7)
+        prev_week_end = prev_week_start + timedelta(days=6)
+        prev_week_revenue = float(Sale.objects.filter(date__gte=prev_week_start, date__lte=prev_week_end).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        prev_week_revenue = 0.0
+
+    try:
+        # previous month (month before current month)
+        if today.month == 1:
+            pm_year = today.year - 1
+            pm_month = 12
+        else:
+            pm_year = today.year
+            pm_month = today.month - 1
+        from calendar import monthrange
+        pm_start = today.replace(year=pm_year, month=pm_month, day=1)
+        pm_end = pm_start.replace(day=monthrange(pm_start.year, pm_start.month)[1])
+        prev_month_revenue = float(Sale.objects.filter(date__gte=pm_start, date__lte=pm_end).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        prev_month_revenue = 0.0
+
+    def compute_growth(new, old):
+        try:
+            if old and old > 0:
+                pct = round(((new - old) / float(old)) * 100.0, 1)
+            else:
+                pct = 100.0 if new > 0 else 0.0
+            return pct
+        except Exception:
+            return 0.0
+
+    today_growth_pct = compute_growth(today_forecast_revenue, yesterday_revenue)
+    week_growth_pct = compute_growth(week_forecast_revenue, prev_week_revenue)
+    month_growth_pct = compute_growth(month_forecast_revenue, prev_month_revenue)
+
     # Human-friendly date labels for hero cards
     try:
         tomorrow_date = today + timedelta(days=1)
@@ -841,6 +884,14 @@ def forecast_view(request):
     w_first, w_last = first_last(weekly_series)
     m_first, m_last = first_last(monthly_series)
 
+    # Build small formatted helpers for the template
+    def fmt_pct(p):
+        try:
+            sign = '+' if p > 0 else ('-' if p < 0 else '')
+            return f"{sign}{abs(p):.1f}%"
+        except Exception:
+            return '0.0%'
+
     context = {
         "data": data,
         "total_forecast": next_week_forecast,
@@ -855,6 +906,16 @@ def forecast_view(request):
         "today_sales": today_revenue,
         "this_week_sales": this_week_revenue,
         "this_month_sales": this_month_revenue,
+        # Growth percentages for hero badges
+        "today_growth_pct": today_growth_pct,
+        "week_growth_pct": week_growth_pct,
+        "month_growth_pct": month_growth_pct,
+        "today_growth_pct_display": fmt_pct(today_growth_pct),
+        "week_growth_pct_display": fmt_pct(week_growth_pct),
+        "month_growth_pct_display": fmt_pct(month_growth_pct),
+        "today_growth_positive": (today_growth_pct > 0),
+        "week_growth_positive": (week_growth_pct > 0),
+        "month_growth_positive": (month_growth_pct > 0),
         # Unit counts to be shown alongside revenue in the hero tiles
         "today_units": today_units,
         "this_week_units": this_week_units,

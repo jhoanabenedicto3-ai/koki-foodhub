@@ -15,9 +15,34 @@
       <p class="muted">AI-powered predictions based on your historical sales data.</p>
     </div>
     <div class="page-controls" style="display:flex; gap:10px; align-items:center;">
-      <button class="btn btn-ghost" id="btnFilter" title="Filter"><span style="margin-right:8px;">🔍</span>Filter</button>
-      <button class="btn btn-ghost" id="btnExport" title="Export"><span style="margin-right:8px;">⬇️</span>Export</button>
-      <button class="btn" id="refreshForecastBtn" style="background:#2563eb; color:#fff; border-color:transparent;">🔄 Refresh Data</button>
+      <button class="btn btn-ghost" id="btnFilter" title="Filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px; vertical-align:middle;"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 6h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Filter</button>
+
+      <div id="filterPanel" style="display:none; position:absolute; right:40px; top:68px; background:#fff; border:1px solid var(--border); padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(16,24,40,0.06); z-index:40; width:320px;">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div style="flex:1;"><label style="font-weight:700; font-size:12px; color:var(--text-secondary);">Start</label><input id="filterStart" type="date" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; margin-top:6px;"/></div>
+          <div style="flex:1;"><label style="font-weight:700; font-size:12px; color:var(--text-secondary);">End</label><input id="filterEnd" type="date" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; margin-top:6px;"/></div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+          <button id="clearFilter" class="btn btn-ghost">Clear</button>
+          <button id="applyFilter" class="btn" style="background:#2563eb; color:#fff; border-color:transparent;">Apply</button>
+        </div>
+      </div>
+
+      <button class="btn btn-ghost" id="btnExport" title="Export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px; vertical-align:middle;"><path d="M12 3v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Export</button>
+
+      <div class="live-controls" style="display:flex; gap:8px; align-items:center;">
+        <button id="btnLiveToggle" class="btn btn-ghost" title="Live updates" aria-pressed="false" style="display:flex; gap:8px; align-items:center;">
+          <span id="liveIndicator" style="width:10px; height:10px; border-radius:999px; background:#d1d5db; display:inline-block; box-shadow:inset 0 0 0 2px rgba(0,0,0,0.02);"></span>
+          <span style="font-weight:700; font-size:13px;">Live</span>
+        </button>
+        <select id="liveIntervalSelect" class="btn" style="min-width:90px; padding:6px 8px;">
+          <option value="30">30s</option>
+          <option value="60" selected>60s</option>
+          <option value="300">5m</option>
+        </select>
+      </div>
+
+      <button class="btn" id="refreshForecastBtn" style="background:#2563eb; color:#fff; border-color:transparent;">Refresh Data</button>
     </div>
   </div>
 
@@ -25,9 +50,9 @@
     <div class="forecast-hero-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch;">
 
       <div class="forecast-hero-card" style="width:100%;">
-        <div class="hero-pct">↗ {{ today_confidence_pct }}%</div>
+        <div class="hero-pct"><span class="growth-badge {% if today_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ today_growth_pct_display }}</span></div>
         <div class="hero-header">
-          <div class="hero-icon">📅</div>
+          <div class="hero-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" fill="none"/><path d="M8 2v4M16 2v4" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/><path d="M7 11h10" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/></svg></div>
           <div class="hero-meta">
             <div class="hero-title">Tomorrow's Sales</div>
             <div class="hero-date">{{ tomorrow_label }}</div>
@@ -41,9 +66,9 @@
       </div>
 
       <div class="forecast-hero-card">
-        <div class="hero-pct">↗ {{ week_confidence_pct }}%</div>
+        <div class="hero-pct"><span class="growth-badge {% if week_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ week_growth_pct_display }}</span></div>
         <div class="hero-header">
-          <div class="hero-icon">📈</div>
+          <div class="hero-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 17l6-8 4 5 8-10" stroke="#111" stroke-opacity="0.9" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
           <div class="hero-meta">
             <div class="hero-title">Next Week</div>
             <div class="hero-date">{{ next_week_label }}</div>
@@ -57,9 +82,9 @@
       </div>
 
       <div class="forecast-hero-card">
-        <div class="hero-pct">↗ {{ month_confidence_pct }}%</div>
+        <div class="hero-pct"><span class="growth-badge {% if month_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ month_growth_pct_display }}</span></div>
         <div class="hero-header">
-          <div class="hero-icon">📊</div>
+          <div class="hero-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="7" width="4" height="10" rx="1" stroke="#111" stroke-width="1.2" fill="none"/><rect x="10" y="4" width="4" height="13" rx="1" stroke="#111" stroke-width="1.2" fill="none"/><rect x="17" y="10" width="4" height="7" rx="1" stroke="#111" stroke-width="1.2" fill="none"/></svg></div>
           <div class="hero-meta">
             <div class="hero-title">Next Month</div>
             <div class="hero-date">{{ next_month_label }}</div>
@@ -133,12 +158,12 @@
     </div>
 
     <div class="card chart-card">
-      <h2 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 700; color: var(--fg);">📊 Sales Prediction (Next 8 Weeks)</h2>
-      
-      <div style="position: relative; margin-bottom: 12px;" data-insert-charts>
+      <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 800; color: var(--fg);">Revenue Trend</h2>
+      <div class="chart-subtitle" style="margin-bottom:12px; color:var(--text-secondary); font-size:13px;">Historical Data &nbsp;&middot;&nbsp; Forecast Projection</div>
+      <div style="position: relative; margin-bottom: 12px;" data-insert-charts> 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
-            <h3 style="margin:0; font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">📊 Sales Prediction</h3>
+            <div style="display:flex; align-items:center; gap:8px;"><strong style="font-size:15px; font-weight:700;">Revenue Trend</strong></div> 
             <span id="forecastStatus" class="muted small-text" style="margin-left:8px;"></span>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
@@ -270,16 +295,35 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       function formatLabel(label, granularity){
         if(!label) return label;
         try{
-          if(granularity === 'daily' || granularity === 'weekly'){
+          const today = new Date();
+          const todayISO = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          if(granularity === 'daily'){
             const d = new Date(label);
+            const diff = Math.round((d - todayISO) / (1000*60*60*24));
+            if(diff === 0) return 'Today';
+            if(diff === -1) return 'Yesterday';
+            if(diff < 0 && diff >= -6) return `${Math.abs(diff)} days ago`;
+            if(diff === 1) return 'Tomorrow';
+            if(diff > 1 && diff <= 7) return `+${diff}d`;
             const opts = { month: 'short', day: 'numeric' };
-            return d.toLocaleDateString(undefined, opts); // e.g., 'Nov 24'
+            return d.toLocaleDateString(undefined, opts);
+          } else if(granularity === 'weekly'){
+            const d = new Date(label);
+            // Weeks ahead relative to the current week's Monday
+            const wkStart = new Date(todayISO);
+            wkStart.setDate(wkStart.getDate() - wkStart.getDay() + 1); // Monday
+            const diffDays = Math.round((d - wkStart) / (1000*60*60*24));
+            if(diffDays > 0){ const weeks = Math.ceil(diffDays / 7); return weeks === 1 ? '+1 week' : `+${weeks}w`; }
+            const opts = { month: 'short', day: 'numeric' };
+            return d.toLocaleDateString(undefined, opts);
           } else if(granularity === 'monthly'){
             const parts = (label||'').split('-').map(Number);
             if(parts.length >= 2){
               const d = new Date(parts[0], parts[1]-1, 1);
+              const monthsDiff = (d.getFullYear() - todayISO.getFullYear()) * 12 + (d.getMonth() - todayISO.getMonth());
+              if(monthsDiff > 0){ return monthsDiff === 1 ? '+1 month' : `+${monthsDiff}mo`; }
               const opts = { month: 'short', year: 'numeric' };
-              return d.toLocaleDateString(undefined, opts); // e.g., 'Nov 2025'
+              return d.toLocaleDateString(undefined, opts);
             }
           }
         }catch(e){ /* fallback */ }
@@ -526,7 +570,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
           type:'line',
           data:{ labels: displayLabels, datasets:[
             { label:'Actual', data: Array(labels.length).fill(null).concat(data.actual), borderColor:'#f97316', backgroundColor:'rgba(249,115,22,0.08)', fill:true, tension:0.36, pointRadius:4, borderWidth:2 },
-            { label:'Forecast', data: forecastOnly, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.04)', fill:false, borderDash:[], tension:0.3, pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:'#f59e0b', borderWidth:2 },
+            { label:'Forecast', data: forecastOnly, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.04)', fill:false, borderDash:[6,4], tension:0.3, pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:'#f59e0b', borderWidth:2 },
             { label:'Upper', data: upperOnly, borderColor:'rgba(254,202,202,0.9)', backgroundColor:'rgba(254,202,202,0.08)', fill:'-1', pointRadius:0, borderWidth:1 },
             { label:'Lower', data: lowerOnly, borderColor:'rgba(254,202,202,0.9)', backgroundColor:'rgba(254,202,202,0.04)', fill:'-1', pointRadius:0, borderWidth:1 }
           ] },
@@ -585,14 +629,27 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       // Forecast controls removed.
 
       // Fetch API to refresh the charts
-      async function refreshForecast() {
+      // Track currently-applied filter dates for export/refresh
+      window._forecastFilter = { start: null, end: null };
+      async function refreshForecast(opts = {}) {
         const statusEl = document.getElementById('forecastStatus');
         const refreshBtn = document.getElementById('refreshForecastBtn');
         try {
           statusEl.textContent = 'Updating...';
           if(refreshBtn){ refreshBtn.classList.add('loading'); const tbtn = refreshBtn.querySelector('.btn-text'); if(tbtn) tbtn.textContent = 'Updating...'; }
-          // Simplified: fetch forecasts without extra filter params (no UI filters in simplified view)
-          const url = '{% url "forecast_api" %}';
+          // Build URL with optional filter params
+          let url = '{% url "forecast_api" %}';
+          const params = new URLSearchParams();
+          const start = opts.start || window._forecastFilter.start;
+          const end = opts.end || window._forecastFilter.end;
+          if(start) params.set('start', start);
+          if(end) params.set('end', end);
+          const qs = params.toString();
+          if(qs) url = url + '?' + qs;
+          // Store current filter selection globally
+          window._forecastFilter.start = start || null;
+          window._forecastFilter.end = end || null;
+
           const res = await fetch(url, { credentials: 'same-origin' });
           // Check HTTP status first
           if (!res.ok) {
@@ -687,11 +744,93 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
 
 
-      // Filter controls removed in simplified UI; keep refresh bound
-      document.getElementById('applyFilters')?.addEventListener('click', function(){ refreshForecast(); });
+      // Filter toggles and actions
+      document.getElementById('btnFilter')?.addEventListener('click', function(e){
+        const panel = document.getElementById('filterPanel');
+        if(panel.style.display === 'block') panel.style.display = 'none'; else panel.style.display = 'block';
+      });
+      document.getElementById('applyFilter')?.addEventListener('click', function(){
+        const s = document.getElementById('filterStart').value || null;
+        const e = document.getElementById('filterEnd').value || null;
+        document.getElementById('filterPanel').style.display = 'none';
+        refreshForecast({start: s, end: e});
+      });
+      document.getElementById('clearFilter')?.addEventListener('click', function(){
+        document.getElementById('filterStart').value = '';
+        document.getElementById('filterEnd').value = '';
+        document.getElementById('filterPanel').style.display = 'none';
+        refreshForecast({start: null, end: null});
+      });
+
+      // Export CSV helper
+      function toCSV(obj){
+        const rows = [];
+        const header = ['label','actual','forecast','upper','lower'];
+        rows.push(header.join(','));
+        for(let i=0;i<obj.labels.length;i++){
+          const r = [obj.labels[i], obj.actual[i] || '', obj.forecast[i] || '', obj.upper[i] || '', obj.lower[i] || ''];
+          rows.push(r.map(v=>('"'+String(v).replace(/"/g,'""')+'"')).join(','));
+        }
+        return rows.join('\n');
+      }
+
+      document.getElementById('btnExport')?.addEventListener('click', async function(){
+        try{
+          const start = window._forecastFilter.start; const end = window._forecastFilter.end;
+          let url = '{% url "forecast_api" %}';
+          const params = new URLSearchParams(); if(start) params.set('start', start); if(end) params.set('end', end); const qs = params.toString(); if(qs) url = url + '?' + qs;
+          const res = await fetch(url, { credentials: 'same-origin' });
+          if(!res.ok){ alert('Export failed: server error'); return; }
+          const json = await res.json();
+          // Export weekly payload as CSV by default
+          const payload = json.weekly || json.daily || json.monthly;
+          const csv = toCSV(payload);
+          const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'forecast_export.csv'; document.body.appendChild(a); a.click(); a.remove();
+        }catch(e){ console.warn('export failed', e); alert('Export failed'); }
+      });
+
+      // Live updates (polling) helper
+      window._live = { enabled: false, intervalSec: 60, timerId: null, paused: false };
+      function updateLiveUI(){
+        const ind = document.getElementById('liveIndicator');
+        const btn = document.getElementById('btnLiveToggle');
+        const sel = document.getElementById('liveIntervalSelect');
+        if(window._live.enabled){
+          ind.classList.remove('live-indicator-off'); ind.classList.add('live-indicator-on'); ind.style.background = '#10b981'; btn.setAttribute('aria-pressed','true');
+          sel.disabled = false;
+        } else {
+          ind.classList.remove('live-indicator-on'); ind.classList.add('live-indicator-off'); ind.style.background = '#d1d5db'; btn.setAttribute('aria-pressed','false');
+          sel.disabled = false;
+        }
+      }
+      function startLive(){
+        try{
+          stopLive();
+          window._live.intervalSec = parseInt(document.getElementById('liveIntervalSelect').value || '60', 10);
+          window._live.enabled = true;
+          // do an immediate refresh then schedule
+          refreshForecast();
+          window._live.timerId = setInterval(function(){ if(!window._live.paused) refreshForecast(); }, Math.max(1000, window._live.intervalSec * 1000));
+          updateLiveUI();
+        }catch(e){ console.warn('startLive failed', e); }
+      }
+      function stopLive(){
+        window._live.enabled = false;
+        if(window._live.timerId){ try{ clearInterval(window._live.timerId); }catch(e){} window._live.timerId = null; }
+        updateLiveUI();
+      }
+      document.getElementById('btnLiveToggle')?.addEventListener('click', function(){ if(window._live.enabled) stopLive(); else startLive(); });
+      document.getElementById('liveIntervalSelect')?.addEventListener('change', function(){ if(window._live.enabled){ startLive(); } });
+
+      // Pause polling when tab is hidden to reduce noise
+      document.addEventListener('visibilitychange', function(){ if(document.hidden){ window._live.paused = true; } else { window._live.paused = false; if(window._live.enabled){ refreshForecast(); } } });
+
+      // Stop polling when unloading
+      window.addEventListener('beforeunload', function(){ stopLive(); });
 
       // Auto-refresh after load
-      window.addEventListener('load', function(){ setTimeout(refreshForecast, 600); });
+      window.addEventListener('load', function(){ setTimeout(function(){ refreshForecast(); }, 600); });
 
       // Debug toggle removed in simplified UI
     </script>
@@ -709,7 +848,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       /* Local styles to improve layout, spacing and visual hierarchy */
       .muted { color: var(--text-secondary); }
       .small-text { font-size: 13px; }
-      .page-header { margin-bottom: 28px; }
+      .page-header { margin-bottom: 36px; }
       .filters-card { background: #fff; border: 1px solid var(--border); padding: 14px 16px; border-radius: 10px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
       .filters-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
       .filters-group { display:flex; gap:8px; align-items:center; }
@@ -728,9 +867,14 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .hero-row { display:flex; gap:16px; align-items:stretch; margin-bottom:18px; }
       .hero-card { flex:1; background:#fff; border-radius:12px; padding:18px 20px; box-shadow:var(--shadow-sm); border:1px solid var(--border); }
       .hero-card-label { font-size:13px; color:var(--text-secondary); font-weight:700; }
-      .hero-card-amount { font-size:36px; font-weight:900; margin-top:6px; color:var(--fg); }
-      .hero-card-sub { margin-top:8px; color:var(--text-secondary); font-weight:700; font-size:13px; }
-      .hero-badge { align-self:center; padding:8px 12px; background:#f3f4f6; border-radius:8px; font-weight:700; font-size:13px; color:var(--text-secondary); }
+      .forecast-hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; align-items:stretch; margin-bottom:28px; }
+      .forecast-hero-card{ background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 8px 24px rgba(16,24,40,0.04); border:1px solid rgba(16,24,40,0.04); min-height:126px; position:relative; }
+      .forecast-hero-card .hero-pct{ position:absolute; top:14px; right:14px; font-size:12px; }
+      .forecast-hero-card .hero-icon{ width:44px; height:44px; border-radius:10px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
+      .forecast-hero-card .hero-title{ font-size:14px; font-weight:700; color:var(--fg); }
+      .forecast-hero-card .hero-date{ font-size:12px; color:var(--text-secondary); margin-top:4px; }
+      .forecast-hero-card .hero-amount{ font-size:38px; font-weight:900; margin-top:12px; color:#111; }
+      .forecast-hero-card .hero-row-bottom{ display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:13px; color:var(--text-secondary); }
 
       .overview-grid { display:flex !important; gap:16px; margin-bottom:18px; align-items:stretch; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; justify-content:space-between; flex-wrap:wrap; position:relative; }
       .overview-grid .overview-card { flex: 1 1 calc(33.333% - 16px); min-width:260px; max-width:calc(33.333% - 16px); background:#fff; border-radius:10px; padding:20px 24px; box-shadow:var(--shadow-sm); border:1px solid rgba(0,0,0,0.18); min-height:110px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -772,8 +916,8 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       /* Analytics cards removed as per design request */
 
       /* Chart card: simplified, subtle border and shadow to match mock */
-      .card.chart-card { background: #fff; border:1px solid rgba(15,23,36,0.04); border-radius:12px; padding:18px 22px; box-shadow:0 6px 18px rgba(16,24,40,0.04); margin-bottom:32px; overflow:hidden; }
-      .card.chart-card .chart-area { position:relative; height:420px; border-radius:8px; background:transparent; padding:8px; }
+      .card.chart-card { background: #fff; border:1px solid rgba(15,23,36,0.06); border-radius:12px; padding:20px 24px; box-shadow:0 8px 30px rgba(16,24,40,0.06); margin-bottom:32px; overflow:hidden; }
+      .card.chart-card .chart-area { position:relative; height:460px; border-radius:12px; background:#fff; padding:12px; }
 
       /* Slight header tweak */
       .section-title { font-size:22px; margin-bottom:6px; font-weight:800; }
@@ -784,8 +928,7 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .sidebar:hover + .main-content .forecast-wrapper,
       .sidebar:hover ~ .main-content .forecast-wrapper { margin-left: auto !important; margin-right: auto !important; padding-left:36px !important; }
 
-      /* Duplicate chart-card styles consolidated and simplified above */
-      .card.chart-card .chart-area { position:relative; height:420px; }
+      /* Duplicate chart-card styles consolidated above (intentionally kept minimal to avoid overrides) */
       /* Two column layout for actual / forecast */
       .two-up{ display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-top:12px; }
       .small-card{ padding:14px; min-height:180px; }
@@ -803,8 +946,8 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .legend-row { display:flex; justify-content:flex-start; gap:18px; flex-wrap:wrap; padding:8px 0 18px 0; border-top:0; margin-top:8px; }
       .legend-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); }
       .legend-swatch { width:16px; height:16px; border-radius:4px; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
-      .legend-swatch.actual { background:#2563eb; }
-      .legend-swatch.predicted { background:#10b981; border:2px dashed rgba(16,185,129,0.25); }
+      .legend-swatch.actual { background:#f97316; }
+      .legend-swatch.predicted { background:#f59e0b; border:none; }
       .legend-swatch.bound { background:#fecaca; opacity:0.9; border-radius:2px; }
 
       /* Empty chart notice improvements */
@@ -815,8 +958,14 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .debug-panel{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px; }
 
       /* Hero tweaks */
-      .hero-card-amount{ font-size:38px; }
-      .hero-card-sub{ opacity:0.95; }
+      .forecast-hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; align-items:stretch; margin-bottom:28px; }
+      .forecast-hero-card{ background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 8px 24px rgba(16,24,40,0.04); border:1px solid rgba(16,24,40,0.04); min-height:126px; position:relative; }
+      .forecast-hero-card .hero-pct{ position:absolute; top:14px; right:14px; font-size:12px; }
+      .forecast-hero-card .hero-icon{ width:44px; height:44px; border-radius:10px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
+      .forecast-hero-card .hero-title{ font-size:14px; font-weight:700; color:var(--fg); }
+      .forecast-hero-card .hero-date{ font-size:12px; color:var(--text-secondary); margin-top:4px; }
+      .forecast-hero-card .hero-amount{ font-size:38px; font-weight:900; margin-top:12px; color:#111; }
+      .forecast-hero-card .hero-row-bottom{ display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:13px; color:var(--text-secondary); }
 
       /* Centered page wrapper for forecast page */
       .forecast-wrapper { max-width: 1100px; margin: 18px auto; padding: 0 20px; padding-left:36px; box-sizing: border-box; }
@@ -840,6 +989,19 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .conf-high{ background:#dcfce7; color:#065f46; }
       .conf-medium{ background:#fffbeb; color:#92400e; }
       .conf-low{ background:#fee2e2; color:#991b1b; }
+
+      /* Growth badges for hero tiles */
+      .growth-badge{ display:inline-block; padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px; box-shadow: 0 2px 8px rgba(16,24,40,0.04); }
+      .growth-up{ background:#ecfdf5; color:#065f46; }
+      .growth-down{ background:#fff1f2; color:#991b1b; }
+      .forecast-hero-card .hero-pct{ text-align:right; font-size:12px; }
+      .forecast-hero-card .hero-icon svg{ opacity:0.85; }
+
+      /* Live polling control */
+      .live-controls .btn { padding:6px 8px; border-radius:10px; }
+      .live-indicator-on{ background:#10b981 !important; box-shadow:0 4px 14px rgba(16,185,129,0.12); }
+      .live-indicator-off{ background:#d1d5db !important; }
+      .live-controls select.btn{ padding:6px 8px; border-radius:8px; }
 
       /* Responsive tweaks */
       @media (max-width: 520px) { .filters-row { flex-direction: column; align-items: stretch; } .filters-actions{ margin-left:0; justify-content:flex-end; }
