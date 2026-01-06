@@ -24,7 +24,7 @@
     <!-- Forecast hero cards (wide horizontal layout to match mock) -->
     <div class="forecast-hero-grid" style="align-items:stretch;">
       <div class="forecast-hero-card" style="position:relative;">
-        <div class="hero-pct">▲ {{ today_confidence_pct }}%</div>
+        <div class="hero-pct">↗ {{ today_confidence_pct }}%</div>
         <div style="display:flex; gap:12px; align-items:center;">
           <div class="hero-icon">📅</div>
           <div>
@@ -32,8 +32,8 @@
             <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ tomorrow_label }}</div>
           </div>
         </div>
-        <div style="margin-top:10px; font-size:36px; font-weight:800; color:#0b1220;">{{ today_forecast_revenue_display }}</div>
-        <div style="margin-top:10px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ today_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div class="hero-amount">{{ today_forecast_revenue_display }}</div>
+        <div class="hero-sub">Confidence: <span class="conf-pill">±{{ today_confidence_margin_display }}</span> <span class="muted" style="font-size:12px; margin-left:6px;">ⓘ</span></div>
       </div>
 
       <div class="forecast-hero-card" style="position:relative;">
@@ -45,8 +45,8 @@
             <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_week_label }}</div>
           </div>
         </div>
-        <div style="margin-top:10px; font-size:36px; font-weight:800; color:#0b1220;">{{ week_forecast_revenue_display }}</div>
-        <div style="margin-top:10px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ week_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div class="hero-amount">{{ week_forecast_revenue_display }}</div>
+        <div class="hero-sub">Confidence: <span class="conf-pill">±{{ week_confidence_margin_display }}</span> <span class="muted" style="font-size:12px; margin-left:6px;">ⓘ</span></div>
       </div>
 
       <div class="forecast-hero-card" style="position:relative;">
@@ -58,8 +58,8 @@
             <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">{{ next_month_label }}</div>
           </div>
         </div>
-        <div style="margin-top:10px; font-size:36px; font-weight:800; color:#0b1220;">{{ month_forecast_revenue_display }}</div>
-        <div style="margin-top:10px; font-size:13px; color:var(--text-secondary);">Confidence: <span class="conf-pill">±{{ month_confidence_margin_display }}</span> <span style="color:#9aa4b2; font-size:12px; margin-left:6px;">ⓘ</span></div>
+        <div class="hero-amount">{{ month_forecast_revenue_display }}</div>
+        <div class="hero-sub">Confidence: <span class="conf-pill">±{{ month_confidence_margin_display }}</span> <span class="muted" style="font-size:12px; margin-left:6px;">ⓘ</span></div>
       </div>
     </div>  
 
