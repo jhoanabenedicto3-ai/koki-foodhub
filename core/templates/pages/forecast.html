@@ -192,9 +192,10 @@
       window.currencySymbol = '{{ currency|escapejs }}' || '';
       // Expose server-side pre-computed JSON series so client can use them without extra fetches
       // These JSON blobs are revenue-converted on the server for accurate display
-      window._serverDaily = {{ daily_json|safe }} || null;
-      window._serverWeekly = {{ weekly_json|safe }} || null;
-      window._serverMonthly = {{ monthly_json|safe }} || null;
+      // Prefer direct revenue series when available (daily_revenue_json is the canonical source for daily revenue)
+      window._serverDaily = {{ daily_revenue_json|safe }} || {{ daily_json|safe }} || null;
+      window._serverWeekly = {{ weekly_revenue_json|safe }} || {{ weekly_json|safe }} || null;
+      window._serverMonthly = {{ monthly_revenue_json|safe }} || {{ monthly_json|safe }} || null;
       // Expose today's forecast revenue (currency) so client can sanity-check scaling
       window._todayForecastRevenue = {{ today_forecast_revenue|default:0 }};
     </script>

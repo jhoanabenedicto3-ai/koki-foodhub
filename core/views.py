@@ -975,6 +975,19 @@ def forecast_view(request):
             'upper': [int(round(f * avg_unit_price)) for f in monthly_fore.get('upper', [])],
             'lower': [int(round(f * avg_unit_price)) for f in monthly_fore.get('lower', [])],
             'confidence': monthly_fore.get('confidence', 0)
+        }),
+        # Server-side revenue JSON for template quick access (daily uses direct DB revenues when available)
+        "daily_revenue_json": json.dumps({
+            'labels': [d for d, _ in daily_series],
+            'actual': []  # populated below to avoid double work
+        }),
+        "weekly_revenue_json": json.dumps({
+            'labels': [d for d, _ in weekly_series],
+            'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series]
+        }),
+        "monthly_revenue_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series]
         })
     }
 
@@ -1007,6 +1020,16 @@ def forecast_view(request):
         # If no DB series were produced, show friendly message
         if (not daily_series) and (not weekly_series) and (not monthly_series):
             context['error_message'] = 'No historical sales data available to generate forecasts.'
+
+    # Populate the server-side daily revenue actuals for the template (best-effort direct DB aggregation)
+    try:
+        daily_labels = [d for d, _ in daily_series]
+        q = Sale.objects.filter(date__in=daily_labels).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
+        rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
+        context['daily_revenue_json'] = json.dumps({ 'labels': daily_labels, 'actual': [rev_map.get(d, 0) for d in daily_labels] })
+    except Exception:
+        # fallback to using daily_json which may have used avg_unit_price
+        context['daily_revenue_json'] = context.get('daily_json', '{}')
 
     try:
         # Render and set no-cache headers so browsers always fetch fresh computed values
@@ -1250,6 +1273,49 @@ def forecast_data_api(request):
                 'accuracy': monthly_fore.get('accuracy', '')
             }
         }
+
+        # Also include server-side revenue-converted series as a convenience for clients
+        # Prefer direct DB revenue aggregation for historical actuals so we show exact sales totals
+        try:
+            # daily actuals: sum revenue by date for dates in daily_series
+            try:
+                daily_dates = [d for d, _ in daily_series]
+                q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
+                rev_map = {r['date'].isoformat(): float(r.get('total_rev') or 0.0) for r in q}
+                daily_actual = [int(round(rev_map.get(d, 0))) for d in daily_dates]
+            except Exception:
+                daily_actual = [int(round(v * avg_unit_price)) for _, v in daily_series]
+
+            payload['daily_revenue'] = {
+                'labels': [d for d, _ in daily_series],
+                'actual': daily_actual,
+                'forecast': [int(round(f * avg_unit_price)) for f in daily_fore.get('forecast', [])],
+                'upper': [int(round(f * avg_unit_price)) for f in daily_fore.get('upper', [])],
+                'lower': [int(round(f * avg_unit_price)) for f in daily_fore.get('lower', [])],
+                'confidence': daily_fore.get('confidence', 0)
+            }
+
+            # Weekly/monthly: best-effort conversion using avg_unit_price for forecasts and unit series
+            payload['weekly_revenue'] = {
+                'labels': [d for d, _ in weekly_series],
+                'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series],
+                'forecast': [int(round(f * avg_unit_price)) for f in weekly_fore.get('forecast', [])],
+                'upper': [int(round(f * avg_unit_price)) for f in weekly_fore.get('upper', [])],
+                'lower': [int(round(f * avg_unit_price)) for f in weekly_fore.get('lower', [])],
+                'confidence': weekly_fore.get('confidence', 0)
+            }
+            payload['monthly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
+                'forecast': [int(round(f * avg_unit_price)) for f in monthly_fore.get('forecast', [])],
+                'upper': [int(round(f * avg_unit_price)) for f in monthly_fore.get('upper', [])],
+                'lower': [int(round(f * avg_unit_price)) for f in monthly_fore.get('lower', [])],
+                'confidence': monthly_fore.get('confidence', 0)
+            }
+        except Exception:
+            # Best-effort: if rounding fails, fall back to plain unit series already present
+            pass
+
         return JsonResponse(payload)
     except Exception as out_exc:
         logger.exception('Error building forecast API response: %s', str(out_exc))
