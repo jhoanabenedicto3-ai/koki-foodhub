@@ -760,9 +760,9 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
 
       /* Analytics cards removed as per design request */
 
-      /* Chart card visual polish */
-      .card.chart-card { background: linear-gradient(180deg, #fff, #fbfbff); border:1px solid rgba(0,0,0,0.04); border-radius:12px; padding:20px; box-shadow:0 10px 24px rgba(16,24,40,0.06); margin-bottom:32px; overflow:hidden; }
-      .card.chart-card .chart-area { position:relative; height:340px; border-radius:8px; background:linear-gradient(180deg, rgba(249,250,252,1), rgba(255,255,255,1)); padding:8px; }
+      /* Chart card: simplified, subtle border and shadow to match mock */
+      .card.chart-card { background: #fff; border:1px solid rgba(15,23,36,0.04); border-radius:12px; padding:18px 22px; box-shadow:0 6px 18px rgba(16,24,40,0.04); margin-bottom:32px; overflow:hidden; }
+      .card.chart-card .chart-area { position:relative; height:420px; border-radius:8px; background:transparent; padding:8px; }
 
       /* Slight header tweak */
       .section-title { font-size:22px; margin-bottom:6px; font-weight:800; }
@@ -773,8 +773,8 @@ JSON snippets:\n daily_json: {{ daily_json|truncatechars:400 }}\n weekly_json: {
       .sidebar:hover + .main-content .forecast-wrapper,
       .sidebar:hover ~ .main-content .forecast-wrapper { margin-left: auto !important; margin-right: auto !important; padding-left:36px !important; }
 
-      .card.chart-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 28px; box-shadow:var(--shadow-sm); margin-bottom:32px; overflow:hidden; }
-      .card.chart-card .chart-area { position:relative; height:300px; }
+      /* Duplicate chart-card styles consolidated and simplified above */
+      .card.chart-card .chart-area { position:relative; height:420px; }
       /* Two column layout for actual / forecast */
       .two-up{ display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-top:12px; }
       .small-card{ padding:14px; min-height:180px; }
