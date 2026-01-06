@@ -9,7 +9,24 @@
       const res = await fetch(url, { credentials: 'same-origin' });
       if(!res.ok) throw new Error('Network response not ok: ' + res.status);
       const json = await res.json();
-      return json.weekly || json.daily || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+      // choose the most appropriate granularity
+      const raw = json.weekly || json.daily || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+      const scale = json.avg_unit_price || 0;
+      // If avg_unit_price is available, convert unit series to revenue
+      if(scale && scale > 0){
+        const scaled = {
+          labels: raw.labels || [],
+          actual: (raw.actual || []).map(v => (v == null ? null : Math.round(v * scale))),
+          forecast: (raw.forecast || []).map(v => (v == null ? null : Math.round(v * scale))),
+          upper: (raw.upper || []).map(v => (v == null ? null : Math.round(v * scale))),
+          lower: (raw.lower || []).map(v => (v == null ? null : Math.round(v * scale))),
+          confidence: raw.confidence || 0
+        };
+        // expose avg price for debugging if needed
+        window._avgUnitPrice = scale;
+        return scaled;
+      }
+      return raw;
     }catch(e){ console.warn('fetchSeries failed', e); return {labels:[], actual:[], forecast:[], upper:[], lower:[]}; }
   }
 

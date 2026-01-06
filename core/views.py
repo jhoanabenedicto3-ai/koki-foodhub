@@ -1194,9 +1194,28 @@ def forecast_data_api(request):
         weekly_insight = generate_insight('weekly', weekly_series, weekly_fore)
         monthly_insight = generate_insight('monthly', monthly_series, monthly_fore)
 
+        # compute average unit price over the last 30 days so clients can scale unit-based series into revenue
+        try:
+            from django.utils import timezone as _tz
+            from datetime import timedelta as _td
+            try:
+                _today = _tz.localdate()
+            except Exception:
+                _today = _tz.now().date()
+            _lookback = 30
+            _start = _today - _td(days=_lookback)
+            _agg = Sale.objects.filter(date__gte=_start, date__lte=_today).aggregate(total_rev=Sum('revenue'), total_units=Sum('units_sold'))
+            _rev = float(_agg.get('total_rev') or 0.0)
+            _units = int(_agg.get('total_units') or 0)
+            avg_unit_price = (_rev / _units) if _units > 0 else 0.0
+        except Exception:
+            avg_unit_price = 0.0
+
         payload = {
             'products': products,
             'data_source': 'db',
+            'avg_unit_price': avg_unit_price,
+            'currency': '₱',
             'summary': {
                 'daily': daily_summary,
                 'weekly': weekly_summary,
