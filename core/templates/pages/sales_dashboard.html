@@ -163,6 +163,15 @@
     const todayOrdersServer = parseInt(document.getElementById('today-orders-data')?.textContent || '0');
     const todayRevenueServer = parseFloat(document.getElementById('today-revenue-data')?.textContent || '0');
     const serverTodayIso = JSON.parse(document.getElementById('server-today-iso')?.textContent || 'null');
+    
+    // Debug: log the parsed values
+    console.log('DEBUG - Server data loaded:', {
+      totalOrdersServer,
+      todayOrdersServer,
+      totalSalesServer,
+      todayRevenueServer,
+      serverDaily: serverDaily ? 'present' : 'null'
+    });
 
     // Normalize server recent_sales into the shape the client-side code expects:
     // salesHistory is an array of sales where each sale has an `items` array
@@ -412,11 +421,13 @@
 
     function applyTimeframe(range) {
       // range: 'all' | 'day' | 'week'
+      console.log('applyTimeframe called with:', range);
       if (range === 'all') {
         document.getElementById('ordersTimeframe').textContent = 'All time';
         document.getElementById('totalOrders').textContent = (totalOrdersServer || salesHistory.length);
         document.getElementById('totalSales').textContent = '₱' + (totalSalesServer || salesHistory.reduce((sum, s) => sum + (s.total || 0), 0)).toFixed(2);
         document.getElementById('avgOrderValue').textContent = '₱' + (avgOrderServer || (salesHistory.length ? (salesHistory.reduce((sum, s) => sum + (s.total || 0), 0) / salesHistory.length) : 0)).toFixed(2);
+        console.log('All time:', { orders: totalOrdersServer, sales: totalSalesServer });
         setActiveButton('filterAll');
         return;
       }
@@ -443,6 +454,7 @@
         // Prefer server-provided explicit today totals when available (use exact values from server, even if 0)
         let orders = (typeof todayOrdersServer === 'number') ? todayOrdersServer : (entry ? (entry.orders || entry.total_orders || 0) : 0);
         let revenue = (typeof todayRevenueServer === 'number') ? todayRevenueServer : (entry ? (entry.revenue || entry.total_revenue || 0) : 0);
+        console.log('Today:', { orders, revenue, todayOrdersServer, todayRevenueServer });
         document.getElementById('ordersTimeframe').textContent = 'Today';
         document.getElementById('totalOrders').textContent = orders;
         document.getElementById('totalSales').textContent = '₱' + (revenue || 0).toFixed(2);
