@@ -15,7 +15,6 @@
       <div style="font-size: 14px; color: var(--text-secondary);">Show totals for:</div>
       <div style="display: flex; gap: 12px; align-items: center;">
         <div style="display: flex; gap:8px;">
-          <button id="filterAll" class="btn small" style="padding:8px 12px; border-radius:6px; background:#fff; border:1px solid var(--border);">All time</button>
           <button id="filterDay" class="btn small" style="padding:8px 12px; border-radius:6px; background:#fff; border:1px solid var(--border);">Today</button>
           <button id="filterWeek" class="btn small" style="padding:8px 12px; border-radius:6px; background:#fff; border:1px solid var(--border);">Last 7 days</button>
         </div>
@@ -404,7 +403,7 @@
 
     // Timeframe filter buttons
     function setActiveButton(id) {
-      ['filterAll', 'filterDay', 'filterWeek'].forEach(b => {
+      ['filterDay', 'filterWeek'].forEach(b => {
         const el = document.getElementById(b);
         if (!el) return;
         if (b === id) {
@@ -510,12 +509,11 @@
       }
     }
 
-    document.getElementById('filterAll')?.addEventListener('click', () => applyTimeframe('all'));
     document.getElementById('filterDay')?.addEventListener('click', () => applyTimeframe('day'));
     document.getElementById('filterWeek')?.addEventListener('click', () => applyTimeframe('week'));
 
-    // Default to 'all' on load and apply its numbers
-    applyTimeframe('all');
+    // Default to 'day' on load and apply its numbers
+    applyTimeframe('day');
 
     // Listen for localStorage updates (still supported)
     window.addEventListener('storage', (e) => {
