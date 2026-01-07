@@ -945,44 +945,43 @@ def forecast_view(request):
         "daily_confidence": daily_fore.get('confidence', 0),
         "weekly_confidence": weekly_fore.get('confidence', 0),
         "monthly_confidence": monthly_fore.get('confidence', 0),
-        # JSON for charts
-        # Convert unit-based series to revenue using avg_unit_price so charts display currency totals
+        # JSON for charts - values are already in REVENUE form, no conversion needed
         "daily_json": json.dumps({
             'labels': [d for d, _ in daily_series],
-            'actual': [int(round(v * avg_unit_price)) for _, v in daily_series],
-            'forecast': [int(round(f * avg_unit_price)) for f in daily_fore.get('forecast', [])],
-            'upper': [int(round(f * avg_unit_price)) for f in daily_fore.get('upper', [])],
-            'lower': [int(round(f * avg_unit_price)) for f in daily_fore.get('lower', [])],
+            'actual': [v for _, v in daily_series],
+            'forecast': daily_fore.get('forecast', []),
+            'upper': daily_fore.get('upper', []),
+            'lower': daily_fore.get('lower', []),
             'confidence': daily_fore.get('confidence', 0)
         }),
         "weekly_json": json.dumps({
             'labels': [d for d, _ in weekly_series],
-            'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series],
-            'forecast': [int(round(f * avg_unit_price)) for f in weekly_fore.get('forecast', [])],
-            'upper': [int(round(f * avg_unit_price)) for f in weekly_fore.get('upper', [])],
-            'lower': [int(round(f * avg_unit_price)) for f in weekly_fore.get('lower', [])],
+            'actual': [v for _, v in weekly_series],
+            'forecast': weekly_fore.get('forecast', []),
+            'upper': weekly_fore.get('upper', []),
+            'lower': weekly_fore.get('lower', []),
             'confidence': weekly_fore.get('confidence', 0)
         }),
         "monthly_json": json.dumps({
             'labels': [d for d, _ in monthly_series],
-            'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
-            'forecast': [int(round(f * avg_unit_price)) for f in monthly_fore.get('forecast', [])],
-            'upper': [int(round(f * avg_unit_price)) for f in monthly_fore.get('upper', [])],
-            'lower': [int(round(f * avg_unit_price)) for f in monthly_fore.get('lower', [])],
+            'actual': [v for _, v in monthly_series],
+            'forecast': monthly_fore.get('forecast', []),
+            'upper': monthly_fore.get('upper', []),
+            'lower': monthly_fore.get('lower', []),
             'confidence': monthly_fore.get('confidence', 0)
         }),
-        # Server-side revenue JSON for template quick access (daily uses direct DB revenues when available)
+        # Server-side revenue JSON for template quick access (values are already in REVENUE form)
         "daily_revenue_json": json.dumps({
             'labels': [d for d, _ in daily_series],
             'actual': []  # populated below to avoid double work
         }),
         "weekly_revenue_json": json.dumps({
             'labels': [d for d, _ in weekly_series],
-            'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series]
+            'actual': [v for _, v in weekly_series]
         }),
         "monthly_revenue_json": json.dumps({
             'labels': [d for d, _ in monthly_series],
-            'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series]
+            'actual': [v for _, v in monthly_series]
         })
     }
 
