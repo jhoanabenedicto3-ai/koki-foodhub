@@ -758,44 +758,15 @@ def forecast_view(request):
         this_month_units = int(monthly_summary.get('total', 0))
 
     # Forecast preview values (next period forecast) from forecast payloads
+    # NOTE: These are now in REVENUE (not units) since aggregate_sales returns revenue
     today_forecast = (daily_fore.get('forecast') or [0])[0] if daily_fore.get('forecast') else 0
     week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
     month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
 
-    # Estimate revenue equivalents for the preview cards using a simple average
-    # unit price computed over the last 30 days (safe fallback to overall history)
-    try:
-        lookback_days = 30
-        lookback_start = today - timedelta(days=lookback_days)
-        rev_units = Sale.objects.filter(date__gte=lookback_start, date__lte=today).aggregate(total_rev=Sum('revenue'), total_units=Sum('units_sold'))
-        total_rev_lb = float(rev_units.get('total_rev') or 0.0)
-        total_units_lb = int(rev_units.get('total_units') or 0)
-        avg_unit_price = (total_rev_lb / total_units_lb) if total_units_lb > 0 else (today_revenue / today_units if today_units > 0 else 0.0)
-    except Exception:
-        avg_unit_price = 0.0
-
-    def fmt_currency(x):
-        try:
-            return f'₱{int(round(x)):,}'
-        except Exception:
-            return f'₱{int(x)}'
-
-    # Revenue projections (currency) derived from unit forecasts
-    today_forecast_revenue = today_forecast * avg_unit_price
-    week_forecast_revenue = week_forecast * avg_unit_price
-    month_forecast_revenue = month_forecast * avg_unit_price
-
-    # Confidence margins: use forecast upper/lower bounds when available and convert to currency
-    def confidence_margin_currency(fore_payload, idx=0):
-        try:
-            upper = (fore_payload.get('upper') or [None])[idx]
-            lower = (fore_payload.get('lower') or [None])[idx]
-            if upper is None or lower is None:
-                return 0.0
-            margin_units = max(0.0, (upper - lower) / 2.0)
-            return margin_units * avg_unit_price
-        except Exception:
-            return 0.0
+    # These forecasts are already in revenue form, so use them directly without multiplying by avg_unit_price
+    today_forecast_revenue = today_forecast
+    week_forecast_revenue = week_forecast
+    month_forecast_revenue = month_forecast
 
     today_conf_margin = confidence_margin_currency(daily_fore, 0)
     week_conf_margin = confidence_margin_currency(weekly_fore, 0)
@@ -848,6 +819,25 @@ def forecast_view(request):
     today_growth_pct = compute_growth(today_forecast_revenue, yesterday_revenue)
     week_growth_pct = compute_growth(week_forecast_revenue, prev_week_revenue)
     month_growth_pct = compute_growth(month_forecast_revenue, prev_month_revenue)
+
+    def fmt_currency(x):
+        try:
+            return f'₱{int(round(x)):,}'
+        except Exception:
+            return f'₱{int(x)}'
+
+    # Confidence margins: use forecast upper/lower bounds when available (already in revenue)
+    def confidence_margin_currency(fore_payload, idx=0):
+        try:
+            upper = (fore_payload.get('upper') or [None])[idx]
+            lower = (fore_payload.get('lower') or [None])[idx]
+            if upper is None or lower is None:
+                return 0.0
+            # Values are already in revenue form, so just calculate the margin
+            margin = max(0.0, (upper - lower) / 2.0)
+            return margin
+        except Exception:
+            return 0.0
 
     # Human-friendly date labels for hero cards
     try:
@@ -1279,46 +1269,41 @@ def forecast_data_api(request):
             }
         }
 
-        # Also include server-side revenue-converted series as a convenience for clients
-        # Prefer direct DB revenue aggregation for historical actuals so we show exact sales totals
+        # Also include server-side revenue series (now direct from DB since aggregate_sales returns revenue)
+        # No need to convert anymore since aggregate_sales() now returns revenue directly
         try:
-            # daily actuals: sum revenue by date for dates in daily_series
-            try:
-                daily_dates = [d for d, _ in daily_series]
-                q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
-                rev_map = {r['date'].isoformat(): float(r.get('total_rev') or 0.0) for r in q}
-                daily_actual = [int(round(rev_map.get(d, 0))) for d in daily_dates]
-            except Exception:
-                daily_actual = [int(round(v * avg_unit_price)) for _, v in daily_series]
+            # Daily actuals are already in revenue form from aggregate_sales()
+            daily_dates = [d for d, _ in daily_series]
+            daily_actual = [v for _, v in daily_series]
 
             payload['daily_revenue'] = {
-                'labels': [d for d, _ in daily_series],
+                'labels': daily_dates,
                 'actual': daily_actual,
-                'forecast': [int(round(f * avg_unit_price)) for f in daily_fore.get('forecast', [])],
-                'upper': [int(round(f * avg_unit_price)) for f in daily_fore.get('upper', [])],
-                'lower': [int(round(f * avg_unit_price)) for f in daily_fore.get('lower', [])],
+                'forecast': daily_fore.get('forecast', []),
+                'upper': daily_fore.get('upper', []),
+                'lower': daily_fore.get('lower', []),
                 'confidence': daily_fore.get('confidence', 0)
             }
 
-            # Weekly/monthly: best-effort conversion using avg_unit_price for forecasts and unit series
+            # Weekly/monthly: values are already in revenue form
             payload['weekly_revenue'] = {
                 'labels': [d for d, _ in weekly_series],
-                'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series],
-                'forecast': [int(round(f * avg_unit_price)) for f in weekly_fore.get('forecast', [])],
-                'upper': [int(round(f * avg_unit_price)) for f in weekly_fore.get('upper', [])],
-                'lower': [int(round(f * avg_unit_price)) for f in weekly_fore.get('lower', [])],
+                'actual': [v for _, v in weekly_series],
+                'forecast': weekly_fore.get('forecast', []),
+                'upper': weekly_fore.get('upper', []),
+                'lower': weekly_fore.get('lower', []),
                 'confidence': weekly_fore.get('confidence', 0)
             }
             payload['monthly_revenue'] = {
                 'labels': [d for d, _ in monthly_series],
-                'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
-                'forecast': [int(round(f * avg_unit_price)) for f in monthly_fore.get('forecast', [])],
-                'upper': [int(round(f * avg_unit_price)) for f in monthly_fore.get('upper', [])],
-                'lower': [int(round(f * avg_unit_price)) for f in monthly_fore.get('lower', [])],
+                'actual': [v for _, v in monthly_series],
+                'forecast': monthly_fore.get('forecast', []),
+                'upper': monthly_fore.get('upper', []),
+                'lower': monthly_fore.get('lower', []),
                 'confidence': monthly_fore.get('confidence', 0)
             }
         except Exception:
-            # Best-effort: if rounding fails, fall back to plain unit series already present
+            # Best-effort: if construction fails, fall back to plain series already present
             pass
 
         return JsonResponse(payload)

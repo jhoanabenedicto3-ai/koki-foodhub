@@ -296,37 +296,31 @@ def moving_average_forecast(window=3, lookback_days=21):
 
 def aggregate_sales(period='daily', lookback=90):
     """
-    Aggregate sales into time series.
+    Aggregate sales into time series returning REVENUE (not units).
     period: 'daily', 'weekly', or 'monthly'
     lookback: number of days (for daily), weeks (for weekly), months (for monthly)
-    Returns list of (label, units) ordered chronologically.
+    Returns list of (label, revenue) ordered chronologically.
     """
     today = date.today()
     series = []
 
-    # Cap suspiciously large per-sale unit counts to avoid single bad rows
-    # from skewing aggregated charts (e.g. mis-imported rows with units_sold >> typical values).
-    # This caps each *individual* Sale.units_sold at MAX_UNITS_PER_SALE before summing.
-    MAX_UNITS_PER_SALE = 100
-    from django.db.models import Case, When, Value, IntegerField
+    from django.db.models import Case, When, Value, IntegerField, DecimalField
 
     if period == 'daily':
         start = today - timedelta(days=lookback - 1)
-        # Initialize dict with zeros
-        counts = { (start + timedelta(days=i)): 0 for i in range(lookback) }
-        # Annotate using a capped per-row value so extreme outliers don't dominate totals
+        # Initialize dict with zeros for all dates in range
+        counts = { (start + timedelta(days=i)): 0.0 for i in range(lookback) }
+        # Aggregate REVENUE (sum of revenue field)
         qs = Sale.objects.filter(date__gte=start).values('date').annotate(
-            total=Sum(Case(
-                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
-                default='units_sold',
-                output_field=IntegerField()
-            ))
+            total=Sum('revenue')
         )
         for row in qs:
             d = row['date']
-            counts[d] = counts.get(d, 0) + int(row['total'] or 0)
+            counts[d] = float(row['total'] or 0.0)
+        # Return as (date_iso, revenue_amount) tuples
         for d in sorted(counts.keys()):
-            series.append((d.isoformat(), counts[d]))
+            series.append((d.isoformat(), int(round(counts[d]))))
+
 
     elif period == 'weekly':
         # Weeks ending on Sunday (use ISO week numbers)
@@ -338,22 +332,19 @@ def aggregate_sales(period='daily', lookback=90):
             # normalize to Monday
             wk_start = wk_start - timedelta(days=wk_start.weekday())
             weeks.append(wk_start)
-        counts = { w: 0 for w in weeks }
+        counts = { w: 0.0 for w in weeks }
+        # Aggregate REVENUE instead of units
         qs = Sale.objects.filter(date__gte=weeks[0]).values('date').annotate(
-            total=Sum(Case(
-                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
-                default='units_sold',
-                output_field=IntegerField()
-            ))
+            total=Sum('revenue')
         )
         for row in qs:
             d = row['date']
             wk_start = d - timedelta(days=d.weekday())
             if wk_start in counts:
-                counts[wk_start] += int(row['total'] or 0)
+                counts[wk_start] += float(row['total'] or 0.0)
         for w in sorted(counts.keys()):
             label = w.isoformat()
-            series.append((label, counts[w]))
+            series.append((label, int(round(counts[w]))))
 
     elif period == 'monthly':
         start = today - relativedelta(months=lookback - 1)
@@ -362,22 +353,19 @@ def aggregate_sales(period='daily', lookback=90):
         for i in range(lookback):
             months.append(cur)
             cur = (cur + relativedelta(months=1)).replace(day=1)
-        counts = { m: 0 for m in months }
+        counts = { m: 0.0 for m in months }
+        # Aggregate REVENUE instead of units
         qs = Sale.objects.filter(date__gte=months[0]).values('date').annotate(
-            total=Sum(Case(
-                When(units_sold__gt=MAX_UNITS_PER_SALE, then=Value(MAX_UNITS_PER_SALE)),
-                default='units_sold',
-                output_field=IntegerField()
-            ))
+            total=Sum('revenue')
         )
         for row in qs:
             d = row['date']
             m = d.replace(day=1)
             if m in counts:
-                counts[m] += int(row['total'] or 0)
+                counts[m] += float(row['total'] or 0.0)
         for m in sorted(counts.keys()):
             label = m.strftime('%Y-%m')
-            series.append((label, counts[m]))
+            series.append((label, int(round(counts[m]))))
 
     return series
 
