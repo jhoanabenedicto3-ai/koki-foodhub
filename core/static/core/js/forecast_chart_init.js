@@ -60,14 +60,15 @@
       }
       
       function pickServerSeries(){
-        if(range.includes('90')) return window._serverWeekly || window._serverMonthly || window._serverDaily || null;
-        // default to daily for 7/30 day ranges
+        // Always use daily series for proper filtering
         return window._serverDaily || window._serverWeekly || window._serverMonthly || null;
       }
       const inline = pickServerSeries();
       if(inline){ 
-        window._seriesSource = 'server_inline'; 
-        return filterDataByRange(inline, range);
+        window._seriesSource = 'server_inline';
+        const filtered = filterDataByRange(inline, range);
+        console.log('Using server inline data, filtered to', filtered.labels.length, 'points');
+        return filtered;
       }
 
       // Otherwise fetch from API
@@ -76,55 +77,41 @@
       if(!res.ok) throw new Error('Network response not ok: ' + res.status);
       const json = await res.json();
 
-      // choose series based on UI range
+      // Always use daily revenue for client-side filtering
       const rangePref = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
-      let raw = null;
-      if(rangePref.includes('90')){
-        raw = json.weekly_revenue || json.weekly || json.monthly_revenue || json.monthly;
-      } else {
-        raw = json.daily_revenue || json.daily || json.weekly_revenue || json.weekly;
-      }
+      let raw = json.daily_revenue || json.daily || null;
       raw = raw || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
       
       // Filter the raw data by the selected range
-      raw = filterDataByRange(raw, rangePref);
+      const filtered = filterDataByRange(raw, rangePref);
+      console.log('API data filtered to', filtered.labels.length, 'points for range:', rangePref);
 
       const scale = json.avg_unit_price || 0;
 
       // If we have revenue-prefixed series from the server/API, use them directly.
-      if((json.weekly_revenue || json.daily_revenue || json.monthly_revenue)){
+      if((json.daily_revenue)){
         window._seriesSource = 'revenue_from_server_api';
-        return raw;
+        return filtered;
       }
 
       // Fallback: if avg_unit_price is available, convert unit series to revenue client-side
       if(scale && scale > 0){
         const scaled = {
-          labels: raw.labels || [],
-          actual: (raw.actual || []).map(v => (v == null ? null : Math.round(v * scale))),
-          forecast: (raw.forecast || []).map(v => (v == null ? null : Math.round(v * scale))),
-          upper: (raw.upper || []).map(v => (v == null ? null : Math.round(v * scale))),
-          lower: (raw.lower || []).map(v => (v == null ? null : Math.round(v * scale))),
-          confidence: raw.confidence || 0
+          labels: filtered.labels || [],
+          actual: (filtered.actual || []).map(v => (v == null ? null : Math.round(v * scale))),
+          forecast: (filtered.forecast || []).map(v => (v == null ? null : Math.round(v * scale))),
+          upper: (filtered.upper || []).map(v => (v == null ? null : Math.round(v * scale))),
+          lower: (filtered.lower || []).map(v => (v == null ? null : Math.round(v * scale))),
+          confidence: filtered.confidence || 0
         };
         window._avgUnitPrice = scale;
         window._seriesSource = 'scaled_client_api';
-
-        // sanity-check: if the first forecast point is wildly different from the server-provided today forecast revenue
-        try{
-          const f0 = (scaled.forecast && scaled.forecast[0]) || null;
-          const todayRev = window._todayForecastRevenue || 0;
-          if(f0 && todayRev && Math.abs(f0 - todayRev) / Math.max(todayRev,1) > 0.5){
-            console.warn('Forecast scaling mismatch: client-scaled forecast first value', f0, 'differs from server today forecast revenue', todayRev);
-          }
-        }catch(e){}
-
         return scaled;
       }
 
-      console.warn('Forecast data received in units (no revenue conversion available). Set avg_unit_price or use server-side revenue series to fix display.');
+      console.warn('Forecast data received in units (no revenue conversion available).');
       window._seriesSource = 'units_fallback_api';
-      return raw;
+      return filtered;
     }catch(e){ console.warn('fetchSeries failed', e); return {labels:[], actual:[], forecast:[], upper:[], lower:[]}; }
   }
 
@@ -144,11 +131,21 @@
 
   let salesChart = null;
   function renderChart(data){
+    // Destroy existing chart before creating a new one
+    if (salesChart) {
+      salesChart.destroy();
+      salesChart = null;
+    }
+    
     const isoLabels = (data.labels || []).slice();
     const forecastLabels = buildForecastLabels(isoLabels, (data.forecast || []).length);
     const combinedIso = isoLabels.concat(forecastLabels);
 
-    // human-friendly labels (e.g., '3 days ago', 'Today', 'Tomorrow', '+1 week')
+    // Log for debugging
+    console.log('Rendering chart with', isoLabels.length, 'historical labels and', forecastLabels.length, 'forecast labels');
+    if (isoLabels.length > 0) {
+      console.log('Date range:', isoLabels[0], 'to', isoLabels[isoLabels.length - 1]);
+    }
     function formatXLabel(d){
       try{
         const dt = new Date(d + 'T00:00:00');
