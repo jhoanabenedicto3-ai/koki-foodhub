@@ -1017,8 +1017,11 @@ def forecast_view(request):
 
     # Populate the server-side daily revenue actuals for the template (best-effort direct DB aggregation)
     try:
+        from datetime import date as date_class
         daily_labels = [d for d, _ in daily_series]
-        q = Sale.objects.filter(date__in=daily_labels).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
+        # Convert ISO date strings back to date objects for the query
+        daily_dates = [date_class.fromisoformat(d) if isinstance(d, str) else d for d in daily_labels]
+        q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
         rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
         context['daily_revenue_json'] = json.dumps({ 'labels': daily_labels, 'actual': [rev_map.get(d, 0) for d in daily_labels] })
     except Exception:
