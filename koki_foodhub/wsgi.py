@@ -34,7 +34,7 @@ def _masked_db_url(url: str) -> str:
 
 # CRITICAL: Run migrations and setup on first startup
 print("\n" + "="*70)
-print("🚀 DJANGO WSGI STARTUP - CHECKING DATABASE")
+print("[STARTUP] DJANGO WSGI STARTUP - CHECKING DATABASE")
 print("="*70)
 
 # Log resolved database URL / host for easier debugging (mask password)
@@ -73,27 +73,27 @@ try:
     # Test database connection
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
-    print("✅ Database connection OK")
+    print("[OK] Database connection OK")
     
     # Check if migrations have been applied
     executor = MigrationExecutor(connection)
     plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
     
     if plan:
-        print(f"⚠️ {len(plan)} pending migration(s) - running migrations...")
+        print(f"[WARNING] {len(plan)} pending migration(s) - running migrations...")
         call_command('migrate', verbosity=2)
-        print("✅ Migrations completed")
+        print("[OK] Migrations completed")
     else:
-        print("✅ Migrations already applied")
+        print("[OK] Migrations already applied")
     
     # Collect static files in production
     if not os.getenv('DEBUG', 'True') == 'True':
         print("\n→ Collecting static files...")
         try:
             call_command('collectstatic', verbosity=1, interactive=False)
-            print("✅ Static files collected")
+            print("[OK] Static files collected")
         except Exception as e:
-            print(f"⚠️ Static file collection warning: {e}")
+            print(f"[WARNING] Static file collection warning: {e}")
     
     # Ensure admin user exists
     from django.contrib.auth import get_user_model
@@ -104,16 +104,16 @@ try:
         password = os.getenv('ADMIN_PASSWORD', 'admin123')
         email = os.getenv('ADMIN_EMAIL', 'admin@koki-foodhub.com')
         User.objects.create_superuser('admin', email, password)
-        print(f"✅ Admin user created!")
+        print(f"[OK] Admin user created!")
     
-    print(f"📊 Database ready - {User.objects.count()} users")
+    print(f"[INFO] Database ready - {User.objects.count()} users")
     try:
         settings.DB_AVAILABLE = True
     except Exception:
         pass
     
 except Exception as e:
-    print(f"⚠️ Startup error: {e}")
+    print(f"[ERROR] Startup error: {e}")
     import traceback
     traceback.print_exc()
 
@@ -130,16 +130,16 @@ except Exception as e:
     abort_env = os.getenv('ABORT_ON_DB_FAILURE', '').lower() == 'true'
     try:
         if abort_env:
-            print("⚠️ ABORT_ON_DB_FAILURE=true — aborting startup due to DB failure.")
+            print("[ERROR] ABORT_ON_DB_FAILURE=true -- aborting startup due to DB failure.")
             raise
         else:
-            print("⚠️ DB check failed; continuing startup. Some features will remain limited until DB is available.")
+            print("[WARNING] DB check failed; continuing startup. Some features will remain limited until DB is available.")
     except Exception:
         # Re-raise the original exception to abort startup
         raise
 
 print("="*70)
-print("✅ WSGI STARTUP COMPLETE - App ready\n")
+print("[OK] WSGI STARTUP COMPLETE - App ready\n")
 print("="*70 + "\n")
 
 from django.core.wsgi import get_wsgi_application
