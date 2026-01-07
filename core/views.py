@@ -770,11 +770,13 @@ def _forecast_view_impl(request, logger, json):
     except Exception:
         today = timezone.now().date()
 
+    # Initialize week_start and month_start before try block to avoid UnboundLocalError
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+
     try:
         today_revenue = float(Sale.objects.filter(date=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
-        week_start = today - timedelta(days=today.weekday())
         this_week_revenue = float(Sale.objects.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
-        month_start = today.replace(day=1)
         this_month_revenue = float(Sale.objects.filter(date__gte=month_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
         # Also compute unit counts (units sold) for the same periods so we can
         # show "X units / PHPY" in the hero tiles for clarity.
