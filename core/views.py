@@ -558,27 +558,54 @@ def sales_today_api(request):
 # Forecast: any authenticated user
 @login_required
 def forecast_view(request):
-    # Allow any authenticated user to view the forecast page. If you'd like
-    # to restrict to Admins again, re-add `@group_required("Admin")` above.
+    """
+    Render the sales forecast dashboard with historical data and predictions.
+    This view is heavily defensive to handle various deployment environments
+    and gracefully fall back when data is unavailable.
+    """
+    import json
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Attempt the full forecast view with comprehensive error handling
+        return _forecast_view_impl(request)
+    except Exception as e:
+        # Ultimate fallback: any uncaught error shows a friendly message
+        logger.exception('Unhandled error in forecast_view: %s', str(e))
+        import traceback, uuid
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
+        
+        # Log for debugging
+        logger.error('Forecast view error (id=%s):\n%s', error_id, tb)
+        
+        # Show friendly error to user
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return HttpResponse(f'<pre>Forecast Error ({error_id}):\n\n{tb}</pre>', status=500)
+        except:
+            pass
+        
+        return HttpResponse(f'Forecast temporarily unavailable (Error {error_id}). Please try again in a few moments.', status=500)
+
+
+def _forecast_view_impl(request):
+    """Implementation of forecast view with all logic separated out."""
     import json
     logger = logging.getLogger(__name__)
 
     # Ensure any stale DB connections are closed before we start heavy DB work
-    # to avoid intermittent "connection already closed" errors seen in prod.
     try:
         close_old_connections()
-    except Exception:
-        # Ignore errors closing old connections; proceed and rely on Django to manage
+    except:
         pass
 
-    # We will rely only on DB historical sales (Sale objects) for forecasting.
-    # No CSV-based forecasts will be used to avoid stale example data influencing predictions.
+    # Import forecasting functions with safe fallbacks
     import_error = None
     try:
         from .services.forecasting import aggregate_sales, forecast_time_series, moving_average_forecast
-        import_error = None
     except Exception as exc:
-        # Log the import error but continue with safe stubs so page renders
         logger.exception('Forecasting import failed: %s', str(exc))
         import_error = exc
         def moving_average_forecast(window=3):
@@ -601,17 +628,25 @@ def forecast_view(request):
             confidence = 0.0 if mean <= 0 else max(0.0, min(100.0, (1.0 - (std / (mean + 1e-9))) * 100.0))
             accuracy = 'High' if confidence >= 70 else 'Medium' if confidence >= 40 else 'Low'
             return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+        def aggregate_sales(period='daily', lookback=90):
+            return []
 
+    # Initialize safe defaults for all variables
+    data = []
+    daily_series, weekly_series, monthly_series = [], [], []
+    daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    series_error = None
 
     # Build per-product forecasts using DB historical sales only
-    data = []
     try:
         db_results = moving_average_forecast(window=3)
-        db_forecasts = db_results.get('db_forecasts', {})
+        db_forecasts = db_results.get('db_forecasts', {}) if db_results else {}
         for pid, r in db_forecasts.items():
             try:
                 product = Product.objects.get(pk=pid)
-                confidence = r.get('confidence', 0)
+                confidence = r.get('confidence', 0) or 0
                 # normalise to percentage if method returned 0-1
                 if confidence and confidence <= 1.0:
                     confidence = confidence * 100
@@ -630,10 +665,11 @@ def forecast_view(request):
                     "source": "Database",
                     "is_csv": False
                 })
-            except Product.DoesNotExist:
+            except (Product.DoesNotExist, Exception):
                 continue
     except Exception as e:
         logger.exception('Error generating per-product DB forecasts: %s', str(e))
+        data = []
 
     # Always use DB aggregate series for charts and forecasting
     try:
@@ -641,17 +677,17 @@ def forecast_view(request):
         db_weekly = aggregate_sales('weekly', lookback=12)
         db_monthly = aggregate_sales('monthly', lookback=12)
 
-        daily_series = db_daily
-        weekly_series = db_weekly
-        monthly_series = db_monthly
+        daily_series = db_daily or []
+        weekly_series = db_weekly or []
+        monthly_series = db_monthly or []
 
-        forecast_daily_base = db_daily
-        forecast_weekly_base = db_weekly
-        forecast_monthly_base = db_monthly
+        forecast_daily_base = db_daily or []
+        forecast_weekly_base = db_weekly or []
+        forecast_monthly_base = db_monthly or []
 
-        daily_fore = forecast_time_series(forecast_daily_base, horizon=30)
-        weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12)
-        monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6)
+        daily_fore = forecast_time_series(forecast_daily_base, horizon=30) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
 
         series_error = None
     except Exception as series_exc:
