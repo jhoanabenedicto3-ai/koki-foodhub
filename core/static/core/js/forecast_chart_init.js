@@ -10,7 +10,7 @@
       
       // Helper function to filter data based on selected range
       function filterDataByRange(data, range) {
-        if (!data || !data.labels) return data;
+        if (!data || !data.labels || data.labels.length === 0) return data;
         
         const labels = data.labels || [];
         const actual = data.actual || [];
@@ -28,8 +28,26 @@
           daysToKeep = 90;
         }
         
-        // Keep only the last N days of historical data
-        const startIdx = Math.max(0, labels.length - daysToKeep);
+        // Calculate the cutoff date (N days ago from today)
+        const today = new Date();
+        const cutoffDate = new Date(today);
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+        const cutoffISO = cutoffDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        // Find the start index: first label >= cutoffDate
+        let startIdx = 0;
+        for (let i = 0; i < labels.length; i++) {
+          const labelDate = String(labels[i]).substring(0, 10); // Get YYYY-MM-DD part
+          if (labelDate >= cutoffISO) {
+            startIdx = i;
+            break;
+          }
+        }
+        
+        // If no valid start found, use the last daysToKeep items
+        if (startIdx === 0 && labels[0] < cutoffISO) {
+          startIdx = Math.max(0, labels.length - daysToKeep);
+        }
         
         return {
           labels: labels.slice(startIdx),
