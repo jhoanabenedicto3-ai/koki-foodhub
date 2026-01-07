@@ -7,13 +7,50 @@
     try{
       // Prefer inline server-side series when available (fast, accurate)
       const range = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
+      
+      // Helper function to filter data based on selected range
+      function filterDataByRange(data, range) {
+        if (!data || !data.labels) return data;
+        
+        const labels = data.labels || [];
+        const actual = data.actual || [];
+        const forecast = data.forecast || [];
+        const upper = data.upper || [];
+        const lower = data.lower || [];
+        
+        // Get the number of days to keep
+        let daysToKeep = 30; // default
+        if (range.includes('7')) {
+          daysToKeep = 7;
+        } else if (range.includes('30')) {
+          daysToKeep = 30;
+        } else if (range.includes('90')) {
+          daysToKeep = 90;
+        }
+        
+        // Keep only the last N days of historical data
+        const startIdx = Math.max(0, labels.length - daysToKeep);
+        
+        return {
+          labels: labels.slice(startIdx),
+          actual: actual.slice(startIdx),
+          forecast: forecast,
+          upper: upper,
+          lower: lower,
+          confidence: data.confidence
+        };
+      }
+      
       function pickServerSeries(){
         if(range.includes('90')) return window._serverWeekly || window._serverMonthly || window._serverDaily || null;
         // default to daily for 7/30 day ranges
         return window._serverDaily || window._serverWeekly || window._serverMonthly || null;
       }
       const inline = pickServerSeries();
-      if(inline){ window._seriesSource = 'server_inline'; return inline; }
+      if(inline){ 
+        window._seriesSource = 'server_inline'; 
+        return filterDataByRange(inline, range);
+      }
 
       // Otherwise fetch from API
       const url = '/forecast/api/';
@@ -30,6 +67,9 @@
         raw = json.daily_revenue || json.daily || json.weekly_revenue || json.weekly;
       }
       raw = raw || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+      
+      // Filter the raw data by the selected range
+      raw = filterDataByRange(raw, rangePref);
 
       const scale = json.avg_unit_price || 0;
 
