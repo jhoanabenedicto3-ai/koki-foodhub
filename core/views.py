@@ -557,6 +557,7 @@ def sales_today_api(request):
 
 # Forecast: any authenticated user
 @login_required
+@login_required
 def forecast_view(request):
     """
     Render the sales forecast dashboard with historical data and predictions.
@@ -564,20 +565,20 @@ def forecast_view(request):
     and gracefully fall back when data is unavailable.
     """
     import json
+    import traceback
+    import uuid
+    
     logger = logging.getLogger(__name__)
     
     try:
-        # Attempt the full forecast view with comprehensive error handling
-        return _forecast_view_impl(request)
+        return _forecast_view_impl(request, logger, json)
     except Exception as e:
         # Ultimate fallback: any uncaught error shows a friendly message
-        logger.exception('Unhandled error in forecast_view: %s', str(e))
-        import traceback, uuid
         tb = traceback.format_exc()
         error_id = uuid.uuid4().hex[:8]
         
         # Log for debugging
-        logger.error('Forecast view error (id=%s):\n%s', error_id, tb)
+        logger.exception('Unhandled error in forecast_view (id=%s): %s', error_id, str(e))
         
         # Show friendly error to user
         try:
@@ -590,10 +591,7 @@ def forecast_view(request):
         return HttpResponse(f'Forecast temporarily unavailable (Error {error_id}). Please try again in a few moments.', status=500)
 
 
-def _forecast_view_impl(request):
-    """Implementation of forecast view with all logic separated out."""
-    import json
-    logger = logging.getLogger(__name__)
+def _forecast_view_impl(request, logger, json):
 
     # Ensure any stale DB connections are closed before we start heavy DB work
     try:
