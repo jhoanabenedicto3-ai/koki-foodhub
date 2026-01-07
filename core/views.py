@@ -802,6 +802,19 @@ def _forecast_view_impl(request, logger, json):
     week_forecast_revenue = week_forecast
     month_forecast_revenue = month_forecast
 
+    # Confidence margins helper function - define before use
+    def confidence_margin_currency(fore_payload, idx=0):
+        try:
+            upper = (fore_payload.get('upper') or [None])[idx]
+            lower = (fore_payload.get('lower') or [None])[idx]
+            if upper is None or lower is None:
+                return 0.0
+            # Values are already in revenue form, so just calculate the margin
+            margin = max(0.0, (upper - lower) / 2.0)
+            return margin
+        except Exception:
+            return 0.0
+
     today_conf_margin = confidence_margin_currency(daily_fore, 0)
     week_conf_margin = confidence_margin_currency(weekly_fore, 0)
     month_conf_margin = confidence_margin_currency(monthly_fore, 0)
@@ -859,19 +872,6 @@ def _forecast_view_impl(request, logger, json):
             return f'₱{int(round(x)):,}'
         except Exception:
             return f'₱{int(x)}'
-
-    # Confidence margins: use forecast upper/lower bounds when available (already in revenue)
-    def confidence_margin_currency(fore_payload, idx=0):
-        try:
-            upper = (fore_payload.get('upper') or [None])[idx]
-            lower = (fore_payload.get('lower') or [None])[idx]
-            if upper is None or lower is None:
-                return 0.0
-            # Values are already in revenue form, so just calculate the margin
-            margin = max(0.0, (upper - lower) / 2.0)
-            return margin
-        except Exception:
-            return 0.0
 
     # Human-friendly date labels for hero cards
     try:
