@@ -545,7 +545,7 @@
       document.getElementById('change').textContent = '₱' + change.toFixed(2);
     }
 
-    function generateAndPrintReceipt(customerName, items, total, amountPaid, change) {
+    function generateAndPrintReceipt(customerName, items, subtotal, discount, total, amountPaid, change) {
       const receiptNum = Math.floor(Math.random() * 1000000);
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -736,8 +736,14 @@
             <div class="totals">
               <div class="total-line">
                 <span class="total-label">Subtotal:</span>
-                <span class="total-value">₱${total.toFixed(2)}</span>
+                <span class="total-value">₱${subtotal.toFixed(2)}</span>
               </div>
+              ${discount > 0 ? `
+                <div class="total-line" style="color: #16a34a; font-weight: bold;">
+                  <span class="total-label">Discount:</span>
+                  <span class="total-value">-₱${discount.toFixed(2)}</span>
+                </div>
+              ` : ''}
               <div class="grand-total">
                 <span>TOTAL:</span>
                 <span>₱${total.toFixed(2)}</span>
@@ -876,7 +882,8 @@
           displayRecentTransaction(itemsCopy);
           
           // Generate and print receipt
-          generateAndPrintReceipt(customerName, itemsCopy, total, amountPaid, change);
+          const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+          generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
