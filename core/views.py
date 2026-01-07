@@ -1019,12 +1019,29 @@ def forecast_view(request):
     try:
         from datetime import date as date_class
         daily_labels = [d for d, _ in daily_series]
-        # Convert ISO date strings back to date objects for the query
-        daily_dates = [date_class.fromisoformat(d) if isinstance(d, str) else d for d in daily_labels]
-        q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
-        rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
-        context['daily_revenue_json'] = json.dumps({ 'labels': daily_labels, 'actual': [rev_map.get(d, 0) for d in daily_labels] })
-    except Exception:
+        if daily_labels:
+            # Convert ISO date strings back to date objects for the query
+            daily_dates = []
+            for d in daily_labels:
+                try:
+                    if isinstance(d, str):
+                        daily_dates.append(date_class.fromisoformat(d))
+                    else:
+                        daily_dates.append(d)
+                except Exception:
+                    # Skip dates that can't be parsed
+                    continue
+            
+            if daily_dates:
+                q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
+                rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
+                context['daily_revenue_json'] = json.dumps({ 'labels': daily_labels, 'actual': [rev_map.get(d, 0) for d in daily_labels] })
+            else:
+                context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [] })
+        else:
+            context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [] })
+    except Exception as e:
+        logger.exception('Error populating daily revenue JSON: %s', str(e))
         # fallback to using daily_json which may have used avg_unit_price
         context['daily_revenue_json'] = context.get('daily_json', '{}')
 
