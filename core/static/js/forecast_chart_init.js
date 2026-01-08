@@ -146,9 +146,9 @@ function renderChart(data){
       
       const ctx = chart.ctx;
       ctx.save();
-      ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = 'rgba(150, 150, 150, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
       ctx.beginPath();
       ctx.moveTo(xPos, yAxis.getPixelForValue(yAxis.max));
       ctx.lineTo(xPos, yAxis.getPixelForValue(yAxis.min));
@@ -165,26 +165,32 @@ function renderChart(data){
       labels: formattedLabels, 
       datasets: [
         { 
-          label: 'Historical Data', 
+          label: 'Historical', 
           data: actualPadded, 
-          borderColor: '#f97316', 
-          backgroundColor: 'rgba(249,115,22,0.08)', 
+          borderColor: '#000000', 
+          backgroundColor: 'rgba(0,0,0,0.05)', 
           fill: true, 
           tension: 0.36, 
-          pointRadius: 3, 
-          borderWidth: 2,
+          pointRadius: 5, 
+          pointBackgroundColor: '#000000',
+          pointBorderColor: '#000000',
+          pointBorderWidth: 2,
+          borderWidth: 2.5,
           spanGaps: false
         },
         { 
-          label: 'Forecast Projection', 
+          label: 'Projected', 
           data: forecastPadded, 
-          borderColor: '#f59e0b', 
-          backgroundColor: 'rgba(245,158,11,0.04)', 
+          borderColor: '#10b981', 
+          backgroundColor: 'rgba(16,185,129,0.04)', 
           fill: false, 
           borderDash: [6,4], 
           tension: 0.3, 
-          pointRadius: 4, 
-          borderWidth: 2,
+          pointRadius: 5, 
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#10b981',
+          pointBorderWidth: 2,
+          borderWidth: 2.5,
           spanGaps: false,
           hidden: false  // Ensure it's not hidden
         }
