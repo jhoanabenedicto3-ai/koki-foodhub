@@ -169,12 +169,47 @@
 
     const ctx = document.getElementById('salesChart')?.getContext('2d');
     if(!ctx) return;
+
+    // If API returned no forecast, generate a simple fallback 7-day forecast based on recent trend
+    const forecastCount = (data.forecast || []).length;
+    let finalForecast = (data.forecast || []).slice();
+    if (!forecastCount || forecastCount === 0) {
+      // Generate fallback using last non-null actuals (linear trend + mean)
+      const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-7);
+      const fallbackHorizon = (document.getElementById('rangeSelect')?.value === 'Last 7 Days') ? 5 : 7;
+      function simpleForecastFromRecent(recentArr, h) {
+        if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
+        const n = recentArr.length;
+        // compute linear slope over last 3 points if available
+        const last = recentArr[n-1] || 0;
+        const prev = recentArr[n-2] || 0;
+        const prev2 = recentArr[n-3] || 0;
+        const slope = ((last - prev) + (prev - prev2)) / 2 || 0;
+        const base = recentArr.reduce((a,b)=>a+b,0)/n;
+        let res = [];
+        for (let i=1;i<=h;i++){
+          const val = Math.max(0, Math.round(base + slope * i));
+          res.push(val);
+        }
+        return res;
+      }
+      finalForecast = simpleForecastFromRecent(recent, fallbackHorizon);
+      // show small notice in UI
+      const statusEl = document.getElementById('forecastStatus');
+      if (statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
+      console.warn('[Forecast Chart] No forecast returned by API — generated fallback forecast:', finalForecast);
+    }
+
+    // build padded arrays using finalForecast
+    const actualPaddedFinal = (data.actual || []).concat(Array(finalForecast.length).fill(null));
+    const forecastPaddedFinal = Array((data.actual||[]).length).fill(null).concat(finalForecast);
+
     if(salesChart){ try{ salesChart.destroy(); }catch(e){} }
     salesChart = new Chart(ctx, {
       type: 'line',
       data: { labels: formattedLabels, datasets: [
-        { label: 'Historical Daily Sales', data: actualPadded, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.08)', fill: true, tension: 0.4, pointRadius: 6, pointBackgroundColor: '#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 },
-        { label: 'AI-Driven Forecast', data: forecastPadded, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.04)', fill: false, borderDash:[7,4], tension: 0.4, pointRadius: 6, pointBackgroundColor:'#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 }
+        { label: 'Historical Daily Sales', data: actualPaddedFinal, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.08)', fill: true, tension: 0.4, pointRadius: 6, pointBackgroundColor: '#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 },
+        { label: 'AI-Driven Forecast', data: forecastPaddedFinal, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.04)', fill: false, borderDash:[7,4], tension: 0.4, pointRadius: 6, pointBackgroundColor:'#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 }
       ] },
       options: {
         responsive: true,

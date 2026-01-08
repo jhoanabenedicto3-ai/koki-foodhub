@@ -361,13 +361,26 @@ async function refreshAndRender(){
     console.log('[Forecast Chart] Historical count:', data.labels.length);
     console.log('[Forecast Chart] Forecast count:', (data.forecast || []).length);
     
-    // If forecast is empty, generate test data to verify chart can render it
+    // If the API returned an empty forecast array, create a reasonable client-side fallback
     if (!data.forecast || data.forecast.length === 0) {
-      console.error('[Forecast Chart] ⚠️ FORECAST ARRAY IS EMPTY! Injecting test data...');
-      const testForecast = Array.from({length: 30}, (_, i) => Math.round(100 + i * 5));
-      console.error('[Forecast Chart] Generated test forecast:', testForecast.slice(0, 10));
-      data.forecast = testForecast;
-      console.error('[Forecast Chart] Data.forecast is now:', data.forecast.length, 'points');
+      console.warn('[Forecast Chart] Forecast is empty — generating fallback based on recent trend');
+      const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-7);
+      const fallbackHorizon = (document.getElementById('rangeSelect')?.value === 'Last 7 Days') ? 5 : 7;
+      function simpleForecastFromRecent(recentArr, h) {
+        if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
+        const n = recentArr.length;
+        const last = recentArr[n-1] || 0;
+        const prev = recentArr[n-2] || last;
+        const prev2 = recentArr[n-3] || prev;
+        const slope = ((last - prev) + (prev - prev2)) / Math.max(1,2);
+        const base = recentArr.reduce((a,b)=>a+b,0)/n;
+        const res = [];
+        for (let i=1;i<=h;i++){ res.push(Math.max(0, Math.round(base + slope * i))); }
+        return res;
+      }
+      data.forecast = simpleForecastFromRecent(recent, fallbackHorizon);
+      console.warn('[Forecast Chart] Fallback forecast:', data.forecast);
+      const statusEl = document.getElementById('forecastStatus'); if(statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
     } else {
       console.log('[Forecast Chart] ✓ Forecast data present, count:', data.forecast.length);
     }
