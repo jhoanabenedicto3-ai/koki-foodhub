@@ -627,6 +627,35 @@ def _forecast_view_impl(request, logger, json):
             accuracy = 'High' if confidence >= 70 else 'Medium' if confidence >= 40 else 'Low'
             return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
         def aggregate_sales(period='daily', lookback=90):
+            # Fallback: aggregate sales directly from database
+            from datetime import date, timedelta
+            from django.db.models import Sum
+            
+            end = date.today()
+            start = end - timedelta(days=lookback - 1)
+            
+            if period == 'daily':
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue')).order_by('date')
+                return [(r['date'].isoformat(), int(r['total'] or 0)) for r in qs]
+            elif period == 'weekly':
+                # Group by week
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue'))
+                weekly = {}
+                for r in qs:
+                    d = r['date']
+                    week_start = d - timedelta(days=d.weekday())
+                    week_key = week_start.isoformat()
+                    weekly[week_key] = weekly.get(week_key, 0) + int(r['total'] or 0)
+                return [(k, v) for k, v in sorted(weekly.items())]
+            elif period == 'monthly':
+                # Group by month
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue'))
+                monthly = {}
+                for r in qs:
+                    d = r['date']
+                    month_key = d.strftime('%Y-%m')
+                    monthly[month_key] = monthly.get(month_key, 0) + int(r['total'] or 0)
+                return [(k, v) for k, v in sorted(monthly.items())]
             return []
 
     # Initialize safe defaults for all variables
