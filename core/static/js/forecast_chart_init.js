@@ -9,13 +9,18 @@ function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
     
     const daysFromToday = Math.round((today - date) / (1000 * 60 * 60 * 24));
     
-    // Show "Today" at the separator, otherwise show absolute calendar dates
+    // Always show "Today" for today's date
     if (daysFromToday === 0) {
       return 'Today';
     }
     
-    // Show absolute calendar dates (e.g., "Oct 01", "Nov 05")
-    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+    // Always show absolute calendar dates (e.g., "Jan 01", "Jan 02", "Nov 05")
+    // This applies to both historical and forecast data
+    const formatted = date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: '2-digit' 
+    });
+    return formatted;
     
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
