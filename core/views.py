@@ -958,7 +958,8 @@ def _forecast_view_impl(request, logger, json):
     w_first, w_last = first_last(weekly_series)
     m_first, m_last = first_last(monthly_series)
 
-    # Initialize forecast objects with defaults - these will be populated below after forecast_time_series
+    # Initialize forecast objects with defaults - will be populated by forecast_time_series below
+    # These defaults ensure variables are always defined before being used in context
     daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
     weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
     monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
@@ -971,32 +972,33 @@ def _forecast_view_impl(request, logger, json):
         except Exception:
             return '0.0%'
 
-    context = {
-        "data": data,
-        "total_forecast": next_week_forecast,
-        "avg_confidence": avg_confidence,
-        "peak_day": peak_day,
-        "peak_orders": peak_orders,
-        "growth_percentage": growth_percentage,
-        # Use revenue (currency) values for the hero tiles so they're consistent
-        # with other parts of the app that display monetary totals.
-        # Use revenue (currency) values for the hero tiles so they're consistent
-        # with other parts of the app that display monetary totals.
-        "today_sales": today_revenue,
-        "this_week_sales": this_week_revenue,
-        "this_month_sales": this_month_revenue,
-        # Growth percentages for hero badges
-        "today_growth_pct": today_growth_pct,
-        "week_growth_pct": week_growth_pct,
-        "month_growth_pct": month_growth_pct,
-        "today_growth_pct_display": fmt_pct(today_growth_pct),
-        "week_growth_pct_display": fmt_pct(week_growth_pct),
-        "month_growth_pct_display": fmt_pct(month_growth_pct),
-        "today_growth_positive": (today_growth_pct > 0),
-        "week_growth_positive": (week_growth_pct > 0),
-        "month_growth_positive": (month_growth_pct > 0),
-        # Unit counts to be shown alongside revenue in the hero tiles
-        "today_units": today_units,
+    try:
+        context = {
+            "data": data,
+            "total_forecast": next_week_forecast,
+            "avg_confidence": avg_confidence,
+            "peak_day": peak_day,
+            "peak_orders": peak_orders,
+            "growth_percentage": growth_percentage,
+            # Use revenue (currency) values for the hero tiles so they're consistent
+            # with other parts of the app that display monetary totals.
+            # Use revenue (currency) values for the hero tiles so they're consistent
+            # with other parts of the app that display monetary totals.
+            "today_sales": today_revenue,
+            "this_week_sales": this_week_revenue,
+            "this_month_sales": this_month_revenue,
+            # Growth percentages for hero badges
+            "today_growth_pct": today_growth_pct,
+            "week_growth_pct": week_growth_pct,
+            "month_growth_pct": month_growth_pct,
+            "today_growth_pct_display": fmt_pct(today_growth_pct),
+            "week_growth_pct_display": fmt_pct(week_growth_pct),
+            "month_growth_pct_display": fmt_pct(month_growth_pct),
+            "today_growth_positive": (today_growth_pct > 0),
+            "week_growth_positive": (week_growth_pct > 0),
+            "month_growth_positive": (month_growth_pct > 0),
+            # Unit counts to be shown alongside revenue in the hero tiles
+            "today_units": today_units,
         "this_week_units": this_week_units,
         "this_month_units": this_month_units,
         "today_forecast_preview": today_forecast,
@@ -1077,6 +1079,26 @@ def _forecast_view_impl(request, logger, json):
             'actual': [v for _, v in monthly_series]
         })
     }
+    except Exception as ctx_err:
+        logger = logging.getLogger(__name__)
+        logger.exception('Error building context dict: %s', str(ctx_err))
+        # Return minimal context if building full context failed
+        context = {
+            "data": [],
+            "error_message": "Unable to build forecast context. Check logs for details.",
+            "total_forecast": 0,
+            "avg_confidence": 0,
+            "peak_day": "",
+            "peak_orders": 0,
+            "growth_percentage": 0,
+            "today_sales": 0,
+            "this_week_sales": 0,
+            "this_month_sales": 0,
+            "daily_json": "{}",
+            "weekly_json": "{}",
+            "monthly_json": "{}",
+            "yearly_revenue_json": "{}"
+        }
 
     # Allow enabling a server-side debug dump via ?debug=1 on the view (temporary troubleshooting)
     try:
