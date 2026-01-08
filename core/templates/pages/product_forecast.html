@@ -423,16 +423,24 @@
           if(minPriceVal) params.set('min_price', minPriceVal);
           if(maxPriceVal) params.set('max_price', maxPriceVal);
 
+          console.log('[Product Performance] Fetching with params:', params.toString());
           const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
-          if(!res.ok){ console.warn('[Product Forecast] API response not ok for fetchData', res.status); const txt = await res.text(); console.warn('[Product Forecast] Response text (start):', txt.slice(0,500)); return; }
+          console.log('[Product Performance] API response status:', res.status);
+          if(!res.ok){ console.warn('[Product Performance] API response not ok for fetchData', res.status); const txt = await res.text(); console.warn('[Product Performance] Response text (start):', txt.slice(0,500)); return; }
           const json = await res.json();
-          if(json && json.error){ console.warn('[Product Forecast] API returned error for fetchData', json); return; }
+          console.log('[Product Performance] API returned json keys:', Object.keys(json), 'top count:', (json.top || []).length);
+          if(json && json.error){ console.warn('[Product Performance] API returned error for fetchData', json); return; }
           const top = json.top || [];
+          console.log('[Product Performance] Rendering table with', top.length, 'products');
           renderSummary(json.summary || {}, json.best || null);
           renderBarChart('topProductsBar', top.slice(0,10));
           renderTable(top);
-        }catch(e){ console.warn('Failed to fetch product forecasts', e); }
+        }catch(e){ console.warn('[Product Performance] Failed to fetch product forecasts', e); }
       }
+
+      // Initial load: fetch data when page is ready
+      window.addEventListener('DOMContentLoaded', function(){ setTimeout(fetchData, 100); });
+      window.addEventListener('load', function(){ setTimeout(fetchData, 200); });
 
       async function fetchProductDetail(pid){
         try{
