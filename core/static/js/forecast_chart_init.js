@@ -9,34 +9,13 @@ function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
     
     const daysFromToday = Math.round((today - date) / (1000 * 60 * 60 * 24));
     
-    // For historical data, show relative dates from the start or absolute dates
-    if (isHistorical) {
-      if (daysFromToday === 0) {
-        return 'Today';
-      } else if (daysFromToday === 1) {
-        return 'Yesterday';
-      } else if (daysFromToday > 1) {
-        return `${daysFromToday} days ago`;
-      } else if (daysFromToday < 0) {
-        // For dates in the future but still in historical (edge case)
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      }
+    // Show "Today" at the separator, otherwise show absolute calendar dates
+    if (daysFromToday === 0) {
+      return 'Today';
     }
     
-    // For forecast data, show relative future dates
-    if (!isHistorical) {
-      if (daysFromToday === 0) {
-        return 'Today';
-      } else if (daysFromToday === -1) {
-        return 'Tomorrow';
-      } else if (daysFromToday < -1) {
-        const daysAhead = Math.abs(daysFromToday);
-        return `+${daysAhead} days`;
-      }
-    }
-    
-    // Fallback: show month-day (e.g., "Jan 1")
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Show absolute calendar dates (e.g., "Oct 01", "Nov 05")
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
     
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
@@ -173,30 +152,30 @@ function renderChart(data){
       labels: formattedLabels, 
       datasets: [
         { 
-          label: 'Historical Data', 
+          label: 'Historical', 
           data: actualPadded, 
-          borderColor: '#FF6B35', 
-          backgroundColor: 'rgba(255, 107, 53, 0.08)', 
+          borderColor: '#000000', 
+          backgroundColor: 'rgba(0, 0, 0, 0.05)', 
           fill: true, 
           tension: 0.36, 
           pointRadius: 5, 
-          pointBackgroundColor: '#FF6B35',
-          pointBorderColor: '#FF6B35',
+          pointBackgroundColor: '#000000',
+          pointBorderColor: '#000000',
           pointBorderWidth: 2,
           borderWidth: 2.5,
           spanGaps: false
         },
         { 
-          label: 'Forecast Projection', 
+          label: 'Projected', 
           data: forecastPadded, 
-          borderColor: '#FCA5A5', 
-          backgroundColor: 'rgba(252, 165, 165, 0.05)', 
+          borderColor: '#10b981', 
+          backgroundColor: 'rgba(16, 185, 129, 0.04)', 
           fill: false, 
           borderDash: [6, 4], 
           tension: 0.3, 
           pointRadius: 5, 
-          pointBackgroundColor: '#FCA5A5',
-          pointBorderColor: '#FCA5A5',
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#10b981',
           pointBorderWidth: 2,
           borderWidth: 2.5,
           spanGaps: false,
