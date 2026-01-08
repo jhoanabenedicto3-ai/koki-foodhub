@@ -1652,10 +1652,12 @@ def product_forecast_api(request):
                 h_key = f'h_{horizon}'
                 hinfo = summ['horizons'].get(h_key, {'forecast': 0, 'confidence': 0})
                 forecast_h = int(hinfo.get('forecast', 0))
-                last_7 = int(summ.get('last_7_days', 0))
-                # past 30 days
+                
+                # Get past 7 and 30 days from the series returned by product_forecast_summary
                 vals = [v for _, v in summ.get('series', [])]
-                past_30 = int(sum(vals[-30:])) if vals else 0
+                last_7 = int(sum(vals[-7:])) if len(vals) >= 7 else int(sum(vals)) if vals else 0
+                past_30 = int(sum(vals[-30:])) if len(vals) >= 30 else int(sum(vals)) if vals else 0
+                
                 # growth: compare forecast for horizon to last_7 (if horizon==7) or past_30 if horizon==30
                 if horizon == 7:
                     denom = last_7 if last_7 > 0 else None
@@ -1667,7 +1669,6 @@ def product_forecast_api(request):
                     growth = round((forecast_h - denom) / float(denom) * 100.0, 1)
                 else:
                     growth = 0.0
-
                 price = float(p.price) if p.price is not None else 0.0
                 projected_revenue = round(forecast_h * price, 2)
 
