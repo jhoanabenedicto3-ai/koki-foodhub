@@ -159,13 +159,13 @@ function renderChart(data){
         { 
           label: 'Historical Daily Sales', 
           data: actualPadded, 
-          borderColor: '#FF8C42', 
-          backgroundColor: 'rgba(255, 140, 66, 0.08)', 
+          borderColor: '#FF8C42',
+          backgroundColor: 'rgba(255, 140, 66, 0.12)', 
           fill: true, 
           tension: 0.4, 
           pointRadius: 6, 
           pointBackgroundColor: '#FF8C42',
-          pointBorderColor: '#FF8C42',
+          pointBorderColor: '#FFFFFF',
           pointBorderWidth: 2,
           borderWidth: 3,
           spanGaps: false
@@ -173,14 +173,14 @@ function renderChart(data){
         { 
           label: 'AI-Driven Forecast', 
           data: forecastPadded, 
-          borderColor: '#FF8C42', 
+          borderColor: '#FF8C42',
           backgroundColor: 'rgba(255, 140, 66, 0.04)', 
           fill: false, 
           borderDash: [7, 5], 
           tension: 0.4, 
           pointRadius: 6, 
           pointBackgroundColor: '#FF8C42',
-          pointBorderColor: '#FF8C42',
+          pointBorderColor: '#FFFFFF',
           pointBorderWidth: 2,
           borderWidth: 3,
           spanGaps: false,
@@ -197,12 +197,13 @@ function renderChart(data){
           position: 'top',
           labels: {
             usePointStyle: true,
-            padding: 16,
+            padding: 20,
             font: {
               size: 14,
-              weight: '500'
+              weight: '600'
             },
-            color: '#374151'
+            color: '#374151',
+            boxPadding: 8
           },
           onClick: null
         },
@@ -210,7 +211,7 @@ function renderChart(data){
         tooltip: { 
           mode: 'index',
           intersect: false,
-          backgroundColor: 'rgba(31, 41, 55, 0.9)',
+          backgroundColor: 'rgba(31, 41, 55, 0.95)',
           padding: 12,
           titleFont: { size: 13, weight: 'bold' },
           bodyFont: { size: 13 },
