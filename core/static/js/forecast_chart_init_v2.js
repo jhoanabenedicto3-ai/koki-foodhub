@@ -385,8 +385,24 @@
       console.log('[Forecast Chart] Fetching from URL:', url.toString());
       
       const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
-      if(!res.ok) throw new Error('Network response not ok: ' + res.status);
-      const json = await res.json();
+      if(!res.ok) {
+        const txt = await res.text();
+        console.warn('[Forecast Chart] API response not ok:', res.status, res.statusText);
+        console.warn('[Forecast Chart] Response body (start):', txt.slice(0,800));
+        try{ const s = document.getElementById('forecastStatus'); if(s){ s.innerText = 'Forecast API error: ' + res.status; s.style.display = 'block'; } }catch(e){}
+        return { series: {labels:[], actual:[], forecast:[], upper:[], lower:[]}, raw: {error:'api_response_not_ok', status: res.status, body: txt.slice(0,800)} };
+      }
+
+      let json = null;
+      try {
+        json = await res.json();
+      } catch(parseErr){
+        const textBody = await res.text();
+        console.warn('[Forecast Chart] Failed to parse API JSON; response text start:', textBody.slice(0,800));
+        try{ const s = document.getElementById('forecastStatus'); if(s){ s.innerText = 'Forecast API returned non-JSON response'; s.style.display = 'block'; } }catch(e){}
+        return { series: {labels:[], actual:[], forecast:[], upper:[], lower:[]}, raw: {error:'invalid_json', body: textBody.slice(0,800)} };
+      }
+
       try { window._lastForecastPayload = json; } catch(e){}
 
       console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
