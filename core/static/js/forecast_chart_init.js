@@ -69,15 +69,19 @@ function buildForecastLabels(existingLabels, forecastLen){
 let salesChart = null;
 
 function renderChart(data){
+  console.log('[Forecast Chart] ===== RENDERchart START =====');
   console.log('[Forecast Chart] Rendering chart with data:', data);
   
   const labels = (data.labels || []).slice();
   const actualData = (data.actual || []).slice();
   const forecastData = (data.forecast || []).slice();
   
+  console.log('[Forecast Chart] ===== DATA ARRAYS =====');
   console.log('[Forecast Chart] Historical dates count:', labels.length);
   console.log('[Forecast Chart] Historical actual data count:', actualData.length);
   console.log('[Forecast Chart] Forecast data count:', forecastData.length);
+  console.log('[Forecast Chart] Actual data:', actualData);
+  console.log('[Forecast Chart] Forecast data:', forecastData);
   console.log('[Forecast Chart] First few forecast values:', forecastData.slice(0, 5));
   
   // Generate forecast labels from the last historical date
@@ -181,7 +185,8 @@ function renderChart(data){
           tension: 0.3, 
           pointRadius: 4, 
           borderWidth: 2,
-          spanGaps: false
+          spanGaps: false,
+          hidden: false  // Ensure it's not hidden
         }
       ] 
     },
@@ -189,7 +194,10 @@ function renderChart(data){
       responsive: true,
       maintainAspectRatio: false,
       plugins: { 
-        legend: { display: true },
+        legend: { 
+          display: true,
+          onClick: null  // Don't allow toggling visibility
+        },
         separatorLine: true,
         tooltip: { 
           mode: 'index',
@@ -227,7 +235,17 @@ function renderChart(data){
     plugins: [separatorPlugin]
   });
   
-  console.log('[Forecast Chart] Chart rendered successfully with', forecastPadded.filter(v => v !== null).length, 'forecast points');
+  console.log('[Forecast Chart] ===== CHART CREATED =====');
+  console.log('[Forecast Chart] Chart instance created:', !!salesChart);
+  console.log('[Forecast Chart] Chart datasets count:', salesChart.data.datasets.length);
+  console.log('[Forecast Chart] Dataset 0 (Historical) data count:', salesChart.data.datasets[0].data.length);
+  console.log('[Forecast Chart] Dataset 0 (Historical) data:', salesChart.data.datasets[0].data.slice(0, 5));
+  console.log('[Forecast Chart] Dataset 1 (Forecast) data count:', salesChart.data.datasets[1].data.length);
+  console.log('[Forecast Chart] Dataset 1 (Forecast) data:', salesChart.data.datasets[1].data.slice(0, 5));
+  console.log('[Forecast Chart] Dataset 1 hidden?', salesChart.data.datasets[1].hidden);
+  console.log('[Forecast Chart] Dataset 1 borderColor:', salesChart.data.datasets[1].borderColor);
+  console.log('[Forecast Chart] Forecast points count:', forecastPadded.filter(v => v !== null).length);
+  console.log('[Forecast Chart] ===== renderChart COMPLETE =====');
 }
 
 async function fetchSeries(){
@@ -287,7 +305,7 @@ async function fetchSeries(){
 }
 
 async function refreshAndRender(){
-  console.log('[Forecast Chart] refreshAndRender called');
+  console.log('[Forecast Chart] ===== refreshAndRender START =====');
   try {
     const data = await fetchSeries();
     console.log('[Forecast Chart] Data fetched:', data);
@@ -302,15 +320,21 @@ async function refreshAndRender(){
     
     // If forecast is empty, generate test data to verify chart can render it
     if (!data.forecast || data.forecast.length === 0) {
-      console.warn('[Forecast Chart] Forecast array is empty! Generating test data to verify chart rendering...');
+      console.error('[Forecast Chart] ⚠️ FORECAST ARRAY IS EMPTY! Injecting test data...');
       const testForecast = Array.from({length: 30}, (_, i) => Math.round(100 + i * 5));
-      console.log('[Forecast Chart] Generated test forecast:', testForecast.slice(0, 5));
+      console.error('[Forecast Chart] Generated test forecast:', testForecast.slice(0, 10));
       data.forecast = testForecast;
+      console.error('[Forecast Chart] Data.forecast is now:', data.forecast.length, 'points');
+    } else {
+      console.log('[Forecast Chart] ✓ Forecast data present, count:', data.forecast.length);
     }
     
+    console.log('[Forecast Chart] About to call renderChart...');
     renderChart(data);
+    console.log('[Forecast Chart] ===== refreshAndRender COMPLETE =====');
   } catch (e) {
-    console.error('[Forecast Chart] Error in refreshAndRender:', e);
+    console.error('[Forecast Chart] ⚠️ CRITICAL ERROR in refreshAndRender:', e);
+    console.error('[Forecast Chart] Error stack:', e.stack);
   }
 }
 
