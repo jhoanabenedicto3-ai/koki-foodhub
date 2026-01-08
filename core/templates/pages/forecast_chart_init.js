@@ -4,7 +4,31 @@
 
   async function fetchSeries(){
     try{
-      const url = '{% url "forecast_api" %}';
+      const url = new URL('{% url "forecast_api" %}', window.location.origin);
+      
+      // Get range selection
+      const rangeSelect = document.getElementById('rangeSelect');
+      const range = rangeSelect ? rangeSelect.value : 'Last 30 Days';
+      
+      // Calculate date range based on selection
+      const today = new Date();
+      let startDate = new Date(today);
+      let endDate = new Date(today);
+      
+      if (range === 'Last 7 Days') {
+        startDate.setDate(today.getDate() - 7);
+      } else if (range === 'Last 30 Days') {
+        startDate.setDate(today.getDate() - 30);
+      } else if (range === 'Last 90 Days') {
+        startDate.setDate(today.getDate() - 90);
+      }
+      
+      // Format dates as YYYY-MM-DD
+      const formatDate = (date) => date.toISOString().slice(0, 10);
+      
+      url.searchParams.append('start', formatDate(startDate));
+      url.searchParams.append('end', formatDate(endDate));
+      
       const res = await fetch(url, { credentials: 'same-origin' });
       if(!res.ok) throw new Error('Network response not ok: ' + res.status);
       const json = await res.json();
@@ -15,12 +39,42 @@
   function buildForecastLabels(existingLabels, forecastLen){
     if(!forecastLen || forecastLen <= 0) return [];
     if(!existingLabels || existingLabels.length === 0) return Array.from({length: forecastLen}, (_, i) => 'F+' + (i+1));
+    
     const lastLabel = existingLabels[existingLabels.length - 1];
+    let period = 'daily'; // default to daily
+    
+    // Detect period type by analyzing existing labels
+    if (existingLabels.length >= 2) {
+      const secondLastLabel = existingLabels[existingLabels.length - 2];
+      try {
+        const last = new Date(lastLabel);
+        const secondLast = new Date(secondLastLabel);
+        const dayDiff = Math.round((last - secondLast) / (1000 * 60 * 60 * 24));
+        
+        if (dayDiff >= 28) {
+          period = 'monthly';
+        } else if (dayDiff >= 6) {
+          period = 'weekly';
+        }
+      } catch (e) {
+        // Fall back to daily if date parsing fails
+      }
+    }
+    
     try{
       const base = new Date(lastLabel);
       return Array.from({length: forecastLen}, (_, i) => {
         const d = new Date(base);
-        d.setDate(base.getDate() + (i+1));
+        if (period === 'monthly') {
+          // Increment by month
+          d.setMonth(base.getMonth() + (i+1));
+        } else if (period === 'weekly') {
+          // Increment by week (7 days)
+          d.setDate(base.getDate() + (i+1) * 7);
+        } else {
+          // Increment by day
+          d.setDate(base.getDate() + (i+1));
+        }
         return d.toISOString().slice(0,10);
       });
     }catch(e){ return Array.from({length: forecastLen}, (_, i) => 'F+' + (i+1)); }
