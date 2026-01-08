@@ -152,34 +152,34 @@ function renderChart(data){
       labels: formattedLabels, 
       datasets: [
         { 
-          label: 'Historical', 
+          label: 'Historical Daily Sales', 
           data: actualPadded, 
-          borderColor: '#000000', 
-          backgroundColor: 'rgba(0, 0, 0, 0.05)', 
+          borderColor: '#FF8C42', 
+          backgroundColor: 'rgba(255, 140, 66, 0.08)', 
           fill: true, 
-          tension: 0.36, 
-          pointRadius: 5, 
-          pointBackgroundColor: '#000000',
-          pointBorderColor: '#000000',
+          tension: 0.4, 
+          pointRadius: 6, 
+          pointBackgroundColor: '#FF8C42',
+          pointBorderColor: '#FF8C42',
           pointBorderWidth: 2,
-          borderWidth: 2.5,
+          borderWidth: 3,
           spanGaps: false
         },
         { 
-          label: 'Projected', 
+          label: 'AI-Driven Forecast', 
           data: forecastPadded, 
-          borderColor: '#10b981', 
-          backgroundColor: 'rgba(16, 185, 129, 0.04)', 
+          borderColor: '#FF8C42', 
+          backgroundColor: 'rgba(255, 140, 66, 0.04)', 
           fill: false, 
-          borderDash: [6, 4], 
-          tension: 0.3, 
-          pointRadius: 5, 
-          pointBackgroundColor: '#10b981',
-          pointBorderColor: '#10b981',
+          borderDash: [7, 5], 
+          tension: 0.4, 
+          pointRadius: 6, 
+          pointBackgroundColor: '#FF8C42',
+          pointBorderColor: '#FF8C42',
           pointBorderWidth: 2,
-          borderWidth: 2.5,
+          borderWidth: 3,
           spanGaps: false,
-          hidden: false  // Ensure it's not hidden
+          hidden: false
         }
       ] 
     },
@@ -189,12 +189,28 @@ function renderChart(data){
       plugins: { 
         legend: { 
           display: true,
-          onClick: null  // Don't allow toggling visibility
+          position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 16,
+            font: {
+              size: 14,
+              weight: '500'
+            },
+            color: '#374151'
+          },
+          onClick: null
         },
         separatorLine: true,
         tooltip: { 
           mode: 'index',
           intersect: false,
+          backgroundColor: 'rgba(31, 41, 55, 0.9)',
+          padding: 12,
+          titleFont: { size: 13, weight: 'bold' },
+          bodyFont: { size: 13 },
+          borderRadius: 8,
+          displayColors: true,
           callbacks: { 
             title: function(ctx) {
               if (ctx.length > 0) {
@@ -204,25 +220,53 @@ function renderChart(data){
             },
             label: function(ctx){ 
               if (ctx.raw === null) {
-                return ctx.dataset.label + ': (no data)';
+                return ctx.dataset.label + ': —';
               }
-              const symbol = window.currencySymbol || '';
-              const value = Number(ctx.raw).toLocaleString();
-              return ctx.dataset.label + ': ' + symbol + value; 
+              const value = Number(ctx.raw).toLocaleString('en-PH', {
+                style: 'currency',
+                currency: 'PHP',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+              });
+              return ctx.dataset.label + ': ' + value; 
             } 
           } 
         } 
       },
       scales: { 
         y: { 
-          beginAtZero: true, 
+          beginAtZero: true,
           ticks: { 
             callback: function(v){ 
-              const symbol = window.currencySymbol || '';
-              return symbol + Number(v).toLocaleString(); 
-            } 
-          } 
-        } 
+              return '₱' + Number(v).toLocaleString('en-PH', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+              });
+            },
+            font: {
+              size: 12
+            },
+            color: '#9CA3AF',
+            padding: 8
+          },
+          grid: {
+            color: 'rgba(229, 231, 235, 0.5)',
+            drawBorder: false
+          }
+        },
+        x: {
+          ticks: {
+            font: {
+              size: 12
+            },
+            color: '#9CA3AF',
+            padding: 8
+          },
+          grid: {
+            display: false,
+            drawBorder: false
+          }
+        }
       }
     },
     plugins: [separatorPlugin]

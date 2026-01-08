@@ -101,12 +101,12 @@
     </div>
 
     <div class="card chart-card" style="grid-column: 1 / -1;">
-      <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 800; color: var(--fg);">Revenue Trend</h2>
-      <div class="chart-subtitle" style="margin-bottom:12px; color:var(--text-secondary); font-size:13px;">Historical Data &nbsp;&middot;&nbsp; Forecast Projection</div>
+      <h2 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: var(--fg);">Sales Trend</h2>
+      <div class="chart-subtitle" style="margin-bottom:16px; color:var(--text-secondary); font-size:13px;">Historical daily sales vs. AI-driven projection</div>
       <div style="position: relative; margin-bottom: 12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
           <div style="display:flex; gap:12px; align-items:center;">
-            <div style="display:flex; align-items:center; gap:8px;"><strong style="font-size:15px; font-weight:700;">Revenue Trend</strong></div>
+            <div style="display:flex; align-items:center; gap:8px;"></div>
             <span id="forecastStatus" class="muted small-text" style="margin-left:8px;"></span>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
@@ -117,13 +117,9 @@
             </select>
           </div>
         </div>
-        <div class="legend-row" style="display:flex; gap:16px; align-items:center; margin-bottom:12px;">
-          <div class="legend-item"><div class="legend-swatch actual"></div><span class="muted">Historical Data</span></div>
-          <div class="legend-item"><div class="legend-swatch predicted"></div><span class="muted">Forecast Projection</span></div>
-        </div>
         <div style="margin-top:8px;">
           <div class="chart-area">
-            <canvas id="salesChart" role="img" aria-label="Revenue Trend chart" style="width:100%; height:100%;"></canvas>
+            <canvas id="salesChart" role="img" aria-label="Sales Trend chart" style="width:100%; height:100%;"></canvas>
           </div>
         </div>"
       </div>
@@ -244,8 +240,8 @@
       .card.chart-card #rangeSelect { border-radius:10px; padding:8px 12px; border:1px solid rgba(15,23,36,0.06); background:#fff; box-shadow:none; min-width:140px; }
       .legend-row{ gap:12px; align-items:center; }
       .legend-swatch{ width:12px; height:12px; border-radius:12px; box-shadow:none; }
-      .legend-swatch.actual{ background:#000000; }
-      .legend-swatch.predicted{ background:#10b981; }
+      .legend-swatch.actual{ background:#FF8C42; }
+      .legend-swatch.predicted{ background:#FF8C42; }
       .legend-item span.muted{ font-size:13px; color:#6b7280; }
       .card.chart-card #rangeSelect { border-radius:10px; padding:8px 12px; border:1px solid rgba(15,23,36,0.06); background:#fff; box-shadow:0 6px 18px rgba(16,24,40,0.03); min-width:140px; }
 
