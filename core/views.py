@@ -687,6 +687,13 @@ def _forecast_view_impl(request, logger, json):
         weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
         monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
 
+        # If any of the forecasts used a fallback (e.g., sklearn unavailable), log a warning so we can monitor frequency
+        try:
+            if daily_fore.get('fallback') or weekly_fore.get('fallback') or monthly_fore.get('fallback'):
+                logger.warning('Forecasts used fallback: daily=%s weekly=%s monthly=%s', daily_fore.get('fallback_reason'), weekly_fore.get('fallback_reason'), monthly_fore.get('fallback_reason'))
+        except Exception:
+            pass
+
         series_error = None
     except Exception as series_exc:
         logger.exception('Error generating time series or forecasts: %s', str(series_exc))
@@ -799,10 +806,25 @@ def _forecast_view_impl(request, logger, json):
     week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
     month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
 
+    # Yearly forecast: sum of next 12 months predicted by running forecast_time_series on monthly series
+    try:
+        year_fore = forecast_time_series(monthly_series, horizon=12)
+        year_forecast_total = int(sum(year_fore.get('forecast', []) or []))
+        year_fore_upper = year_fore.get('upper', []) or []
+        year_fore_lower = year_fore.get('lower', []) or []
+        year_confidence = int(round(year_fore.get('confidence', 0) or 0))
+    except Exception:
+        year_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        year_forecast_total = 0
+        year_fore_upper = []
+        year_fore_lower = []
+        year_confidence = 0
+
     # These forecasts are already in revenue form, so use them directly without multiplying by avg_unit_price
     today_forecast_revenue = today_forecast
     week_forecast_revenue = week_forecast
     month_forecast_revenue = month_forecast
+    year_forecast_revenue = year_forecast_total
 
     # Confidence margins helper function - define before use
     def confidence_margin_currency(fore_payload, idx=0):
@@ -821,10 +843,30 @@ def _forecast_view_impl(request, logger, json):
     week_conf_margin = confidence_margin_currency(weekly_fore, 0)
     month_conf_margin = confidence_margin_currency(monthly_fore, 0)
 
+    # Year confidence margin & percent (approximate by summing monthly margins)
+    try:
+        year_conf_margin = max(0.0, sum(((u - l) / 2.0) for u, l in zip(year_fore_upper, year_fore_lower)))
+    except Exception:
+        year_conf_margin = 0.0
+
     # Confidence percentages (normalize 0-100)
     today_conf_pct = int(round(daily_fore.get('confidence', 0) or 0))
     week_conf_pct = int(round(weekly_fore.get('confidence', 0) or 0))
     month_conf_pct = int(round(monthly_fore.get('confidence', 0) or 0))
+    year_conf_pct = int(round(year_confidence or 0))
+
+    # Compute previous-year revenue (sum of last 12 months actuals) and year growth
+    try:
+        prev_year_revenue = int(sum(v for _, v in (monthly_series[-12:] or []))) if monthly_series else 0
+    except Exception:
+        prev_year_revenue = 0
+    year_growth_pct = compute_growth(year_forecast_revenue, prev_year_revenue)
+
+    # Next year label (year number)
+    try:
+        next_year_label = str(today.year + 1)
+    except Exception:
+        next_year_label = 'Next Year' 
 
     # Compute previous-period revenues to show growth/decline badges on hero cards
     try:
@@ -969,9 +1011,17 @@ def _forecast_view_impl(request, logger, json):
         "tomorrow_label": tomorrow_label,
         "next_week_label": next_week_label,
         "next_month_label": next_month_label,
+        "next_year_label": next_year_label,
         "today_sales_display": fmt_currency(today_revenue),
         "this_week_sales_display": fmt_currency(this_week_revenue),
         "this_month_sales_display": fmt_currency(this_month_revenue),
+        "year_forecast_revenue": year_forecast_revenue,
+        "year_forecast_revenue_display": fmt_currency(year_forecast_revenue),
+        "year_confidence_pct": year_conf_pct,
+        "year_confidence_margin_display": fmt_currency(year_conf_margin),
+        "year_growth_pct": year_growth_pct,
+        "year_growth_pct_display": fmt_pct(year_growth_pct),
+        "year_growth_positive": (year_growth_pct > 0),
         "currency": "₱",
         # Period summaries for server-side fallbacks in template
         "daily_summary": daily_summary,
@@ -1006,6 +1056,7 @@ def _forecast_view_impl(request, logger, json):
             'lower': monthly_fore.get('lower', []),
             'confidence': monthly_fore.get('confidence', 0)
         }),
+        "yearly_revenue_json": json.dumps(payload.get('yearly_revenue', {})),
         # Server-side revenue JSON for template quick access (values are already in REVENUE form)
         "daily_revenue_json": json.dumps({
             'labels': [d for d, _ in daily_series],
@@ -1051,7 +1102,7 @@ def _forecast_view_impl(request, logger, json):
         if (not daily_series) and (not weekly_series) and (not monthly_series):
             context['error_message'] = 'No historical sales data available to generate forecasts.'
 
-    # Populate the server-side daily revenue actuals for the template (best-effort direct DB aggregation)
+    # Populate the server-side daily revenue actuals and forecasts for the template (best-effort direct DB aggregation)
     try:
         from datetime import date as date_class
         daily_labels = [d for d, _ in daily_series]
@@ -1071,11 +1122,27 @@ def _forecast_view_impl(request, logger, json):
             if daily_dates:
                 q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
                 rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
-                context['daily_revenue_json'] = json.dumps({ 'labels': daily_labels, 'actual': [rev_map.get(d, 0) for d in daily_labels] })
+                # Include forecast data from the API payload computation (done earlier in view)
+                try:
+                    # Use the daily_fore that was computed above for the API response
+                    context['daily_revenue_json'] = json.dumps({
+                        'labels': daily_labels,
+                        'actual': [rev_map.get(d, 0) for d in daily_labels],
+                        'forecast': daily_fore.get('forecast', []),
+                        'upper': daily_fore.get('upper', []),
+                        'lower': daily_fore.get('lower', []),
+                        'confidence': daily_fore.get('confidence', 0)
+                    })
+                except NameError:
+                    # If daily_fore is not defined (shouldn't happen), fallback to just actuals
+                    context['daily_revenue_json'] = json.dumps({
+                        'labels': daily_labels,
+                        'actual': [rev_map.get(d, 0) for d in daily_labels]
+                    })
             else:
-                context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [] })
+                context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [], 'forecast': [] })
         else:
-            context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [] })
+            context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [], 'forecast': [] })
     except Exception as e:
         logger.exception('Error populating daily revenue JSON: %s', str(e))
         # fallback to using daily_json which may have used avg_unit_price
@@ -1265,6 +1332,38 @@ def forecast_data_api(request):
             'confidence': monthly_fore.get('confidence') or 0,
             'accuracy': monthly_fore.get('accuracy', '')
         }
+
+        # Server-side fallback: if model returned empty or trivial forecasts (all zeros),
+        # compute a simple fallback using recent actuals so the API always provides a usable projection.
+        def _ensure_forecast_non_empty(fore, series, horizon, label='series'):
+            try:
+                preds = fore.get('forecast') or []
+                valid = sum(1 for v in preds if v is not None and v != 0)
+                if not preds or valid == 0:
+                    vals = [v for _, v in series]
+                    recent = vals[-14:] if vals else []
+                    if not recent:
+                        preds2 = [0] * horizon
+                    else:
+                        # simple slope + mean baseline
+                        baseline = sum(recent) / len(recent)
+                        slope = (recent[-1] - recent[0]) / max(1, len(recent) - 1)
+                        preds2 = [max(0, int(round(baseline + slope * (i + 1)))) for i in range(horizon)]
+                    fore['forecast'] = preds2
+                    fore['upper'] = [int(round(p * 1.2 + 10)) for p in preds2]
+                    fore['lower'] = [max(0, int(round(p * 0.8 - 10))) for p in preds2]
+                    # mark as fallback so clients can show a notice
+                    fore['fallback'] = True
+                else:
+                    fore['fallback'] = False
+            except Exception:
+                fore['fallback'] = True
+            return fore
+
+        # Ensure we have non-empty forecasts for clients (daily:30, weekly:12, monthly:6)
+        daily_fore = _ensure_forecast_non_empty(daily_fore, daily_series, horizon=30, label='daily')
+        weekly_fore = _ensure_forecast_non_empty(weekly_fore, weekly_series, horizon=12, label='weekly')
+        monthly_fore = _ensure_forecast_non_empty(monthly_fore, monthly_series, horizon=6, label='monthly')
     except Exception as e:
         import traceback, uuid
         tb = traceback.format_exc()
@@ -1325,8 +1424,10 @@ def forecast_data_api(request):
                 'upper': daily_fore['upper'],
                 'lower': daily_fore['lower'],
                 'confidence': daily_fore['confidence'],
-                'accuracy': daily_fore.get('accuracy', '')
+                'accuracy': daily_fore.get('accuracy', ''),
+                'fallback': bool(daily_fore.get('fallback', False))
             },
+
             'weekly': {
                 'labels': [d for d, _ in weekly_series],
                 'actual': [v for _, v in weekly_series],
@@ -1334,7 +1435,8 @@ def forecast_data_api(request):
                 'upper': weekly_fore['upper'],
                 'lower': weekly_fore['lower'],
                 'confidence': weekly_fore['confidence'],
-                'accuracy': weekly_fore.get('accuracy', '')
+                'accuracy': weekly_fore.get('accuracy', ''),
+                'fallback': bool(weekly_fore.get('fallback', False))
             },
             'monthly': {
                 'labels': [d for d, _ in monthly_series],
@@ -1343,7 +1445,8 @@ def forecast_data_api(request):
                 'upper': monthly_fore['upper'],
                 'lower': monthly_fore['lower'],
                 'confidence': monthly_fore['confidence'],
-                'accuracy': monthly_fore.get('accuracy', '')
+                'accuracy': monthly_fore.get('accuracy', ''),
+                'fallback': bool(monthly_fore.get('fallback', False))
             }
         }
 
@@ -1360,7 +1463,8 @@ def forecast_data_api(request):
                 'forecast': daily_fore.get('forecast', []),
                 'upper': daily_fore.get('upper', []),
                 'lower': daily_fore.get('lower', []),
-                'confidence': daily_fore.get('confidence', 0)
+                'confidence': daily_fore.get('confidence', 0),
+                'fallback': bool(daily_fore.get('fallback', False))
             }
 
             # Weekly/monthly: values are already in revenue form
@@ -1370,7 +1474,8 @@ def forecast_data_api(request):
                 'forecast': weekly_fore.get('forecast', []),
                 'upper': weekly_fore.get('upper', []),
                 'lower': weekly_fore.get('lower', []),
-                'confidence': weekly_fore.get('confidence', 0)
+                'confidence': weekly_fore.get('confidence', 0),
+                'fallback': bool(weekly_fore.get('fallback', False))
             }
             payload['monthly_revenue'] = {
                 'labels': [d for d, _ in monthly_series],
@@ -1378,7 +1483,19 @@ def forecast_data_api(request):
                 'forecast': monthly_fore.get('forecast', []),
                 'upper': monthly_fore.get('upper', []),
                 'lower': monthly_fore.get('lower', []),
-                'confidence': monthly_fore.get('confidence', 0)
+                'confidence': monthly_fore.get('confidence', 0),
+                'fallback': bool(monthly_fore.get('fallback', False))
+            }
+
+            # Yearly: aggregated forecast across next 12 months (sum of monthly forecasts)
+            payload['yearly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': year_fore.get('forecast', []),
+                'upper': year_fore.get('upper', []),
+                'lower': year_fore.get('lower', []),
+                'confidence': year_fore.get('confidence', 0),
+                'fallback': bool(year_fore.get('fallback', False))
             }
         except Exception:
             # Best-effort: if construction fails, fall back to plain series already present

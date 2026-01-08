@@ -202,7 +202,7 @@
       document.getElementById('liveIntervalSelect')?.addEventListener('change', function(){ if(window._live.enabled){ startLive(); } });
 
       // Pause polling when tab is hidden to reduce noise
-      document.addEventListener('visibilitychange', function(){ if(document.hidden){ window._live.paused = true; } else { window._live.paused = false; if(window._live.enabled){ refreshForecast(); } } });
+      document.addEventListener('visibilitychange', function(){ if(!window._live) return; if(document.hidden){ window._live.paused = true; } else { window._live.paused = false; if(window._live.enabled){ refreshForecast(); } } });
 
       // Stop polling when unloading
       window.addEventListener('beforeunload', function(){ stopLive(); });
