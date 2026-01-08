@@ -47,7 +47,9 @@ function buildForecastLabels(existingLabels, forecastLen){
   // Always generate daily forecast dates, one day at a time
   const lastLabel = existingLabels[existingLabels.length - 1];
   try {
-    const baseDate = new Date(lastLabel);
+    // Parse YYYY-MM-DD string to avoid timezone issues
+    const parts = lastLabel.split('-');
+    const baseDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     const forecastDates = [];
     
     for (let i = 1; i <= forecastLen; i++) {
@@ -56,6 +58,7 @@ function buildForecastLabels(existingLabels, forecastLen){
       forecastDates.push(forecastDate.toISOString().slice(0, 10));
     }
     
+    console.log('[Forecast Chart] Built forecast labels from base:', lastLabel, 'count:', forecastDates.length);
     return forecastDates;
   } catch (e) {
     console.warn('Error building forecast labels:', e);
