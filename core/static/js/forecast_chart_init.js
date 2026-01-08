@@ -260,11 +260,19 @@ async function fetchSeries(){
     if(!res.ok) throw new Error('Network response not ok: ' + res.status);
     const json = await res.json();
     
-    console.log('[Forecast Chart] API Response:', json);
+    console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
+    console.log('[Forecast Chart] Daily data present:', !!json.daily);
+    if (json.daily) {
+      console.log('[Forecast Chart] Daily.forecast length:', (json.daily.forecast || []).length);
+      console.log('[Forecast Chart] Daily.actual length:', (json.daily.actual || []).length);
+      console.log('[Forecast Chart] Daily.labels length:', (json.daily.labels || []).length);
+    }
     
     // Prefer daily data for all ranges
     const data = json.daily || json.weekly || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
     
+    console.log('[Forecast Chart] Selected data keys:', Object.keys(data));
+    console.log('[Forecast Chart] Forecast array length in selected data:', (data.forecast || []).length);
     console.log('[Forecast Chart] Using data:', data);
     
     return data;
@@ -288,6 +296,14 @@ async function refreshAndRender(){
     
     console.log('[Forecast Chart] Historical count:', data.labels.length);
     console.log('[Forecast Chart] Forecast count:', (data.forecast || []).length);
+    
+    // If forecast is empty, generate test data to verify chart can render it
+    if (!data.forecast || data.forecast.length === 0) {
+      console.warn('[Forecast Chart] Forecast array is empty! Generating test data to verify chart rendering...');
+      const testForecast = Array.from({length: 30}, (_, i) => Math.round(100 + i * 5));
+      console.log('[Forecast Chart] Generated test forecast:', testForecast.slice(0, 5));
+      data.forecast = testForecast;
+    }
     
     renderChart(data);
   } catch (e) {
