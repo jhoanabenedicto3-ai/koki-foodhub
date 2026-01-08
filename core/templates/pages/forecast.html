@@ -44,11 +44,14 @@
       </div>
 
       <button class="btn" id="refreshForecastBtn" style="background:#2563eb; color:#fff; border-color:transparent;">Refresh Data</button>
+      <button class="btn btn-ghost" id="btnDiag" title="Show diagnostics" style="margin-left:8px;">Diag</button>
     </div>
+
+    <div id="forecast-debug-panel" style="display:none; position:fixed; right:20px; bottom:20px; width:420px; max-height:56vh; overflow:auto; background:#fff; border:1px solid rgba(15,23,36,0.06); box-shadow:0 10px 30px rgba(2,6,23,0.08); border-radius:12px; padding:12px; z-index:9999; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px;"> <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><strong>Forecast Debug</strong><button id="closeDebug" class="btn btn-ghost" style="padding:4px 6px;">Close</button></div><pre id="forecastDebugJson" style="white-space:pre-wrap; word-break:break-word;">No payload yet</pre></div>
   </div>
 
     <!-- Forecast hero cards (three-up layout matching mock) -->
-    <div class="forecast-hero-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch;">
+    <div class="forecast-hero-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;align-items:stretch;">
 
       <div class="forecast-hero-card" style="width:100%;">
         <div class="hero-pct"><span class="growth-badge {% if today_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ today_growth_pct_display }}</span></div>
@@ -59,10 +62,10 @@
             <div class="hero-date">{{ tomorrow_label }}</div>
           </div>
         </div>
-        <div class="hero-amount">{{ today_forecast_revenue_display }}</div>
+        <div class="hero-amount" id="hero-tomorrow-amount">{{ today_forecast_revenue_display }}</div>
         <div class="hero-row-bottom">
-          <div class="hero-sub">Confidence: <span class="conf-pill">±{{ today_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
-          <div class="hero-trend">▲ {{ today_confidence_pct }}%</div>
+          <div class="hero-sub">Confidence: <span class="conf-pill" id="hero-tomorrow-margin">±{{ today_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
+          <div class="hero-trend" id="hero-tomorrow-conf-pct">▲ {{ today_confidence_pct }}%</div>
         </div>
       </div>
 
@@ -75,10 +78,10 @@
             <div class="hero-date">{{ next_week_label }}</div>
           </div>
         </div>
-        <div class="hero-amount">{{ week_forecast_revenue_display }}</div>
+        <div class="hero-amount" id="hero-week-amount">{{ week_forecast_revenue_display }}</div>
         <div class="hero-row-bottom">
-          <div class="hero-sub">Confidence: <span class="conf-pill">±{{ week_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
-          <div class="hero-trend">▲ {{ week_confidence_pct }}%</div>
+          <div class="hero-sub">Confidence: <span class="conf-pill" id="hero-week-margin">±{{ week_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
+          <div class="hero-trend" id="hero-week-conf-pct">▲ {{ week_confidence_pct }}%</div>
         </div>
       </div>
 
@@ -91,26 +94,59 @@
             <div class="hero-date">{{ next_month_label }}</div>
           </div>
         </div>
-        <div class="hero-amount">{{ month_forecast_revenue_display }}</div>
+        <div class="hero-amount" id="hero-month-amount">{{ month_forecast_revenue_display }}</div>
         <div class="hero-row-bottom">
-          <div class="hero-sub">Confidence: <span class="conf-pill">±{{ month_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
-          <div class="hero-trend">▲ {{ month_confidence_pct }}%</div>
+          <div class="hero-sub">Confidence: <span class="conf-pill" id="hero-month-margin">±{{ month_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
+          <div class="hero-trend" id="hero-month-conf-pct">▲ {{ month_confidence_pct }}%</div>
+        </div>
+      </div>
+
+      <!-- Next Year hero card -->
+      <div class="forecast-hero-card">
+        <div class="hero-pct"><span class="growth-badge {% if year_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ year_growth_pct_display }}</span></div>
+        <div class="hero-header">
+          <div class="hero-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" fill="none"/><path d="M8 8h8" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/><path d="M8 12h8" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+          <div class="hero-meta">
+            <div class="hero-title">Next Year</div>
+            <div class="hero-date">{{ next_year_label }}</div>
+          </div>
+        </div>
+        <div class="hero-amount" id="hero-year-amount">{{ year_forecast_revenue_display }}</div>
+        <div class="hero-row-bottom">
+          <div class="hero-sub">Confidence: <span class="conf-pill" id="hero-year-margin">±{{ year_confidence_margin_display }}</span> <span class="muted info" title="Confidence interval">ⓘ</span></div>
+          <div class="hero-trend" id="hero-year-conf-pct">▲ {{ year_confidence_pct }}%</div>
         </div>
       </div>
 
     </div>
 
     <div class="card chart-card" style="grid-column: 1 / -1;">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-        <div>
-          <h2 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 800; color: #111827;">Sales Trend</h2>
-          <p style="margin: 0; color: #6b7280; font-size: 14px;">Historical daily sales vs. AI-driven projection</p>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 20px; gap: 18px;">
+        <div style="flex:1;">
+          <h2 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 800; color: #0f172a;">Revenue Trend</h2>
+          <p style="margin: 0; color: #6b7280; font-size: 14px;">Historical data vs. AI-driven projection</p>
+
+          <div style="display:flex; gap:18px; align-items:center; margin-top:14px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="legend-swatch actual" style="width:12px; height:12px; border-radius:999px; display:inline-block; vertical-align:middle; box-shadow:none; border:2px solid #fff;"></span>
+              <span style="color:#374151; font-weight:700;">Historical Data</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="legend-swatch predicted" style="width:12px; height:12px; border-radius:999px; display:inline-block; vertical-align:middle; border:2px solid #fff;"></span>
+              <span style="color:#374151; font-weight:700;">Forecast Projection</span>
+            </div>
+          </div>
+
+          <div id="forecastStatus" class="forecast-error" style="display:none; margin-top:10px;"></div>
         </div>
-        <select id="rangeSelect" class="btn" style="min-width:150px; padding:10px 14px; border: 1.5px solid #e5e7eb; border-radius: 10px; background: #fff; font-weight: 500; cursor: pointer;">
-          <option>Last 7 Days</option>
-          <option selected>Last 30 Days</option>
-          <option>Last 90 Days</option>
-        </select>
+
+        <div style="flex:0 0 auto;">
+          <select id="rangeSelect" class="btn" style="min-width:160px; padding:10px 14px; border: 1.5px solid #e5e7eb; border-radius: 12px; background: #fff; font-weight: 500; cursor: pointer;">
+            <option>Last 7 Days</option>
+            <option selected>Last 30 Days</option>
+            <option>Last 90 Days</option>
+          </select>
+        </div>
       </div>
       <div style="position: relative;">
         <div class="chart-area">
@@ -186,11 +222,12 @@
       window._serverDaily = {{ daily_revenue_json|safe }} || {{ daily_json|safe }} || null;
       window._serverWeekly = {{ weekly_revenue_json|safe }} || {{ weekly_json|safe }} || null;
       window._serverMonthly = {{ monthly_revenue_json|safe }} || {{ monthly_json|safe }} || null;
+      window._serverYearly = {{ yearly_revenue_json|safe }} || null;
       // Expose today's forecast revenue (currency) so client can sanity-check scaling
       window._todayForecastRevenue = {{ today_forecast_revenue|default:0 }};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'core/js/forecast_chart_init.js' %}?v={% now 'U' %}"></script>
+    <script src="{% static 'core/js/forecast_chart_init_v2.js' %}?v={% now 'U' %}"></script>
 
     <style>
       .overview-grid .overview-card .card-icon { width:44px; height:44px; border-radius:8px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
@@ -234,7 +271,7 @@
       .card.chart-card #rangeSelect { border-radius:10px; padding:8px 12px; border:1px solid rgba(15,23,36,0.06); background:#fff; box-shadow:none; min-width:140px; }
       .legend-row{ gap:12px; align-items:center; }
       .legend-swatch{ width:12px; height:12px; border-radius:12px; box-shadow:none; }
-      .legend-swatch.actual{ background:#FF8C42; }
+      .legend-swatch.actual{ background:#0f172a; }
       .legend-swatch.predicted{ background:#FF8C42; }
       .legend-item span.muted{ font-size:13px; color:#6b7280; }
       .card.chart-card #rangeSelect { border-radius:10px; padding:8px 12px; border:1px solid rgba(15,23,36,0.06); background:#fff; box-shadow:0 6px 18px rgba(16,24,40,0.03); min-width:140px; }
@@ -278,7 +315,7 @@
       .debug-panel{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px; }
 
       /* Hero tweaks */
-      .forecast-hero-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; align-items:stretch; margin-bottom:28px; }
+      .forecast-hero-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; align-items:stretch; margin-bottom:28px; }
       .forecast-hero-card{ background:#fff; border-radius:16px; padding:20px 22px; box-shadow:0 6px 18px rgba(16,24,40,0.04); border:1px solid #eef2f6; min-height:140px; position:relative; display:flex; flex-direction:column; justify-content:space-between; }
       .forecast-hero-card .hero-icon{ width:44px; height:44px; border-radius:10px; background:linear-gradient(180deg,#eef7ff,#f8fbff); display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(16,24,40,0.03); }
       .forecast-hero-card .hero-title{ font-size:13px; font-weight:800; }
