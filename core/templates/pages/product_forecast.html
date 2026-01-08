@@ -194,8 +194,10 @@
           if(minP) params.set('min_price', minP);
           if(maxP) params.set('max_price', maxP);
 
-          const res = await fetch(apiUrl + '?' + params.toString());
+          const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
+          if(!res.ok){ console.warn('[Product Forecast] API response not ok for renderForecastCard', res.status); const txt = await res.text(); console.warn('[Product Forecast] Response text (start):', txt.slice(0,500)); return; }
           const j = await res.json();
+          if(j && j.error){ console.warn('[Product Forecast] API returned error', j); return; }
           const sum = j.summary || {};
           const top = j.top || [];
 
@@ -405,7 +407,8 @@
           params.set('horizon', currentHorizon);
           if(currentCategory) params.set('category', currentCategory);
           if(currentSearch) params.set('search', currentSearch);
-          params.set('top', '50');
+          // request a large top to include all products so the table can display full dataset
+          params.set('top', '1000');
 
           const activeOnlyChecked = document.getElementById('activeOnly').checked;
           const inStockOnlyChecked = document.getElementById('inStockOnly').checked;
@@ -417,8 +420,10 @@
           if(minPriceVal) params.set('min_price', minPriceVal);
           if(maxPriceVal) params.set('max_price', maxPriceVal);
 
-          const res = await fetch(apiUrl + '?' + params.toString());
+          const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
+          if(!res.ok){ console.warn('[Product Forecast] API response not ok for fetchData', res.status); const txt = await res.text(); console.warn('[Product Forecast] Response text (start):', txt.slice(0,500)); return; }
           const json = await res.json();
+          if(json && json.error){ console.warn('[Product Forecast] API returned error for fetchData', json); return; }
           const top = json.top || [];
           renderSummary(json.summary || {}, json.best || null);
           renderBarChart('topProductsBar', top.slice(0,10));
@@ -431,8 +436,10 @@
           const params = new URLSearchParams();
           params.set('product_id', pid);
           params.set('horizon', currentHorizon);
-          const res = await fetch(apiUrl + '?' + params.toString());
+          const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
+          if(!res.ok){ console.warn('[Product Forecast] API response not ok for fetchProductDetail', res.status); const txt = await res.text(); console.warn('[Product Forecast] Response text (start):', txt.slice(0,800)); document.getElementById('product-detail').style.display='none'; return; }
           const j = await res.json();
+          if(j && j.error){ console.warn('[Product Forecast] API returned error for fetchProductDetail', j); document.getElementById('product-detail').style.display='none'; return; }
           const d = j.product_detail;
           if(!d){ document.getElementById('product-detail').style.display='none'; return; }
           document.getElementById('product-detail').style.display='block';
