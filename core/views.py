@@ -855,6 +855,17 @@ def _forecast_view_impl(request, logger, json):
     month_conf_pct = int(round(monthly_fore.get('confidence', 0) or 0))
     year_conf_pct = int(round(year_confidence or 0))
 
+    # Define compute_growth function before using it
+    def compute_growth(new, old):
+        try:
+            if old and old > 0:
+                pct = round(((new - old) / float(old)) * 100.0, 1)
+            else:
+                pct = 100.0 if new > 0 else 0.0
+            return pct
+        except Exception:
+            return 0.0
+
     # Compute previous-year revenue (sum of last 12 months actuals) and year growth
     try:
         prev_year_revenue = int(sum(v for _, v in (monthly_series[-12:] or []))) if monthly_series else 0
@@ -896,16 +907,6 @@ def _forecast_view_impl(request, logger, json):
         prev_month_revenue = float(Sale.objects.filter(date__gte=pm_start, date__lte=pm_end).aggregate(total=Sum('revenue')).get('total') or 0.0)
     except Exception:
         prev_month_revenue = 0.0
-
-    def compute_growth(new, old):
-        try:
-            if old and old > 0:
-                pct = round(((new - old) / float(old)) * 100.0, 1)
-            else:
-                pct = 100.0 if new > 0 else 0.0
-            return pct
-        except Exception:
-            return 0.0
 
     today_growth_pct = compute_growth(today_forecast_revenue, yesterday_revenue)
     week_growth_pct = compute_growth(week_forecast_revenue, prev_week_revenue)
