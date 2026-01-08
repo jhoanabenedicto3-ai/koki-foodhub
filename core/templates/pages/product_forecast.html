@@ -75,6 +75,41 @@
   <!-- Removed legacy chart and trending products per design — only simplified cards are shown above -->
   <div style="height:24px;"></div>
 
+  <div class="card" style="margin-top:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+      <div>
+        <h3 class="section-sub" style="margin:0;">Product Performance</h3>
+        <div class="muted" style="font-size:13px; margin-top:4px;">Manage inventory and view sales predictions</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="perfSearch" class="input small" placeholder="Search products..." style="min-width:240px;" />
+        <select id="rowsPerPage" class="input small" style="width:86px;"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+        <button id="downloadReportBtn" class="btn small">Download Report</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px; overflow:auto;">
+      <table class="table" id="productPerformanceTable" aria-label="Product performance table" style="width:100%;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Product Name</th>
+            <th style="text-align:left;">Category</th>
+            <th style="text-align:right;">Last 7 Days</th>
+            <th style="text-align:right;">Last 30 Days</th>
+            <th style="text-align:center;">Trend</th>
+            <th style="text-align:right;">Predicted (Next 7d)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+      <div id="perfSummary" class="muted small">Showing 0 results</div>
+      <div id="perfPagination"></div>
+    </div>
+  </div>
+
   <div id="product-detail" class="card" style="display:none; margin-top:16px; padding:16px;">
     <h3 id="detail-title">Product detail</h3>
     <p id="detail-insight" class="muted">—</p>
@@ -246,21 +281,85 @@
         barChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Forecast', data, backgroundColor: 'rgba(54, 162, 235, 0.85)' }] }, options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } } });
       }
 
+      // Render product performance table (searchable, paginated) — replaces legacy table
+      let perfProducts = [];
+      let perfCurrentPage = 1;
+      let perfRowsPerPage = 10;
+
       function renderTable(products){
+        // store canonical products for exports and paging
         lastProducts = products;
-        const tbody = document.querySelector('#productRankingTable tbody'); tbody.innerHTML = '';
-        products.forEach((p, i) =>{
+        perfProducts = (products || []).slice();
+        perfCurrentPage = 1;
+        renderPerfTablePage();
+      }
+
+      function renderPerfTablePage(){
+        const tbody = document.querySelector('#productPerformanceTable tbody');
+        if(!tbody) return;
+
+        const searchVal = (document.getElementById('perfSearch')?.value || '').toLowerCase().trim();
+        const filtered = perfProducts.filter(p => {
+          if(!searchVal) return true;
+          return (p.product || '').toLowerCase().includes(searchVal) || (p.category || '').toLowerCase().includes(searchVal);
+        });
+
+        const total = filtered.length;
+        const rowsPerPageEl = document.getElementById('rowsPerPage');
+        perfRowsPerPage = rowsPerPageEl ? parseInt(rowsPerPageEl.value,10) : perfRowsPerPage;
+        const start = (perfCurrentPage - 1) * perfRowsPerPage;
+        const pageItems = filtered.slice(start, start + perfRowsPerPage);
+
+        tbody.innerHTML = '';
+        pageItems.forEach((p, i) => {
           const tr = document.createElement('tr');
-          let growthMarkup = '';
+          const rank = start + i + 1;
           const gv = Number(p.growth_rate || 0);
-          if(gv > 0) growthMarkup = `<span class="growth-up">+${gv}% <span class="trend-icon">▲</span></span>`;
-          else if(gv < 0) growthMarkup = `<span class="growth-down">${gv}% <span class="trend-icon">▼</span></span>`;
-          else growthMarkup = `<span class="growth-flat">0% ➜</span>`;
-          tr.innerHTML = `<td>${i+1}</td><td><a href="#" data-pid="${p.product_id}" class="select-product">${p.product}</a></td><td>${formatNumber(p.past_30_days)}</td><td>${formatNumber(p.forecast_h)}</td><td>${growthMarkup}</td><td>${p.trend}</td><td>${formatCurrency(p.price)}</td><td>${formatCurrency(p.projected_revenue)}</td><td>${p.is_active? 'Yes':'No'}</td><td>${p.in_stock? 'Yes':'No'}</td>`;
+          const growthMarkup = gv > 0 ? `<span class="growth-up">+${gv}%</span>` : (gv < 0 ? `<span class="growth-down">${gv}%</span>` : `<span class="growth-flat">0%</span>`);
+          tr.innerHTML = `
+            <td style="white-space:nowrap; font-weight:700;"><a href="#" data-pid="${p.product_id}" class="select-product">${p.product}</a></td>
+            <td style="white-space:nowrap; color:#6b7280;">${p.category || ''}</td>
+            <td style="text-align:right;">${formatNumber(p.past_7_days || p.past_7 || 0)}</td>
+            <td style="text-align:right;">${formatNumber(p.past_30_days || p.past_30 || 0)}</td>
+            <td style="text-align:center;">${growthMarkup}</td>
+            <td style="text-align:right; font-weight:800; color:#059669;">${formatNumber(p.forecast_h || 0)}</td>
+          `;
           tbody.appendChild(tr);
         });
+
+        // summary and pagination
+        document.getElementById('perfSummary').innerText = `Showing ${Math.min(total, start+1)} to ${Math.min(total, start + pageItems.length)} of ${total} results`;
+        renderPerfPagination(Math.ceil(total / perfRowsPerPage), perfCurrentPage);
+
+        // attach click handlers for product links
         document.querySelectorAll('.select-product').forEach(a => a.addEventListener('click', function(ev){ ev.preventDefault(); const pid = this.getAttribute('data-pid'); fetchProductDetail(pid); }));
       }
+
+      function renderPerfPagination(totalPages, current){
+        const el = document.getElementById('perfPagination');
+        if(!el) return; el.innerHTML = '';
+        if(totalPages <= 1) return;
+        const createBtn = (n, label, active=false) => {
+          const b = document.createElement('button');
+          b.className = active ? 'btn small active' : 'btn small';
+          b.innerText = label || n;
+          b.addEventListener('click', function(){ perfCurrentPage = n; renderPerfTablePage(); });
+          return b;
+        };
+        // show simple prev, pages (up to 5), next
+        const prev = document.createElement('button'); prev.className='btn small'; prev.innerText='◀'; prev.disabled = current === 1; prev.addEventListener('click', ()=>{ perfCurrentPage = Math.max(1, current-1); renderPerfTablePage(); }); el.appendChild(prev);
+        const startPage = Math.max(1, current - 2);
+        const endPage = Math.min(totalPages, startPage + 4);
+        for(let p = startPage; p <= endPage; p++){ el.appendChild(createBtn(p,p, p===current)); }
+        const next = document.createElement('button'); next.className='btn small'; next.innerText='▶'; next.disabled = current === totalPages; next.addEventListener('click', ()=>{ perfCurrentPage = Math.min(totalPages, current+1); renderPerfTablePage(); }); el.appendChild(next);
+      }
+
+      // Search and page size handlers for performance table
+      const perfSearchEl = document.getElementById('perfSearch'); if(perfSearchEl){ perfSearchEl.addEventListener('input', function(){ perfCurrentPage = 1; setTimeout(renderPerfTablePage, 200); }); }
+      const rowsPerPageEl = document.getElementById('rowsPerPage'); if(rowsPerPageEl){ rowsPerPageEl.addEventListener('change', function(){ perfRowsPerPage = parseInt(this.value,10); perfCurrentPage = 1; renderPerfTablePage(); }); }
+
+      // Download report button
+      const downloadReportBtn = document.getElementById('downloadReportBtn'); if(downloadReportBtn){ downloadReportBtn.addEventListener('click', function(){ if(!perfProducts || !perfProducts.length){ alert('No data to export'); return; } const headers = ['Product','Category','Past7','Past30','Growth%','Forecast7']; const rows = perfProducts.map(p=> [p.product, p.category, p.past_7_days||p.past_7||0, p.past_30_days||p.past_30||0, p.growth_rate||0, p.forecast_h||0] ); const csv = [headers.join(',')].concat(rows.map(r=>r.map(v=> '"'+String(v).replace(/"/g,'""')+'"').join(','))).join('\n'); const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='product_performance.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }); }
 
       function renderLine(canvasId, detail){
         // Defensive: if Chart.js is not available (CDN blocked or CSP), show placeholder and avoid runtime errors
