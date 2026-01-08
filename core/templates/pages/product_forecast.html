@@ -70,39 +70,8 @@
   </div>
 </div>
 
-  <!-- Category chips (mockup style) -->
-  <div class="category-chips" style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
-    <button class="chip active" data-cat="">All</button>
-    {% for cat in categories %}
-      <button class="chip" data-cat="{{ cat }}">{{ cat }}</button>
-    {% endfor %}
-  </div>
-
-  <div class="controls-row">
-    <select id="categorySelect" class="input small" aria-label="Filter by category">
-      <option value="">All categories</option>
-      {% for cat in categories %}
-        <option value="{{ cat }}">{{ cat }}</option>
-      {% endfor %}
-    </select>
-
-    <input id="searchInput" class="input small" placeholder="Search product" aria-label="Search product" />
-
-    <label class="input small" style="display:flex; align-items:center; gap:6px;">
-      <input type="checkbox" id="activeOnly" /> Active only
-    </label>
-    <label class="input small" style="display:flex; align-items:center; gap:6px;">
-      <input type="checkbox" id="inStockOnly" /> In stock only
-    </label>
-
-    <input id="minPrice" class="input tiny" type="number" step="0.01" placeholder="Min price" aria-label="Minimum price" />
-    <input id="maxPrice" class="input tiny" type="number" step="0.01" placeholder="Max price" aria-label="Maximum price" />
-
-    <div class="controls-actions" style="margin-left:auto;">
-      <button id="exportCsv" class="btn small">Export CSV</button>
-      <button id="exportJson" class="btn small">Export JSON</button>
-    </div>
-  </div>
+  <!-- Top filters removed per request; only simplified cards remain -->
+  <div style="height:12px;"></div> 
 
   <!-- Removed legacy chart and trending products per design — only simplified cards are shown above -->
   <div style="height:24px;"></div>
@@ -406,20 +375,30 @@
         // keyboard activation
         b.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); this.click(); } });
       });
-      document.getElementById('categorySelect').addEventListener('change', function(){ currentCategory = this.value; fetchData(); });
-      // category chips behavior
-      document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', function(){ document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); this.classList.add('active'); currentCategory = this.getAttribute('data-cat'); // update hidden select for forms
-        const sel = document.getElementById('categorySelect'); if(sel){ sel.value = currentCategory; } fetchData(); }));
+      const categorySelectEl = document.getElementById('categorySelect');
+      if(categorySelectEl){ categorySelectEl.addEventListener('change', function(){ currentCategory = this.value; fetchData(); }); }
+      // category chips behavior (guarded)
+      const _chipEls = document.querySelectorAll('.chip');
+      if(_chipEls && _chipEls.length){
+        _chipEls.forEach(ch => ch.addEventListener('click', function(){
+          _chipEls.forEach(x=>x.classList.remove('active'));
+          this.classList.add('active');
+          currentCategory = this.getAttribute('data-cat');
+          const sel = document.getElementById('categorySelect'); if(sel){ sel.value = currentCategory; }
+          fetchData();
+        }));
+      }
 
       let searchTimer = null;
-      document.getElementById('searchInput').addEventListener('input', function(){ clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ currentSearch = this.value.trim(); fetchData(); }, 350); });
+      const searchInputEl = document.getElementById('searchInput');
+      if(searchInputEl){ searchInputEl.addEventListener('input', function(){ clearTimeout(searchTimer); searchTimer = setTimeout(()=>{ currentSearch = this.value.trim(); fetchData(); }, 350); }); }
 
 
-      // New filters: active, in-stock, price range
-      document.getElementById('activeOnly').addEventListener('change', function(){ /* checkbox */ fetchData(); });
-      document.getElementById('inStockOnly').addEventListener('change', function(){ /* checkbox */ fetchData(); });
-      document.getElementById('minPrice').addEventListener('change', function(){ fetchData(); });
-      document.getElementById('maxPrice').addEventListener('change', function(){ fetchData(); });
+      // New filters: active, in-stock, price range (guarded)
+      const activeOnlyEl = document.getElementById('activeOnly'); if(activeOnlyEl) activeOnlyEl.addEventListener('change', function(){ fetchData(); });
+      const inStockOnlyEl = document.getElementById('inStockOnly'); if(inStockOnlyEl) inStockOnlyEl.addEventListener('change', function(){ fetchData(); });
+      const minPriceEl = document.getElementById('minPrice'); if(minPriceEl) minPriceEl.addEventListener('change', function(){ fetchData(); });
+      const maxPriceEl = document.getElementById('maxPrice'); if(maxPriceEl) maxPriceEl.addEventListener('change', function(){ fetchData(); });
 
       // Export keyboard support (guarded)
       const exportButton = document.getElementById('exportBtn');
