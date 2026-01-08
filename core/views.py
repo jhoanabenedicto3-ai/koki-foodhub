@@ -957,6 +957,11 @@ def _forecast_view_impl(request, logger, json):
     w_first, w_last = first_last(weekly_series)
     m_first, m_last = first_last(monthly_series)
 
+    # Initialize forecast objects with defaults - these will be populated below after forecast_time_series
+    daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+    weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+    monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+
     # Build small formatted helpers for the template
     def fmt_pct(p):
         try:
