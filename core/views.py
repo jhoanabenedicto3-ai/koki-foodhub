@@ -1242,6 +1242,29 @@ def forecast_data_api(request):
         daily_fore = forecast_time_series(daily_series, horizon=30)
         weekly_fore = forecast_time_series(weekly_series, horizon=12)
         monthly_fore = forecast_time_series(monthly_series, horizon=6)
+        
+        # Ensure we always have arrays (even if empty)
+        daily_fore = {
+            'forecast': daily_fore.get('forecast') or [],
+            'upper': daily_fore.get('upper') or [],
+            'lower': daily_fore.get('lower') or [],
+            'confidence': daily_fore.get('confidence') or 0,
+            'accuracy': daily_fore.get('accuracy', '')
+        }
+        weekly_fore = {
+            'forecast': weekly_fore.get('forecast') or [],
+            'upper': weekly_fore.get('upper') or [],
+            'lower': weekly_fore.get('lower') or [],
+            'confidence': weekly_fore.get('confidence') or 0,
+            'accuracy': weekly_fore.get('accuracy', '')
+        }
+        monthly_fore = {
+            'forecast': monthly_fore.get('forecast') or [],
+            'upper': monthly_fore.get('upper') or [],
+            'lower': monthly_fore.get('lower') or [],
+            'confidence': monthly_fore.get('confidence') or 0,
+            'accuracy': monthly_fore.get('accuracy', '')
+        }
     except Exception as e:
         import traceback, uuid
         tb = traceback.format_exc()
