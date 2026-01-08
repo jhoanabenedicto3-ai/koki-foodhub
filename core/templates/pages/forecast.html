@@ -51,7 +51,7 @@
   </div>
 
     <!-- Forecast hero cards (three-up layout matching mock) -->
-    <div class="forecast-hero-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;align-items:stretch;">
+    <div class="forecast-hero-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch; margin-bottom:32px;">
 
       <div class="forecast-hero-card" style="width:100%;">
         <div class="hero-pct"><span class="growth-badge {% if today_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ today_growth_pct_display }}</span></div>
@@ -101,8 +101,8 @@
         </div>
       </div>
 
-      <!-- Next Year hero card -->
-      <div class="forecast-hero-card">
+      <!-- Next Year hero card - hidden in main view -->
+      <div class="forecast-hero-card" style="display:none;">
         <div class="hero-pct"><span class="growth-badge {% if year_growth_positive %}growth-up{% else %}growth-down{% endif %}">{{ year_growth_pct_display }}</span></div>
         <div class="hero-header">
           <div class="hero-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" fill="none"/><path d="M8 8h8" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/><path d="M8 12h8" stroke="#111" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/></svg></div>
