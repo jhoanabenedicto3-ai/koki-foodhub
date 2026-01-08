@@ -324,9 +324,11 @@ async function fetchSeries(){
     
     console.log('[Forecast Chart] Fetching from URL:', url.toString());
     
-    const res = await fetch(url, { credentials: 'same-origin' });
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
     if(!res.ok) throw new Error('Network response not ok: ' + res.status);
     const json = await res.json();
+    // expose last raw payload for diagnostics
+    try { window._lastForecastPayload = json; } catch(e){}
     
     console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
     console.log('[Forecast Chart] Daily data present:', !!json.daily);
@@ -343,10 +345,10 @@ async function fetchSeries(){
     console.log('[Forecast Chart] Forecast array length in selected data:', (data.forecast || []).length);
     console.log('[Forecast Chart] Using data:', data);
     
-    return data;
+    return { series: data, raw: json };
   }catch(e){ 
     console.error('fetchSeries failed:', e); 
-    return {labels:[], actual:[], forecast:[], upper:[], lower:[]}; 
+    return { series: {labels:[], actual:[], forecast:[], upper:[], lower:[]}, raw: {} }; 
   }
 }
 }
@@ -354,9 +356,110 @@ async function fetchSeries(){
 async function refreshAndRender(){
   console.log('[Forecast Chart] ===== refreshAndRender START =====');
   try {
-    const data = await fetchSeries();
-    console.log('[Forecast Chart] Data fetched:', data);
+    const payload = await fetchSeries();
+    const data = payload.series;
+    const raw = payload.raw || {};
+
+    console.log('[Forecast Chart] Data fetched:', data, 'raw payload:', raw);
     
+    // Update hero cards (tomorrow / next week / next month / next year) when API provides forecasts
+    try {
+      // Daily / Tomorrow - use raw.daily when available otherwise use returned series
+      const daily = raw.daily || data;
+      if (daily && daily.forecast && daily.forecast.length) {
+        const v = daily.forecast[0] || 0;
+        document.getElementById('hero-tomorrow-amount')?.innerText = '₱' + Number(v).toLocaleString('en-PH', {minimumFractionDigits:0});
+        const upper = (daily.upper || [])[0];
+        const lower = (daily.lower || [])[0];
+        if (upper !== undefined && lower !== undefined) {
+          const margin = Math.max(0, Math.round((upper - lower) / 2));
+          document.getElementById('hero-tomorrow-margin')?.innerText = '±' + Number(margin).toLocaleString('en-PH', {minimumFractionDigits:0});
+        }
+        document.getElementById('hero-tomorrow-conf-pct')?.innerText = '▲ ' + (daily.confidence || 0) + '%';
+      }
+
+      // Weekly
+      const weekly = raw.weekly || window._serverWeekly || null;
+      if (weekly && weekly.forecast && weekly.forecast.length) {
+        const v = weekly.forecast[0] || 0;
+        document.getElementById('hero-week-amount')?.innerText = '₱' + Number(v).toLocaleString('en-PH', {minimumFractionDigits:0});
+        const u = (weekly.upper || [])[0];
+        const l = (weekly.lower || [])[0];
+        if (u !== undefined && l !== undefined) {
+          const margin = Math.max(0, Math.round((u - l) / 2));
+          document.getElementById('hero-week-margin')?.innerText = '±' + Number(margin).toLocaleString('en-PH', {minimumFractionDigits:0});
+        }
+        document.getElementById('hero-week-conf-pct')?.innerText = '▲ ' + (weekly.confidence || 0) + '%';
+      }
+
+      // Monthly
+      const monthly = raw.monthly || window._serverMonthly || null;
+      if (monthly && monthly.forecast && monthly.forecast.length) {
+        const v = monthly.forecast[0] || 0;
+        document.getElementById('hero-month-amount')?.innerText = '₱' + Number(v).toLocaleString('en-PH', {minimumFractionDigits:0});
+        const u = (monthly.upper || [])[0];
+        const l = (monthly.lower || [])[0];
+        if (u !== undefined && l !== undefined) {
+          const margin = Math.max(0, Math.round((u - l) / 2));
+          document.getElementById('hero-month-margin')?.innerText = '±' + Number(margin).toLocaleString('en-PH', {minimumFractionDigits:0});
+        }
+        document.getElementById('hero-month-conf-pct')?.innerText = '▲ ' + (monthly.confidence || 0) + '%';
+      }
+
+      // Yearly (sum of 12 monthly forecast steps if present in API)
+      const yearly = raw.yearly || window._serverYearly || null;
+      if (yearly && (yearly.forecast || []).length) {
+        const total = (yearly.forecast || []).reduce((a,b)=>a+(b||0),0);
+        document.getElementById('hero-year-amount')?.innerText = '₱' + Number(total).toLocaleString('en-PH', {minimumFractionDigits:0});
+        const ups = yearly.upper || [];
+        const lows = yearly.lower || [];
+        let margin = 0;
+        for (let i=0;i<Math.min(ups.length,lows.length);i++){ margin += Math.max(0, (ups[i]-lows[i])/2); }
+        document.getElementById('hero-year-margin')?.innerText = '±' + Number(Math.round(margin)).toLocaleString('en-PH', {minimumFractionDigits:0});
+        document.getElementById('hero-year-conf-pct')?.innerText = '▲ ' + (yearly.confidence || 0) + '%';
+      }
+    } catch (e) {
+      console.warn('[Forecast Chart] Updating hero cards failed', e);
+    }
+
+    // Show fallback status if the server indicated a fallback or if the client generated one
+    try {
+      const statusEl = document.getElementById('forecastStatus');
+      const serverDailyFallback = raw && raw.daily && raw.daily.fallback;
+      const serverYearlyFallback = raw && raw.yearly && raw.yearly.fallback;
+      const clientFallback = data && data.fallback;
+
+      // Populate debug panel JSON area if open
+      try {
+        const debugPre = document.getElementById('forecastDebugJson');
+        if (debugPre) {
+          debugPre.innerText = JSON.stringify(raw, null, 2);
+        }
+      } catch (e) { /* ignore */ }
+
+      if (statusEl) {
+        if (serverDailyFallback || serverYearlyFallback) {
+          statusEl.innerText = 'Forecast (server fallback) — estimated from recent history';
+          statusEl.style.display = 'block';
+        } else if (clientFallback) {
+          statusEl.innerText = 'Forecast (client fallback) — estimated from recent history';
+          statusEl.style.display = 'block';
+        } else {
+          statusEl.style.display = 'none';
+        }
+      }
+
+      // also populate a small visible banner if API returned empty forecast arrays
+      try {
+        if (raw && raw.daily && Array.isArray(raw.daily.forecast) && raw.daily.forecast.length === 0) {
+          const statusEl2 = document.getElementById('forecastStatus'); if (statusEl2) { statusEl2.innerText = 'Forecast returned empty from server — using fallback'; statusEl2.style.display = 'block'; }
+        }
+      } catch (e) {}
+
+    } catch (e) {
+      /* ignore status display errors */
+    }
+
     if (!data || !data.labels) {
       console.warn('[Forecast Chart] No data or labels in response');
       return;
@@ -431,6 +534,17 @@ async function refreshAndRender(){
     
     // Expose for other scripts
     window.refreshForecast = refreshAndRender;
+
+    // Diag toggle wiring
+    const btnDiag = document.getElementById('btnDiag');
+    if (btnDiag) {
+      btnDiag.addEventListener('click', function(){
+        const panel = document.getElementById('forecast-debug-panel');
+        if (panel) panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+      });
+    }
+    const closeBtn = document.getElementById('closeDebug');
+    if (closeBtn) closeBtn.addEventListener('click', function(){ document.getElementById('forecast-debug-panel').style.display = 'none'; });
   }
   
   // Try multiple initialization methods

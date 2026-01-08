@@ -400,6 +400,29 @@ class BackupCommandTests(TestCase):
             if had:
                 setattr(mod, 'forecast_time_series', saved)
 
+    def test_forecast_time_series_handles_sklearn_unavailable(self):
+        """When scikit-learn can't be imported, forecasts should fallback and not crash."""
+        import importlib
+        mod = importlib.import_module('core.services.forecasting')
+        # Backup original state
+        saved_flag = getattr(mod, '_SKLEARN_AVAILABLE', None)
+        saved_lr = getattr(mod, '_LinearRegression', None)
+        try:
+            # Simulate sklearn unavailable
+            mod._SKLEARN_AVAILABLE = False
+            mod._LinearRegression = None
+            series = [('2026-01-01', 100), ('2026-01-02', 120), ('2026-01-03', 110)]
+            res = mod.forecast_time_series(series, horizon=7)
+            self.assertIn('forecast', res)
+            self.assertEqual(len(res['forecast']), 7)
+            self.assertTrue(any(v != 0 for v in res['forecast']), 'Forecast should not be all zeros when data provided')
+            self.assertTrue(res.get('fallback') is True)
+            self.assertEqual(res.get('fallback_reason'), 'sklearn_unavailable')
+        finally:
+            # restore
+            mod._SKLEARN_AVAILABLE = saved_flag
+            mod._LinearRegression = saved_lr
+
     def test_product_forecast_product_detail_and_filters(self):
         """Check that product_detail is returned for a product_id and that price/top filters apply."""
         from django.contrib.auth.models import User, Group

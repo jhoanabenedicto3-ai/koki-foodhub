@@ -15,6 +15,28 @@ from dateutil.relativedelta import relativedelta
 # them and provide safe fallbacks when they're missing.
 logger = logging.getLogger(__name__)
 
+# Attempt to detect scikit-learn availability lazily in a safe, cached way.
+# Some environments may not have compiled sklearn or importing it can be heavy
+# and cause worker memory spikes — detect availability once and gracefully
+# fall back to light-weight methods when unavailable.
+_SKLEARN_AVAILABLE = None
+_LinearRegression = None
+
+def _check_sklearn_available():
+    global _SKLEARN_AVAILABLE, _LinearRegression
+    if _SKLEARN_AVAILABLE is not None:
+        return _SKLEARN_AVAILABLE
+    try:
+        # Perform a lightweight import and cache the class reference.
+        from sklearn.linear_model import LinearRegression as _LR
+        _LinearRegression = _LR
+        _SKLEARN_AVAILABLE = True
+    except Exception as exc:  # pragma: no cover - environment dependent
+        _SKLEARN_AVAILABLE = False
+        _LinearRegression = None
+        logger.warning('scikit-learn unavailable or failed to import: %s', exc)
+    return _SKLEARN_AVAILABLE
+
 # Cap per-sale units so single bad rows don't dominate forecasts
 MAX_UNITS_PER_SALE = 100
 
@@ -387,10 +409,15 @@ def forecast_time_series(series, horizon=7, method='auto', window=3):
         import numpy as np
     except Exception:
         np = None
+
+    # Use cached sklearn availability checker to avoid expensive imports per-request
+    sklearn_ok = False
     try:
-        from sklearn.linear_model import LinearRegression
-    except Exception:
-        LinearRegression = None
+        sklearn_ok = _check_sklearn_available()
+    except Exception as exc:
+        sklearn_ok = False
+        logger.warning('Error checking sklearn availability: %s', exc)
+    LinearRegression = _LinearRegression if sklearn_ok else None
 
     values = [v for _, v in series]
     n = len(values)
@@ -411,7 +438,9 @@ def forecast_time_series(series, horizon=7, method='auto', window=3):
 
     # Linear regression approach
     if method == 'linear':
+        # If numpy or sklearn is not available, fall back to MA and log
         if (np is None) or (LinearRegression is None):
+            logger.info('Linear method requested but numpy/sklearn unavailable; falling back to moving-average')
             method = 'ma'
         else:
             try:
@@ -439,7 +468,8 @@ def forecast_time_series(series, horizon=7, method='auto', window=3):
                     accuracy = 'Low'
 
                 return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
-            except Exception:
+            except Exception as exc:
+                logger.exception('Linear model failed; falling back to moving-average: %s', exc)
                 method = 'ma'
 
     # Holt's method
@@ -515,7 +545,11 @@ def forecast_time_series(series, horizon=7, method='auto', window=3):
         else:
             accuracy = 'Low'
 
-        return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': round(confidence, 2), 'accuracy': accuracy}
+        result = {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': round(confidence, 2), 'accuracy': accuracy}
+        if not sklearn_ok:
+            result['fallback'] = True
+            result['fallback_reason'] = 'sklearn_unavailable'
+        return result
     except Exception:
         return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0}
 
