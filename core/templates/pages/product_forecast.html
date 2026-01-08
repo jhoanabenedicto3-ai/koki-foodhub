@@ -129,53 +129,91 @@
       function formatCurrency(n){ return '£' + Number(n).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
       function renderSummary(summary, best){
-        // Legacy small cards
-        document.getElementById('proj-sales').innerText = formatNumber(summary.total_forecast_units || 0);
-        document.getElementById('proj-sales-meta').innerText = `${summary.count || 0} products`;
-        document.getElementById('proj-revenue').innerText = formatCurrency(summary.projected_revenue || 0);
-        document.getElementById('proj-revenue-meta').innerText = 'Projected for selected horizon';
-        // Hero cards
-        document.getElementById('hero-proj-sales').innerText = formatNumber(summary.total_forecast_units || 0);
-        document.getElementById('hero-proj-sales-meta').innerText = `${summary.count || 0} products`;
-        document.getElementById('hero-proj-revenue').innerText = formatCurrency(summary.projected_revenue || 0);
+        // Legacy small cards - only update if they exist
+        const projSalesEl = document.getElementById('proj-sales');
+        if(projSalesEl) projSalesEl.innerText = formatNumber(summary.total_forecast_units || 0);
+        
+        const projSalesMetaEl = document.getElementById('proj-sales-meta');
+        if(projSalesMetaEl) projSalesMetaEl.innerText = `${summary.count || 0} products`;
+        
+        const projRevenueEl = document.getElementById('proj-revenue');
+        if(projRevenueEl) projRevenueEl.innerText = formatCurrency(summary.projected_revenue || 0);
+        
+        const projRevenueMetaEl = document.getElementById('proj-revenue-meta');
+        if(projRevenueMetaEl) projRevenueMetaEl.innerText = 'Projected for selected horizon';
+        
+        // Hero cards - only update if they exist
+        const heroProjSalesEl = document.getElementById('hero-proj-sales');
+        if(heroProjSalesEl) heroProjSalesEl.innerText = formatNumber(summary.total_forecast_units || 0);
+        
+        const heroProjSalesMetaEl = document.getElementById('hero-proj-sales-meta');
+        if(heroProjSalesMetaEl) heroProjSalesMetaEl.innerText = `${summary.count || 0} products`;
+        
+        const heroProjRevenueEl = document.getElementById('hero-proj-revenue');
+        if(heroProjRevenueEl) heroProjRevenueEl.innerText = formatCurrency(summary.projected_revenue || 0);
 
         if(best){
-          // Small card compatibility
-          document.getElementById('best-product').innerText = best.product + ' — ' + formatNumber(best.forecast_h);
-          document.getElementById('best-product-meta').innerText = 'Confidence: ' + Math.round(best.confidence) + '%';
-          document.getElementById('best-name').innerText = best.product;
-          document.getElementById('best-forecast').innerText = `Forecast: ${formatNumber(best.forecast_h)} Orders`;
+          // Small card compatibility - only update if elements exist
+          const bestProductEl = document.getElementById('best-product');
+          if(bestProductEl) bestProductEl.innerText = best.product + ' — ' + formatNumber(best.forecast_h);
+          
+          const bestProductMetaEl = document.getElementById('best-product-meta');
+          if(bestProductMetaEl) bestProductMetaEl.innerText = 'Confidence: ' + Math.round(best.confidence) + '%';
+          
+          const bestNameEl = document.getElementById('best-name');
+          if(bestNameEl) bestNameEl.innerText = best.product;
+          
+          const bestForecastEl = document.getElementById('best-forecast');
+          if(bestForecastEl) bestForecastEl.innerText = `Forecast: ${formatNumber(best.forecast_h)} Orders`;
+          
           const growthVal = Number(best.growth_rate || 0);
           const growthEl = document.getElementById('best-growth');
-          if(growthVal > 0){
-            growthEl.innerHTML = `<span class="growth-up">+${growthVal}% <span class="trend-icon">▲</span></span>`;
-          } else if (growthVal < 0){
-            growthEl.innerHTML = `<span class="growth-down">${growthVal}% <span class="trend-icon">▼</span></span>`;
-          } else {
-            growthEl.innerHTML = `<span class="growth-flat">0% ➜</span>`;
+          if(growthEl){
+            if(growthVal > 0){
+              growthEl.innerHTML = `<span class="growth-up">+${growthVal}% <span class="trend-icon">▲</span></span>`;
+            } else if (growthVal < 0){
+              growthEl.innerHTML = `<span class="growth-down">${growthVal}% <span class="trend-icon">▼</span></span>`;
+            } else {
+              growthEl.innerHTML = `<span class="growth-flat">0% ➜</span>`;
+            }
           }
 
-          // Hero fields
-          document.getElementById('hero-best-name').innerText = best.product;
-          document.getElementById('hero-best-meta').innerText = `${formatNumber(best.forecast_h)} • Confidence: ${Math.round(best.confidence)}%`;
+          // Hero fields - only update if elements exist
+          const heroBestNameEl = document.getElementById('hero-best-name');
+          if(heroBestNameEl) heroBestNameEl.innerText = best.product;
+          
+          const heroBestMetaEl = document.getElementById('hero-best-meta');
+          if(heroBestMetaEl) heroBestMetaEl.innerText = `${formatNumber(best.forecast_h)} • Confidence: ${Math.round(best.confidence)}%`;
+          
           // Placeholder image if not available
           const heroImg = document.getElementById('hero-image');
-          heroImg.style.background = 'linear-gradient(90deg,#fff,#f5f5f5)';
-          heroImg.innerHTML = `
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
-            </svg>`;
+          if(heroImg){
+            heroImg.style.background = 'linear-gradient(90deg,#fff,#f5f5f5)';
+            heroImg.innerHTML = `
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
+              </svg>`;
+          }
 
           const bestImg = document.getElementById('best-image');
-          bestImg.innerHTML = `
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
-            </svg>`;
+          if(bestImg){
+            bestImg.innerHTML = `
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.8 6.6 19.9l1-6.1L3.2 9.5l6.1-.9L12 2z" fill="#FFB300"/>
+              </svg>`;
+          }
         } else {
-          document.getElementById('best-product').innerText = '—';
-          document.getElementById('best-product-meta').innerText = '—';
-          document.getElementById('hero-best-name').innerText = '—';
-          document.getElementById('hero-best-meta').innerText = '—';
+          const bestProductEl = document.getElementById('best-product');
+          if(bestProductEl) bestProductEl.innerText = '—';
+          
+          const bestProductMetaEl = document.getElementById('best-product-meta');
+          if(bestProductMetaEl) bestProductMetaEl.innerText = '—';
+          
+          const heroBestNameEl = document.getElementById('hero-best-name');
+          if(heroBestNameEl) heroBestNameEl.innerText = '—';
+          
+          const heroBestMetaEl = document.getElementById('hero-best-meta');
+          if(heroBestMetaEl) heroBestMetaEl.innerText = '—';
         }
       }
 
