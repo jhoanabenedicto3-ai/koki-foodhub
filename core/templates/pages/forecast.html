@@ -120,41 +120,6 @@
 
     </div>
 
-    <div class="card chart-card" style="grid-column: 1 / -1;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 20px; gap: 18px;">
-        <div style="flex:1;">
-          <h2 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 800; color: #0f172a;">Revenue Trend</h2>
-          <p style="margin: 0; color: #6b7280; font-size: 14px;">Historical data vs. AI-driven projection</p>
-
-          <div style="display:flex; gap:18px; align-items:center; margin-top:14px;">
-            <div style="display:flex; gap:8px; align-items:center;">
-              <span class="legend-swatch actual" style="width:12px; height:12px; border-radius:999px; display:inline-block; vertical-align:middle; box-shadow:none; border:2px solid #fff;"></span>
-              <span style="color:#374151; font-weight:700;">Historical Data</span>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <span class="legend-swatch predicted" style="width:12px; height:12px; border-radius:999px; display:inline-block; vertical-align:middle; border:2px solid #fff;"></span>
-              <span style="color:#374151; font-weight:700;">Forecast Projection</span>
-            </div>
-          </div>
-
-          <div id="forecastStatus" class="forecast-error" style="display:none; margin-top:10px;"></div>
-        </div>
-
-        <div style="flex:0 0 auto;">
-          <select id="rangeSelect" class="btn" style="min-width:160px; padding:10px 14px; border: 1.5px solid #e5e7eb; border-radius: 12px; background: #fff; font-weight: 500; cursor: pointer;">
-            <option>Last 7 Days</option>
-            <option selected>Last 30 Days</option>
-            <option>Last 90 Days</option>
-          </select>
-        </div>
-      </div>
-      <div style="position: relative;">
-        <div class="chart-area">
-          <canvas id="salesChart" role="img" aria-label="Sales Trend chart" style="width:100%; height:100%;"></canvas>
-        </div>
-      </div>
-    </div>
-
   <!-- Compact controls removed for simplified UI to match mock -->
 
   {% if error_message %}
