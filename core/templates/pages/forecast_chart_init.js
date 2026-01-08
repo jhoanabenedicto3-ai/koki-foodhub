@@ -119,32 +119,52 @@
   }
 
   let salesChart = null;
+
+  // Plugin to draw vertical separator at the last historical index
+  const separatorPlugin = {
+    id: 'separatorLine',
+    afterDatasetsDraw(chart) {
+      if (!chart.data || !chart.data.labels) return;
+      const labels = chart.data.labels;
+      const lastHistoricalIndex = (labels.findIndex(l => l === 'Today')) || (labels.length ? labels.indexOf('Today') : -1);
+      // Fallback: if 'Today' not found, use last label of historical length
+      if (lastHistoricalIndex <= 0) return;
+      const xAxis = chart.scales.x;
+      const yAxis = chart.scales.y;
+      if (!xAxis || !yAxis) return;
+      const xPos = xAxis.getPixelForValue(lastHistoricalIndex);
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(148,163,184,0.6)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.moveTo(xPos, yAxis.top);
+      ctx.lineTo(xPos, yAxis.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
   function renderChart(data){
     const labels = (data.labels || []).slice();
     const forecastLabels = buildForecastLabels(labels, (data.forecast || []).length);
     const combined = labels.concat(forecastLabels);
     const actualPadded = (data.actual || []).concat(Array((data.forecast||[]).length).fill(null));
     const forecastPadded = Array((data.actual||[]).length).fill(null).concat(data.forecast || []);
-    
-    // Detect period for label formatting
-    let period = 'daily';
-    if (labels.length >= 2) {
-      try {
-        const last = new Date(labels[labels.length - 1]);
-        const secondLast = new Date(labels[labels.length - 2]);
-        const dayDiff = Math.round((last - secondLast) / (1000 * 60 * 60 * 24));
-        if (dayDiff >= 28) {
-          period = 'monthly';
-        } else if (dayDiff >= 6) {
-          period = 'weekly';
-        }
-      } catch (e) {}
-    }
-    
-    // Format labels for display
+
+    // Format labels for display (always calendar dates, show 'Today' when applicable)
     const formattedLabels = combined.map((dateStr, idx) => {
       const isHistorical = idx < labels.length;
-      return formatChartLabel(dateStr, isHistorical, combined.length, labels.length, period);
+      // Reuse existing formatter but show absolute dates for everything and 'Today'
+      try {
+        const date = new Date(dateStr);
+        const today = new Date(); today.setHours(0,0,0,0);
+        date.setHours(0,0,0,0);
+        const diffDays = Math.round((today - date) / (1000*60*60*24));
+        if (diffDays === 0) return 'Today';
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch(e){ return dateStr; }
     });
 
     const ctx = document.getElementById('salesChart')?.getContext('2d');
@@ -153,20 +173,22 @@
     salesChart = new Chart(ctx, {
       type: 'line',
       data: { labels: formattedLabels, datasets: [
-        { label: 'Historical Data', data: actualPadded, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)', fill: true, tension: 0.36, pointRadius: 3, borderWidth: 2 },
-        { label: 'Forecast Projection', data: forecastPadded, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.04)', fill: false, borderDash: [6,4], tension: 0.3, pointRadius: 4, borderWidth: 2 }
+        { label: 'Historical Daily Sales', data: actualPadded, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.08)', fill: true, tension: 0.4, pointRadius: 6, pointBackgroundColor: '#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 },
+        { label: 'AI-Driven Forecast', data: forecastPadded, borderColor: '#FF8C42', backgroundColor: 'rgba(255,140,66,0.04)', fill: false, borderDash:[7,4], tension: 0.4, pointRadius: 6, pointBackgroundColor:'#FF8C42', pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:3 }
       ] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + ((window.currencySymbol||'') + Number(ctx.raw).toLocaleString()); } } } },
-        scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return (window.currencySymbol||'') + Number(v).toLocaleString(); } } } }
-      }
+        plugins: { legend: { display: true, position:'top', labels: { usePointStyle:true } }, tooltip: { mode:'index', intersect:false, callbacks:{ label: function(ctx){ if (ctx.raw === null) return ctx.dataset.label + ': —'; return ctx.dataset.label + ': ' + (window.currencySymbol||'₱') + Number(ctx.raw).toLocaleString('en-PH'); } } } },
+        scales: { y: { beginAtZero:true, ticks:{ callback: function(v){ return (window.currencySymbol||'₱') + Number(v).toLocaleString('en-PH'); } }, grid: { color:'rgba(229,231,235,0.6)' } }, x: { grid:{display:false} } }
+      },
+      plugins: [separatorPlugin]
     });
   }
 
   async function refreshAndRender(){
     const data = await fetchSeries();
+    console.log('[Template Forecast] Data fetched:', data);
     renderChart(data);
   }
 
