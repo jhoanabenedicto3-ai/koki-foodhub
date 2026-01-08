@@ -187,10 +187,10 @@
           params.set('top', '3');
           if(currentCategory) params.set('category', currentCategory);
           if(currentSearch) params.set('search', currentSearch);
-          if(document.getElementById('activeOnly').checked) params.set('active', '1');
-          if(document.getElementById('inStockOnly').checked) params.set('in_stock', '1');
-          const minP = document.getElementById('minPrice').value;
-          const maxP = document.getElementById('maxPrice').value;
+          if(document.getElementById('activeOnly')?.checked) params.set('active', '1');
+          if(document.getElementById('inStockOnly')?.checked) params.set('in_stock', '1');
+          const minP = document.getElementById('minPrice')?.value || '';
+          const maxP = document.getElementById('maxPrice')?.value || '';
           if(minP) params.set('min_price', minP);
           if(maxP) params.set('max_price', maxP);
 
@@ -251,13 +251,16 @@
       // Initial load of cards (after a short delay to let other init complete)
       setTimeout(refreshForecastCards, 300);
 
-      // Export dropdown handlers
-      document.getElementById('exportBtn').addEventListener('click', function(ev){ ev.preventDefault(); const menu = document.getElementById('exportMenu'); menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none'; });
-      document.getElementById('exportCsvMenu').addEventListener('click', function(){ exportCSV(); document.getElementById('exportMenu').style.display = 'none'; });
-      document.getElementById('exportJsonMenu').addEventListener('click', function(){ exportJSON(); document.getElementById('exportMenu').style.display = 'none'; });
-      document.getElementById('downloadBtn').addEventListener('click', function(){ exportCSV(); });
-      // Close export menu when clicking outside
-      document.addEventListener('click', function(e){ if(!e.target.closest('.dropdown') && !e.target.closest('#exportMenu') && document.getElementById('exportMenu').style.display === 'block'){ document.getElementById('exportMenu').style.display = 'none'; } });
+      // Export dropdown handlers (guarded in case controls are absent)
+      const exportBtnEl = document.getElementById('exportBtn');
+      if (exportBtnEl) { exportBtnEl.addEventListener('click', function(ev){ ev.preventDefault(); const menu = document.getElementById('exportMenu'); if(menu) { menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none'; } }); }
+
+      const exportCsvMenuEl = document.getElementById('exportCsvMenu'); if(exportCsvMenuEl){ exportCsvMenuEl.addEventListener('click', function(){ exportCSV(); const menu = document.getElementById('exportMenu'); if(menu) menu.style.display = 'none'; }); }
+      const exportJsonMenuEl = document.getElementById('exportJsonMenu'); if(exportJsonMenuEl){ exportJsonMenuEl.addEventListener('click', function(){ exportJSON(); const menu = document.getElementById('exportMenu'); if(menu) menu.style.display = 'none'; }); }
+      const downloadBtnEl = document.getElementById('downloadBtn'); if(downloadBtnEl){ downloadBtnEl.addEventListener('click', function(){ exportCSV(); }); }
+
+      // Close export menu when clicking outside (guard for missing exportMenu)
+      document.addEventListener('click', function(e){ const menu = document.getElementById('exportMenu'); if(!menu) return; if(!e.target.closest('.dropdown') && !e.target.closest('#exportMenu') && menu.style.display === 'block'){ menu.style.display = 'none'; } });
 
       let barChart = null;
       let lineChart = null;
@@ -410,10 +413,10 @@
           // request a large top to include all products so the table can display full dataset
           params.set('top', '1000');
 
-          const activeOnlyChecked = document.getElementById('activeOnly').checked;
-          const inStockOnlyChecked = document.getElementById('inStockOnly').checked;
-          const minPriceVal = document.getElementById('minPrice').value;
-          const maxPriceVal = document.getElementById('maxPrice').value;
+          const activeOnlyChecked = document.getElementById('activeOnly')?.checked || false;
+          const inStockOnlyChecked = document.getElementById('inStockOnly')?.checked || false;
+          const minPriceVal = document.getElementById('minPrice')?.value || '';
+          const maxPriceVal = document.getElementById('maxPrice')?.value || '';
 
           if(activeOnlyChecked) params.set('active', '1');
           if(inStockOnlyChecked) params.set('in_stock', '1');
