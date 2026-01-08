@@ -170,34 +170,29 @@
     const ctx = document.getElementById('salesChart')?.getContext('2d');
     if(!ctx) return;
 
-    // If API returned no forecast, generate a simple fallback 7-day forecast based on recent trend
-    const forecastCount = (data.forecast || []).length;
-    let finalForecast = (data.forecast || []).slice();
-    if (!forecastCount || forecastCount === 0) {
-      // Generate fallback using last non-null actuals (linear trend + mean)
-      const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-7);
-      const fallbackHorizon = (document.getElementById('rangeSelect')?.value === 'Last 7 Days') ? 5 : 7;
+    // Ensure forecast exists and has meaningful (positive) values; otherwise generate a client-side fallback
+    const forecastRaw = (data.forecast || []).slice();
+    const forecastValidCount = forecastRaw.filter(v => v !== null && v !== undefined && Number(v) > 0).length;
+    let finalForecast = forecastRaw.slice();
+    if (!finalForecast || finalForecast.length === 0 || forecastValidCount === 0) {
+      const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-14);
+      const range = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
+      const fallbackHorizon = range === 'Last 7 Days' ? 5 : (range === 'Last 90 Days' ? 14 : 7);
       function simpleForecastFromRecent(recentArr, h) {
         if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
         const n = recentArr.length;
-        // compute linear slope over last 3 points if available
         const last = recentArr[n-1] || 0;
-        const prev = recentArr[n-2] || 0;
-        const prev2 = recentArr[n-3] || 0;
+        const prev = recentArr[n-2] || last;
+        const prev2 = recentArr[n-3] || prev;
         const slope = ((last - prev) + (prev - prev2)) / 2 || 0;
-        const base = recentArr.reduce((a,b)=>a+b,0)/n;
-        let res = [];
-        for (let i=1;i<=h;i++){
-          const val = Math.max(0, Math.round(base + slope * i));
-          res.push(val);
-        }
+        const base = Math.round(recentArr.reduce((a,b)=>a+b,0)/n);
+        const res = [];
+        for (let i=1;i<=h;i++){ res.push(Math.max(0, Math.round(base + slope * i))); }
         return res;
       }
       finalForecast = simpleForecastFromRecent(recent, fallbackHorizon);
-      // show small notice in UI
-      const statusEl = document.getElementById('forecastStatus');
-      if (statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
-      console.warn('[Forecast Chart] No forecast returned by API — generated fallback forecast:', finalForecast);
+      const statusEl = document.getElementById('forecastStatus'); if (statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
+      console.warn('[Forecast Chart] Fallback forecast generated:', finalForecast);
     }
 
     // build padded arrays using finalForecast
@@ -214,7 +209,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: true, position:'top', labels: { usePointStyle:true } }, tooltip: { mode:'index', intersect:false, callbacks:{ label: function(ctx){ if (ctx.raw === null) return ctx.dataset.label + ': —'; return ctx.dataset.label + ': ' + (window.currencySymbol||'₱') + Number(ctx.raw).toLocaleString('en-PH'); } } } },
+        plugins: { legend: { display: true, position:'top', labels: { usePointStyle:true } }, tooltip: { mode:'index', intersect:false, callbacks:{ label: function(ctx){ if (ctx.raw === null) return ctx.dataset.label + ': —'; const value = (window.currencySymbol||'₱') + Number(ctx.raw).toLocaleString('en-PH'); if (/forecast|project/i.test(ctx.dataset.label)) { return 'Projected: ' + value; } return ctx.dataset.label + ': ' + value; } } } },
         scales: { y: { beginAtZero:true, ticks:{ callback: function(v){ return (window.currencySymbol||'₱') + Number(v).toLocaleString('en-PH'); } }, grid: { color:'rgba(229,231,235,0.6)' } }, x: { grid:{display:false} } }
       },
       plugins: [separatorPlugin]
