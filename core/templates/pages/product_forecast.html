@@ -316,24 +316,35 @@
         const pageItems = filtered.slice(start, start + perfRowsPerPage);
 
         tbody.innerHTML = '';
-        pageItems.forEach((p, i) => {
+        if(total === 0){
+          // Show empty message
           const tr = document.createElement('tr');
-          const rank = start + i + 1;
-          const gv = Number(p.growth_rate || 0);
-          const growthMarkup = gv > 0 ? `<span class="growth-up">+${gv}%</span>` : (gv < 0 ? `<span class="growth-down">${gv}%</span>` : `<span class="growth-flat">0%</span>`);
-          tr.innerHTML = `
-            <td style="white-space:nowrap; font-weight:700;"><a href="#" data-pid="${p.product_id}" class="select-product">${p.product}</a></td>
-            <td style="white-space:nowrap; color:#6b7280;">${p.category || ''}</td>
-            <td style="text-align:right;">${formatNumber(p.past_7_days || p.past_7 || 0)}</td>
-            <td style="text-align:right;">${formatNumber(p.past_30_days || p.past_30 || 0)}</td>
-            <td style="text-align:center;">${growthMarkup}</td>
-            <td style="text-align:right; font-weight:800; color:#059669;">${formatNumber(p.forecast_h || 0)}</td>
-          `;
+          tr.innerHTML = '<td colspan="6" style="text-align:center; padding:20px; color:#999;">No products found. Check filters or ensure data exists.</td>';
           tbody.appendChild(tr);
-        });
+        } else {
+          pageItems.forEach((p, i) => {
+            const tr = document.createElement('tr');
+            const rank = start + i + 1;
+            const gv = Number(p.growth_rate || 0);
+            const growthMarkup = gv > 0 ? `<span class="growth-up">+${gv}%</span>` : (gv < 0 ? `<span class="growth-down">${gv}%</span>` : `<span class="growth-flat">0%</span>`);
+            tr.innerHTML = `
+              <td style="white-space:nowrap; font-weight:700;"><a href="#" data-pid="${p.product_id}" class="select-product">${p.product}</a></td>
+              <td style="white-space:nowrap; color:#6b7280;">${p.category || ''}</td>
+              <td style="text-align:right;">${formatNumber(p.past_7_days || p.past_7 || 0)}</td>
+              <td style="text-align:right;">${formatNumber(p.past_30_days || p.past_30 || 0)}</td>
+              <td style="text-align:center;">${growthMarkup}</td>
+              <td style="text-align:right; font-weight:800; color:#059669;">${formatNumber(p.forecast_h || 0)}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
 
         // summary and pagination
-        document.getElementById('perfSummary').innerText = `Showing ${Math.min(total, start+1)} to ${Math.min(total, start + pageItems.length)} of ${total} results`;
+        if(total === 0){
+          document.getElementById('perfSummary').innerText = `Showing 0 results`;
+        } else {
+          document.getElementById('perfSummary').innerText = `Showing ${Math.min(total, start+1)} to ${Math.min(total, start + pageItems.length)} of ${total} results`;
+        }
         renderPerfPagination(Math.ceil(total / perfRowsPerPage), perfCurrentPage);
 
         // attach click handlers for product links
@@ -423,23 +434,50 @@
           if(minPriceVal) params.set('min_price', minPriceVal);
           if(maxPriceVal) params.set('max_price', maxPriceVal);
 
-          console.log('[Product Performance] Fetching with params:', params.toString());
+          console.log('[Product Performance] Fetching with URL:', apiUrl + '?' + params.toString());
           const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
-          console.log('[Product Performance] API response status:', res.status);
-          if(!res.ok){ console.warn('[Product Performance] API response not ok for fetchData', res.status); const txt = await res.text(); console.warn('[Product Performance] Response text (start):', txt.slice(0,500)); return; }
+          console.log('[Product Performance] API response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+          if(!res.ok){ 
+            console.warn('[Product Performance] API response not ok for fetchData', res.status); 
+            const txt = await res.text(); 
+            console.warn('[Product Performance] Response text (full):', txt);
+            // Try to parse as JSON error
+            try {
+              const errJson = JSON.parse(txt);
+              console.warn('[Product Performance] Error JSON:', errJson);
+            } catch(e) {
+              console.warn('[Product Performance] Could not parse error response as JSON');
+            }
+            return; 
+          }
           const json = await res.json();
-          console.log('[Product Performance] API returned json keys:', Object.keys(json), 'top count:', (json.top || []).length);
-          if(json && json.error){ console.warn('[Product Performance] API returned error for fetchData', json); return; }
+          console.log('[Product Performance] API returned json keys:', Object.keys(json), 'top count:', (json.top || []).length, 'summary:', json.summary);
+          if(json && json.error){ 
+            console.warn('[Product Performance] API returned error for fetchData', json); 
+            alert('[Product Performance] API Error: ' + (json.error || 'Unknown error'));
+            return; 
+          }
           const top = json.top || [];
-          console.log('[Product Performance] Rendering table with', top.length, 'products');
+          console.log('[Product Performance] Rendering table with', top.length, 'products, first product:', top[0] || 'none');
+          if(top.length === 0){
+            console.warn('[Product Performance] No products returned from API - check if products exist in database');
+          }
           renderSummary(json.summary || {}, json.best || null);
           renderBarChart('topProductsBar', top.slice(0,10));
           renderTable(top);
-        }catch(e){ console.warn('[Product Performance] Failed to fetch product forecasts', e); }
+        }catch(e){ 
+          console.error('[Product Performance] Failed to fetch product forecasts', e); 
+          alert('Failed to fetch product data: ' + e.message);
+        }
       }
 
       // Initial load: fetch data when page is ready
-      window.addEventListener('DOMContentLoaded', function(){ setTimeout(fetchData, 100); });
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(fetchData, 100); });
+      } else {
+        // DOM is already ready
+        setTimeout(fetchData, 100);
+      }
       window.addEventListener('load', function(){ setTimeout(fetchData, 200); });
 
       async function fetchProductDetail(pid){
