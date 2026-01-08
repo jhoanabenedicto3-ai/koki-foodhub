@@ -1371,18 +1371,9 @@ def forecast_data_api(request):
         weekly_fore = _ensure_forecast_non_empty(weekly_fore, weekly_series, horizon=12, label='weekly')
         monthly_fore = _ensure_forecast_non_empty(monthly_fore, monthly_series, horizon=6, label='monthly')
     except Exception as e:
-        import traceback, uuid
-        tb = traceback.format_exc()
-        error_id = uuid.uuid4().hex[:8]
-        logger.exception('Error running forecast_time_series (id=%s): %s\n%s', error_id, str(e), tb)
-        try:
-            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
-            if request.GET.get('debug') and is_admin:
-                return JsonResponse({'error': 'Internal Server Error', 'trace': tb, 'id': error_id}, status=500)
-        except Exception:
-            pass
-        return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
-
+        # If forecast computation fails, just log it and keep the default empty forecasts
+        # The view will still render with empty/fallback data
+        logger.warning('Forecast computation failed (will use defaults): %s', str(e))
     try:
         from .services.forecasting import compute_period_overview, generate_insight
 
