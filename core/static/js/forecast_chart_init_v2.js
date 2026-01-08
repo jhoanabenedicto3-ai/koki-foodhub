@@ -321,6 +321,30 @@
       plugins: [separatorPlugin]
     });
     
+    // Enforce visual styles explicitly to avoid old bundles or data issues overriding colors
+    try{
+      // Ensure historical dataset appears as a dark line with subtle fill
+      if(salesChart.data.datasets && salesChart.data.datasets[0]){
+        salesChart.data.datasets[0].borderColor = '#0f172a';
+        salesChart.data.datasets[0].pointBackgroundColor = '#0f172a';
+        salesChart.data.datasets[0].pointBorderColor = '#ffffff';
+        salesChart.data.datasets[0].backgroundColor = histGradient;
+        salesChart.data.datasets[0].borderWidth = 3;
+      }
+
+      // Ensure forecast dataset is orange, dashed, and highlights first forecast point
+      if(salesChart.data.datasets && salesChart.data.datasets[1]){
+        salesChart.data.datasets[1].borderColor = '#FF8C42';
+        salesChart.data.datasets[1].pointBackgroundColor = '#FF8C42';
+        salesChart.data.datasets[1].pointBorderColor = '#ffffff';
+        salesChart.data.datasets[1].borderDash = [6,3];
+        salesChart.data.datasets[1].backgroundColor = forecastGradient;
+        salesChart.data.datasets[1].borderWidth = 3;
+      }
+
+      salesChart.update();
+    }catch(e){ console.warn('[Forecast Chart] Failed to enforce dataset visuals', e); }
+
     console.log('[Forecast Chart] ===== CHART CREATED =====');
     console.log('[Forecast Chart] Chart instance created:', !!salesChart);
     console.log('[Forecast Chart] Chart datasets count:', salesChart.data.datasets.length);
