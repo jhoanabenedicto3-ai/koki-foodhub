@@ -1,9 +1,9 @@
 // Forecast Chart Initialization Script
 // This script is loaded after the Django template has been rendered
 
-function formatChartLabel(dateStr, isHistorical, totalDataPoints, historicalCount, period = 'daily') {
+function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
   try {
-    const date = new Date(dateStr + 'T00:00:00Z'); // Parse as UTC to avoid timezone issues
+    const date = new Date(dateStr + 'T00:00:00Z');
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     
@@ -13,26 +13,24 @@ function formatChartLabel(dateStr, isHistorical, totalDataPoints, historicalCoun
     const diffTime = today - dateUTC;
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     
-    // For historical data, show relative dates
+    // Format: "Mon Jan 2" for readability
+    const monthDay = date.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric' 
+    });
+    
+    // For historical data, show actual date
     if (isHistorical) {
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays > 1 && diffDays <= 30) return `${diffDays}d ago`;
-      
-      // For older dates, show date format
-      const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      return formatted;
+      // Skip labels for older dates to reduce clutter, show every 2nd or 3rd point
+      const pos = historicalCount - totalCount + 1;
+      if (Math.abs(pos) % 2 === 0) {
+        return monthDay;
+      }
+      return '';
     } else {
-      // For forecast data, show relative future dates or actual dates
-      const futureDays = -diffDays;
-      
-      if (futureDays === 0) return 'Today';
-      if (futureDays === 1) return 'Tomorrow';
-      if (futureDays > 1 && futureDays <= 7) return `+${futureDays}d`;
-      
-      // For dates further out, show date
-      const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      return formatted;
+      // For forecast, show every point with date
+      return monthDay;
     }
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
@@ -70,21 +68,62 @@ function buildForecastLabels(existingLabels, forecastLen){
 let salesChart = null;
 
 function renderChart(data){
+  console.log('[Forecast Chart] Rendering chart with data:', data);
+  
   const labels = (data.labels || []).slice();
   const forecastLabels = buildForecastLabels(labels, (data.forecast || []).length);
   const combined = labels.concat(forecastLabels);
   const actualPadded = (data.actual || []).concat(Array((data.forecast||[]).length).fill(null));
   const forecastPadded = Array((data.actual||[]).length).fill(null).concat(data.forecast || []);
   
+  console.log('[Forecast Chart] Historical dates:', labels);
+  console.log('[Forecast Chart] Forecast dates:', forecastLabels);
+  
   // Format labels for display
   const formattedLabels = combined.map((dateStr, idx) => {
     const isHistorical = idx < labels.length;
-    return formatChartLabel(dateStr, isHistorical, combined.length, labels.length);
+    return formatChartLabel(dateStr, isHistorical, labels.length, combined.length);
   });
 
   const ctx = document.getElementById('salesChart')?.getContext('2d');
-  if(!ctx) return;
-  if(salesChart){ try{ salesChart.destroy(); }catch(e){} }
+  if(!ctx) {
+    console.warn('[Forecast Chart] Canvas context not found');
+    return;
+  }
+  
+  if(salesChart){ 
+    try{ 
+      salesChart.destroy();
+    }catch(e){
+      console.warn('[Forecast Chart] Error destroying old chart:', e);
+    } 
+  }
+  
+  // Add plugin to draw vertical line separating historical from forecast
+  const separatorPlugin = {
+    id: 'separatorLine',
+    afterDatasetsDraw(chart) {
+      if (labels.length === 0) return;
+      
+      const xAxis = chart.scales.x;
+      const yAxis = chart.scales.y;
+      
+      // Get position of last historical data point
+      const lastHistoricalIndex = labels.length - 1;
+      const xPos = xAxis.getPixelForValue(lastHistoricalIndex);
+      
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(xPos, yAxis.getPixelForValue(yAxis.max));
+      ctx.lineTo(xPos, yAxis.getPixelForValue(yAxis.min));
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
   
   salesChart = new Chart(ctx, {
     type: 'line',
@@ -118,12 +157,22 @@ function renderChart(data){
       responsive: true,
       maintainAspectRatio: false,
       plugins: { 
-        legend: { display: false }, 
+        legend: { display: true },
+        separatorLine: true,
         tooltip: { 
+          mode: 'index',
+          intersect: false,
           callbacks: { 
+            title: function(ctx) {
+              if (ctx.length > 0) {
+                return ctx[0].label;
+              }
+              return '';
+            },
             label: function(ctx){ 
               const symbol = window.currencySymbol || '';
-              return ctx.dataset.label + ': ' + (symbol + Number(ctx.raw).toLocaleString()); 
+              const value = ctx.raw !== null ? Number(ctx.raw).toLocaleString() : 'N/A';
+              return ctx.dataset.label + ': ' + symbol + value; 
             } 
           } 
         } 
@@ -139,8 +188,11 @@ function renderChart(data){
           } 
         } 
       }
-    }
+    },
+    plugins: [separatorPlugin]
   });
+  
+  console.log('[Forecast Chart] Chart rendered successfully');
 }
 
 async function fetchSeries(){
