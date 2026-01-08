@@ -208,7 +208,7 @@
       window.addEventListener('beforeunload', function(){ stopLive(); });
 
       // Auto-refresh after load
-      window.addEventListener('load', function(){ setTimeout(function(){ refreshForecast(); }, 600); });
+      window.addEventListener('load', function(){ setTimeout(function(){ if(typeof refreshForecast === 'function'){ refreshForecast(); } else { console.warn('[Forecast] refreshForecast not defined yet'); } }, 600); });
 
       // Debug toggle removed in simplified UI
     </script>
@@ -219,15 +219,34 @@
       // Expose server-side pre-computed JSON series so client can use them without extra fetches
       // These JSON blobs are revenue-converted on the server for accurate display
       // Prefer direct revenue series when available (daily_revenue_json is the canonical source for daily revenue)
-      window._serverDaily = {{ daily_revenue_json|safe }} || {{ daily_json|safe }} || null;
-      window._serverWeekly = {{ weekly_revenue_json|safe }} || {{ weekly_json|safe }} || null;
-      window._serverMonthly = {{ monthly_revenue_json|safe }} || {{ monthly_json|safe }} || null;
-      window._serverYearly = {{ yearly_revenue_json|safe }} || null;
+      window._serverDaily = {{ daily_revenue_json|default:"null"|safe }} || {{ daily_json|default:"null"|safe }} || null;
+      window._serverWeekly = {{ weekly_revenue_json|default:"null"|safe }} || {{ weekly_json|default:"null"|safe }} || null;
+      window._serverMonthly = {{ monthly_revenue_json|default:"null"|safe }} || {{ monthly_json|default:"null"|safe }} || null;
+      window._serverYearly = {{ yearly_revenue_json|default:"null"|safe }} || null;
       // Expose today's forecast revenue (currency) so client can sanity-check scaling
       window._todayForecastRevenue = {{ today_forecast_revenue|default:0 }};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'core/js/forecast_chart_init_v2.js' %}?v={% now 'U' %}"></script>
+    <script>
+      (function(){
+        const v2 = "{% static 'core/js/forecast_chart_init_v2.js' %}?v={% now 'U' %}";
+        const v1 = "{% static 'core/js/forecast_chart_init.js' %}?v={% now 'U' %}";
+        const s = document.createElement('script');
+        s.src = v2;
+        s.async = false;
+        s.onload = function(){ console.log('[Forecast Loader] Loaded v2 script:', v2); };
+        s.onerror = function(){
+          console.warn('[Forecast Loader] Failed to load v2 script, falling back to v1:', v2);
+          const f = document.createElement('script');
+          f.src = v1;
+          f.async = false;
+          f.onload = function(){ console.log('[Forecast Loader] Loaded fallback v1 script:', v1); };
+          f.onerror = function(){ console.error('[Forecast Loader] Failed to load forecast script fallback:', v1); };
+          document.head.appendChild(f);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
 
     <style>
       .overview-grid .overview-card .card-icon { width:44px; height:44px; border-radius:8px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
