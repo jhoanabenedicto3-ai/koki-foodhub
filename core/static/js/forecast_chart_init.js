@@ -20,7 +20,8 @@ function formatChartLabel(dateStr, isHistorical, totalDataPoints, historicalCoun
       if (diffDays > 1 && diffDays <= 30) return `${diffDays}d ago`;
       
       // For older dates, show date format
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return formatted;
     } else {
       // For forecast data, show relative future dates or actual dates
       const futureDays = -diffDays;
@@ -30,7 +31,8 @@ function formatChartLabel(dateStr, isHistorical, totalDataPoints, historicalCoun
       if (futureDays > 1 && futureDays <= 7) return `+${futureDays}d`;
       
       // For dates further out, show date
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return formatted;
     }
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
@@ -184,21 +186,53 @@ async function refreshAndRender(){
 }
 
 // Initialize chart when page loads
-document.addEventListener('DOMContentLoaded', function(){
-  refreshAndRender();
+(function() {
+  console.log('[Forecast Chart] Initializing...');
   
-  // Wire up event listeners
-  const refreshBtn = document.getElementById('refreshForecastBtn');
-  const rangeSelect = document.getElementById('rangeSelect');
-  
-  if(refreshBtn) {
-    refreshBtn.addEventListener('click', refreshAndRender);
+  function init() {
+    console.log('[Forecast Chart] DOMContentLoaded event fired');
+    
+    // Fetch and render chart
+    refreshAndRender().then(() => {
+      console.log('[Forecast Chart] Chart rendered successfully');
+    }).catch((err) => {
+      console.error('[Forecast Chart] Error during render:', err);
+    });
+    
+    // Wire up event listeners
+    const refreshBtn = document.getElementById('refreshForecastBtn');
+    const rangeSelect = document.getElementById('rangeSelect');
+    
+    if(refreshBtn) {
+      console.log('[Forecast Chart] Wired refresh button');
+      refreshBtn.addEventListener('click', refreshAndRender);
+    }
+    
+    if(rangeSelect) {
+      console.log('[Forecast Chart] Wired range select');
+      rangeSelect.addEventListener('change', refreshAndRender);
+    }
+    
+    // Expose for other scripts
+    window.refreshForecast = refreshAndRender;
   }
   
-  if(rangeSelect) {
-    rangeSelect.addEventListener('change', refreshAndRender);
+  // Try multiple initialization methods
+  if (document.readyState === 'loading') {
+    console.log('[Forecast Chart] Document still loading, adding DOMContentLoaded listener');
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    console.log('[Forecast Chart] Document already loaded, initializing immediately');
+    init();
   }
   
-  // Expose for other scripts
-  window.refreshForecast = refreshAndRender;
-});
+  // Also initialize on window load as fallback
+  window.addEventListener('load', function() {
+    console.log('[Forecast Chart] Window load event fired');
+    if (!salesChart) {
+      console.log('[Forecast Chart] Chart not initialized yet, initializing now');
+      init();
+    }
+  });
+})();
+

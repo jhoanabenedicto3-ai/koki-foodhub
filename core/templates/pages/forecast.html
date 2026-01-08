@@ -200,7 +200,7 @@
       window._todayForecastRevenue = {{ today_forecast_revenue|default:0 }};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{% static 'core/js/forecast_chart_init.js' %}"></script>
+    <script src="{% static 'core/js/forecast_chart_init.js' %}?v={% now 'U' %}"></script>
 
     <style>
       .overview-grid .overview-card .card-icon { width:44px; height:44px; border-radius:8px; background:rgba(15,23,36,0.03); display:flex; align-items:center; justify-content:center; }
