@@ -1687,6 +1687,29 @@ def product_forecast_api(request):
                 last_7 = int(sum(vals[-7:])) if len(vals) >= 7 else int(sum(vals)) if vals else 0
                 past_30 = int(sum(vals[-30:])) if len(vals) >= 30 else int(sum(vals)) if vals else 0
                 
+                # FALLBACK: If series is empty or last_7 is 0, calculate directly from database
+                if not vals or last_7 == 0:
+                    from datetime import date, timedelta
+                    today = date.today()
+                    week_ago = today - timedelta(days=7)
+                    month_ago = today - timedelta(days=30)
+                    
+                    # Query actual sales from database for last 7 days
+                    last_7_sales = Sale.objects.filter(
+                        product_id=p.id,
+                        date__gte=week_ago,
+                        date__lte=today
+                    ).aggregate(total=Sum('units_sold'))
+                    last_7 = int(last_7_sales.get('total') or 0)
+                    
+                    # Query actual sales for last 30 days
+                    last_30_sales = Sale.objects.filter(
+                        product_id=p.id,
+                        date__gte=month_ago,
+                        date__lte=today
+                    ).aggregate(total=Sum('units_sold'))
+                    past_30 = int(last_30_sales.get('total') or 0)
+                
                 # growth: compare forecast for horizon to last_7 (if horizon==7) or past_30 if horizon==30
                 if horizon == 7:
                     denom = last_7 if last_7 > 0 else None
