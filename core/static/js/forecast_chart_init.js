@@ -69,18 +69,39 @@ function renderChart(data){
   console.log('[Forecast Chart] Rendering chart with data:', data);
   
   const labels = (data.labels || []).slice();
-  const forecastLabels = buildForecastLabels(labels, (data.forecast || []).length);
-  const combined = labels.concat(forecastLabels);
-  const actualPadded = (data.actual || []).concat(Array((data.forecast||[]).length).fill(null));
-  const forecastPadded = Array((data.actual||[]).length).fill(null).concat(data.forecast || []);
+  const actualData = (data.actual || []).slice();
+  const forecastData = (data.forecast || []).slice();
   
-  console.log('[Forecast Chart] Historical dates:', labels);
-  console.log('[Forecast Chart] Forecast dates:', forecastLabels);
+  console.log('[Forecast Chart] Historical dates count:', labels.length);
+  console.log('[Forecast Chart] Historical actual data count:', actualData.length);
+  console.log('[Forecast Chart] Forecast data count:', forecastData.length);
+  console.log('[Forecast Chart] First few forecast values:', forecastData.slice(0, 5));
+  
+  // Generate forecast labels from the last historical date
+  const forecastLabels = buildForecastLabels(labels, forecastData.length);
+  console.log('[Forecast Chart] Generated forecast labels count:', forecastLabels.length);
+  console.log('[Forecast Chart] First few forecast labels:', forecastLabels.slice(0, 5));
+  
+  const combined = labels.concat(forecastLabels);
+  
+  // Pad the actual data with nulls for forecast period
+  const actualPadded = actualData.concat(Array(forecastData.length).fill(null));
+  
+  // Pad the forecast data with nulls for historical period
+  const forecastPadded = Array(actualData.length).fill(null).concat(forecastData);
+  
+  console.log('[Forecast Chart] Combined labels count:', combined.length);
+  console.log('[Forecast Chart] Actual padded count:', actualPadded.length);
+  console.log('[Forecast Chart] Forecast padded count:', forecastPadded.length);
   
   // Format labels for display
   const formattedLabels = combined.map((dateStr, idx) => {
     const isHistorical = idx < labels.length;
-    return formatChartLabel(dateStr, isHistorical, labels.length, combined.length);
+    const formatted = formatChartLabel(dateStr, isHistorical, labels.length, combined.length);
+    if (idx < 3 || idx >= combined.length - 3) {
+      console.log(`[Forecast Chart] Label[${idx}]: "${dateStr}" -> "${formatted}" (historical: ${isHistorical})`);
+    }
+    return formatted;
   });
 
   const ctx = document.getElementById('salesChart')?.getContext('2d');
@@ -92,6 +113,7 @@ function renderChart(data){
   if(salesChart){ 
     try{ 
       salesChart.destroy();
+      console.log('[Forecast Chart] Old chart destroyed');
     }catch(e){
       console.warn('[Forecast Chart] Error destroying old chart:', e);
     } 
@@ -105,6 +127,11 @@ function renderChart(data){
       
       const xAxis = chart.scales.x;
       const yAxis = chart.scales.y;
+      
+      if (!xAxis || !yAxis) {
+        console.warn('[Forecast Chart] Scales not available');
+        return;
+      }
       
       // Get position of last historical data point
       const lastHistoricalIndex = labels.length - 1;
@@ -120,6 +147,8 @@ function renderChart(data){
       ctx.lineTo(xPos, yAxis.getPixelForValue(yAxis.min));
       ctx.stroke();
       ctx.restore();
+      
+      console.log('[Forecast Chart] Separator line drawn at index:', lastHistoricalIndex);
     }
   };
   
@@ -136,7 +165,8 @@ function renderChart(data){
           fill: true, 
           tension: 0.36, 
           pointRadius: 3, 
-          borderWidth: 2 
+          borderWidth: 2,
+          spanGaps: false
         },
         { 
           label: 'Forecast Projection', 
@@ -147,7 +177,8 @@ function renderChart(data){
           borderDash: [6,4], 
           tension: 0.3, 
           pointRadius: 4, 
-          borderWidth: 2 
+          borderWidth: 2,
+          spanGaps: false
         }
       ] 
     },
@@ -168,8 +199,11 @@ function renderChart(data){
               return '';
             },
             label: function(ctx){ 
+              if (ctx.raw === null) {
+                return ctx.dataset.label + ': (no data)';
+              }
               const symbol = window.currencySymbol || '';
-              const value = ctx.raw !== null ? Number(ctx.raw).toLocaleString() : 'N/A';
+              const value = Number(ctx.raw).toLocaleString();
               return ctx.dataset.label + ': ' + symbol + value; 
             } 
           } 
@@ -190,7 +224,7 @@ function renderChart(data){
     plugins: [separatorPlugin]
   });
   
-  console.log('[Forecast Chart] Chart rendered successfully');
+  console.log('[Forecast Chart] Chart rendered successfully with', forecastPadded.filter(v => v !== null).length, 'forecast points');
 }
 
 async function fetchSeries(){
