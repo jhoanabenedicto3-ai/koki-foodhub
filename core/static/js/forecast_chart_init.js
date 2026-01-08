@@ -4,14 +4,6 @@
 function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
   try {
     const date = new Date(dateStr + 'T00:00:00Z');
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    
-    const dateUTC = new Date(date);
-    dateUTC.setUTCHours(0, 0, 0, 0);
-    
-    const diffTime = today - dateUTC;
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     
     // Format: "Mon Jan 2" for readability
     const monthDay = date.toLocaleDateString('en-US', { 
@@ -20,18 +12,24 @@ function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
       day: 'numeric' 
     });
     
-    // For historical data, show actual date
-    if (isHistorical) {
-      // Skip labels for older dates to reduce clutter, show every 2nd or 3rd point
-      const pos = historicalCount - totalCount + 1;
-      if (Math.abs(pos) % 2 === 0) {
+    // Show all forecast dates clearly
+    if (!isHistorical) {
+      return monthDay;
+    }
+    
+    // For historical data, show fewer labels to avoid crowding
+    // Show labels every ~2 days when there's 7+ days
+    if (historicalCount >= 7) {
+      const position = totalCount - historicalCount;
+      if (position % 2 === 0) {
         return monthDay;
       }
       return '';
-    } else {
-      // For forecast, show every point with date
-      return monthDay;
     }
+    
+    // For short ranges (< 7 days), show all labels
+    return monthDay;
+    
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
     return dateStr;
@@ -222,19 +220,45 @@ async function fetchSeries(){
     url.searchParams.append('start', formatDate(startDate));
     url.searchParams.append('end', formatDate(endDate));
     
+    console.log('[Forecast Chart] Fetching from URL:', url.toString());
+    
     const res = await fetch(url, { credentials: 'same-origin' });
     if(!res.ok) throw new Error('Network response not ok: ' + res.status);
     const json = await res.json();
-    return json.weekly || json.daily || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+    
+    console.log('[Forecast Chart] API Response:', json);
+    
+    // Prefer daily data for all ranges
+    const data = json.daily || json.weekly || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+    
+    console.log('[Forecast Chart] Using data:', data);
+    
+    return data;
   }catch(e){ 
-    console.warn('fetchSeries failed', e); 
+    console.error('fetchSeries failed:', e); 
     return {labels:[], actual:[], forecast:[], upper:[], lower:[]}; 
   }
 }
+}
 
 async function refreshAndRender(){
-  const data = await fetchSeries();
-  renderChart(data);
+  console.log('[Forecast Chart] refreshAndRender called');
+  try {
+    const data = await fetchSeries();
+    console.log('[Forecast Chart] Data fetched:', data);
+    
+    if (!data || !data.labels) {
+      console.warn('[Forecast Chart] No data or labels in response');
+      return;
+    }
+    
+    console.log('[Forecast Chart] Historical count:', data.labels.length);
+    console.log('[Forecast Chart] Forecast count:', (data.forecast || []).length);
+    
+    renderChart(data);
+  } catch (e) {
+    console.error('[Forecast Chart] Error in refreshAndRender:', e);
+  }
 }
 
 // Initialize chart when page loads
