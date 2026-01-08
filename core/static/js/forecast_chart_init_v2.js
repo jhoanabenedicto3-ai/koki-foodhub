@@ -388,21 +388,27 @@
       if(!res.ok) throw new Error('Network response not ok: ' + res.status);
       const json = await res.json();
       try { window._lastForecastPayload = json; } catch(e){}
-      
+
       console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
-      console.log('[Forecast Chart] Daily data present:', !!json.daily);
-      if (json.daily) {
-        console.log('[Forecast Chart] Daily.forecast length:', (json.daily.forecast || []).length);
-        console.log('[Forecast Chart] Daily.actual length:', (json.daily.actual || []).length);
-        console.log('[Forecast Chart] Daily.labels length:', (json.daily.labels || []).length);
+
+      // Prefer revenue-prefixed series if present (server provides *_revenue in many cases)
+      const data = json.daily || json.daily_revenue || json.weekly || json.weekly_revenue || json.monthly || json.monthly_revenue || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+
+      // If server-side blobs were provided separately to the template, fall back to them
+      if ((!data || (data.actual || []).length === 0) && (window._serverDaily || window._serverWeekly || window._serverMonthly)){
+        console.log('[Forecast Chart] Using server-embedded series as fallback');
+        const serverData = window._serverDaily || window._serverWeekly || window._serverMonthly;
+        if(serverData && (serverData.actual || []).length) {
+          // Use the server-embedded revenue series
+          console.log('[Forecast Chart] Server series lengths:', (serverData.labels || []).length, (serverData.actual || []).length);
+          return { series: serverData, raw: json };
+        }
       }
-      
-      const data = json.daily || json.weekly || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
-      
+
       console.log('[Forecast Chart] Selected data keys:', Object.keys(data));
       console.log('[Forecast Chart] Forecast array length in selected data:', (data.forecast || []).length);
-      console.log('[Forecast Chart] Using data:', data);
-      
+      console.log('[Forecast Chart] Using data (sample):', {labelsCount:(data.labels||[]).length, actualCount:(data.actual||[]).length, forecastCount:(data.forecast||[]).length});
+
       return { series: data, raw: json };
     }catch(e){ 
       console.error('fetchSeries failed:', e); 
