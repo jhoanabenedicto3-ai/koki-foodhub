@@ -4,31 +4,39 @@
 function formatChartLabel(dateStr, isHistorical, historicalCount, totalCount) {
   try {
     const date = new Date(dateStr + 'T00:00:00Z');
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
     
-    // Format: "Mon Jan 2" for readability
-    const monthDay = date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric' 
-    });
+    const daysFromToday = Math.round((today - date) / (1000 * 60 * 60 * 24));
     
-    // Show all forecast dates clearly
-    if (!isHistorical) {
-      return monthDay;
-    }
-    
-    // For historical data, show fewer labels to avoid crowding
-    // Show labels every ~2 days when there's 7+ days
-    if (historicalCount >= 7) {
-      const position = totalCount - historicalCount;
-      if (position % 2 === 0) {
-        return monthDay;
+    // For historical data, show relative dates from the start or absolute dates
+    if (isHistorical) {
+      if (daysFromToday === 0) {
+        return 'Today';
+      } else if (daysFromToday === 1) {
+        return 'Yesterday';
+      } else if (daysFromToday > 1) {
+        return `${daysFromToday} days ago`;
+      } else if (daysFromToday < 0) {
+        // For dates in the future but still in historical (edge case)
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
-      return '';
     }
     
-    // For short ranges (< 7 days), show all labels
-    return monthDay;
+    // For forecast data, show relative future dates
+    if (!isHistorical) {
+      if (daysFromToday === 0) {
+        return 'Today';
+      } else if (daysFromToday === -1) {
+        return 'Tomorrow';
+      } else if (daysFromToday < -1) {
+        const daysAhead = Math.abs(daysFromToday);
+        return `+${daysAhead} days`;
+      }
+    }
+    
+    // Fallback: show month-day (e.g., "Jan 1")
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     
   } catch (e) {
     console.warn('Error formatting chart label:', dateStr, e);
@@ -165,30 +173,30 @@ function renderChart(data){
       labels: formattedLabels, 
       datasets: [
         { 
-          label: 'Historical', 
+          label: 'Historical Data', 
           data: actualPadded, 
-          borderColor: '#000000', 
-          backgroundColor: 'rgba(0,0,0,0.05)', 
+          borderColor: '#FF6B35', 
+          backgroundColor: 'rgba(255, 107, 53, 0.08)', 
           fill: true, 
           tension: 0.36, 
           pointRadius: 5, 
-          pointBackgroundColor: '#000000',
-          pointBorderColor: '#000000',
+          pointBackgroundColor: '#FF6B35',
+          pointBorderColor: '#FF6B35',
           pointBorderWidth: 2,
           borderWidth: 2.5,
           spanGaps: false
         },
         { 
-          label: 'Projected', 
+          label: 'Forecast Projection', 
           data: forecastPadded, 
-          borderColor: '#10b981', 
-          backgroundColor: 'rgba(16,185,129,0.04)', 
+          borderColor: '#FCA5A5', 
+          backgroundColor: 'rgba(252, 165, 165, 0.05)', 
           fill: false, 
-          borderDash: [6,4], 
+          borderDash: [6, 4], 
           tension: 0.3, 
           pointRadius: 5, 
-          pointBackgroundColor: '#10b981',
-          pointBorderColor: '#10b981',
+          pointBackgroundColor: '#FCA5A5',
+          pointBorderColor: '#FCA5A5',
           pointBorderWidth: 2,
           borderWidth: 2.5,
           spanGaps: false,
