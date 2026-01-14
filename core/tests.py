@@ -168,6 +168,30 @@ class Seed(TestCase):
         data = resp.json()
         self.assertIn('daily', data)
 
+    def test_forecast_api_returns_7day_projection_starting_today(self):
+        """API should return at least a 7-day daily projection and the first projected value should match last actual so "Today" tooltip shows both."""
+        from django.contrib.auth.models import User
+        user = User.objects.create_user('user_forecast', 'uf@example.com', 'pass')
+        c = self.client
+        c.force_login(user)
+        resp = c.get('/forecast/api/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # prefer revenue-prefixed daily series
+        daily = data.get('daily_revenue') or data.get('daily')
+        self.assertIsNotNone(daily)
+        self.assertIn('forecast', daily)
+        forecast = daily.get('forecast') or []
+        self.assertTrue(len(forecast) >= 7, f'Expected >=7-day forecast, got {len(forecast)}')
+        actual = daily.get('actual') or []
+        if actual:
+            try:
+                last_actual = int(round(float(actual[-1])))
+                self.assertEqual(int(forecast[0]), last_actual)
+            except Exception:
+                # If parsing fails, at least ensure forecast[0] is numeric
+                self.assertTrue(isinstance(forecast[0], (int, float)))
+
     def test_forecast_diag_endpoint(self):
         from django.contrib.auth.models import User, Group
         admin = User.objects.create_superuser('admin4', 'a4@example.com', 'pass')

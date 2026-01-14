@@ -712,9 +712,34 @@ def _forecast_view_impl(request, logger, json):
         forecast_weekly_base = db_weekly or []
         forecast_monthly_base = db_monthly or []
 
-        daily_fore = forecast_time_series(forecast_daily_base, horizon=30) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        # Use a compact 7-day horizon for the UI and chart (we only display next 7 days)
+        daily_fore = forecast_time_series(forecast_daily_base, horizon=7) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
         weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
         monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+
+        # Ensure the first daily projection aligns with the last historical value so "Today" shows both Historical and Projection
+        try:
+            if daily_series and isinstance(daily_series, (list, tuple)) and daily_fore.get('forecast'):
+                # daily_series is list of (label, value) pairs; extract last actual revenue if available
+                last_actual = None
+                try:
+                    last_actual = int(round(float(daily_series[-1][1])))
+                except Exception:
+                    try:
+                        last_actual = int(round(float(daily_series[-1][1] or 0)))
+                    except Exception:
+                        last_actual = None
+
+                if last_actual is not None and len(daily_fore.get('forecast', [])) >= 1:
+                    # Replace the first forecast point with the last actual so tooltip shows the same value for Today
+                    daily_fore['forecast'][0] = last_actual
+                    # Keep bounds consistent for the first day
+                    if daily_fore.get('upper') and len(daily_fore['upper']) >= 1:
+                        daily_fore['upper'][0] = last_actual
+                    if daily_fore.get('lower') and len(daily_fore['lower']) >= 1:
+                        daily_fore['lower'][0] = last_actual
+        except Exception:
+            logger.exception('Failed to align first daily forecast to last actual')
 
         # If any of the forecasts used a fallback (e.g., sklearn unavailable), log a warning so we can monitor frequency
         try:

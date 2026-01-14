@@ -678,6 +678,13 @@
       const validActualCount = historicalActual.filter(v => v !== null && v !== undefined && Number(v) !== 0).length;
       console.log('[Forecast Chart] Historical actual has', validActualCount, 'non-zero values out of', historicalActual.length);
       
+      // Ensure first projection equals last historical actual so 'Today' tooltip shows both
+      if (Array.isArray(finalForecast) && finalForecast.length > 0 && Array.isArray(historicalActual) && historicalActual.length > 0) {
+        try {
+          finalForecast[0] = historicalActual[historicalActual.length - 1];
+        } catch (e) { console.warn('[Forecast Chart] Failed to align first forecast to last actual', e); }
+      }
+
       // Finally render the chart with all components
       const renderData = { 
         labels: historicalLabels, 
