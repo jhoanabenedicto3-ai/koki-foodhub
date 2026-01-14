@@ -81,16 +81,28 @@
       console.error('[Forecast Chart] CRITICAL: No valid data to display!');
     }
     
-    const forecastLabels = buildForecastLabels(labels, forecastData.length);
+    // Build forecast labels but ensure the first forecast label aligns to the last historical label
+    // so that the tooltip for today can show both Historical and Projection values (as in the reference image)
+    let forecastLabels = [];
+    if (labels.length && forecastData.length) {
+      const subsequent = buildForecastLabels(labels, Math.max(0, forecastData.length - 1));
+      // Start forecast labels with the last historical label so first forecast point shares the same x-position
+      forecastLabels = [labels[labels.length - 1]].concat(subsequent);
+    } else {
+      forecastLabels = buildForecastLabels(labels, forecastData.length);
+    }
     console.log('[Forecast Chart] Generated forecast labels count:', forecastLabels.length);
-    
+
+    // Combined date array for tooltip titles
     const combined = labels.concat(forecastLabels);
     const combinedDates = combined.slice();
-    const firstForecastIndex = actualData.length;
-    
-    // Pad the data: historical has data then nulls, forecast has nulls then data
-    const actualPadded = actualData.concat(Array(forecastData.length).fill(null));
-    const forecastPadded = Array(actualData.length).fill(null).concat(forecastData);
+
+    // Place the first forecast point at the same index as the last historical point
+    const firstForecastIndex = Math.max(0, actualData.length - 1);
+
+    // Pad arrays so they align correctly for Chart.js
+    const forecastPadded = Array(firstForecastIndex).fill(null).concat(forecastData);
+    const actualPadded = actualData.concat(Array(Math.max(0, forecastPadded.length - actualData.length)).fill(null));
     
     // CRITICAL LOG: Show exactly what we're about to render
     console.log('[Forecast Chart] ===== FINAL ARRAYS BEFORE RENDER =====');
