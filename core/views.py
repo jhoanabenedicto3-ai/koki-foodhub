@@ -1090,7 +1090,14 @@ def _forecast_view_impl(request, logger, json):
             'lower': monthly_fore.get('lower', []),
             'confidence': monthly_fore.get('confidence', 0)
         }),
-        "yearly_revenue_json": json.dumps(payload.get('yearly_revenue', {})),
+        "yearly_revenue_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series],
+            'forecast': year_fore.get('forecast', []),
+            'upper': year_fore.get('upper', []),
+            'lower': year_fore.get('lower', []),
+            'confidence': year_confidence
+        }),
         # Server-side revenue JSON for template quick access (values are already in REVENUE form)
         "daily_revenue_json": json.dumps({
             'labels': [d for d, _ in daily_series],
