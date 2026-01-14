@@ -408,18 +408,11 @@
       console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
 
       // Prefer revenue-prefixed series if present (server provides *_revenue in many cases)
-      const data = json.daily || json.daily_revenue || json.weekly || json.weekly_revenue || json.monthly || json.monthly_revenue || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
-
-      // If server-side blobs were provided separately to the template, fall back to them
-      if ((!data || (data.actual || []).length === 0) && (window._serverDaily || window._serverWeekly || window._serverMonthly)){
-        console.log('[Forecast Chart] Using server-embedded series as fallback');
-        const serverData = window._serverDaily || window._serverWeekly || window._serverMonthly;
-        if(serverData && (serverData.actual || []).length) {
-          // Use the server-embedded revenue series
-          console.log('[Forecast Chart] Server series lengths:', (serverData.labels || []).length, (serverData.actual || []).length);
-          return { series: serverData, raw: json };
-        }
-      }
+      // First check for daily_revenue, then fall back to daily
+      let data = json.daily_revenue || json.daily || json.weekly_revenue || json.weekly || json.monthly_revenue || json.monthly || {labels:[], actual:[], forecast:[], upper:[], lower:[]};
+      
+      console.log('[Forecast Chart] Selected data type:', data === json.daily_revenue ? 'daily_revenue' : data === json.daily ? 'daily' : 'fallback');
+      console.log('[Forecast Chart] Selected data structure:', {labels: (data.labels||[]).length, actual: (data.actual||[]).length, forecast: (data.forecast||[]).length});
 
       console.log('[Forecast Chart] Selected data keys:', Object.keys(data));
       console.log('[Forecast Chart] Forecast array length in selected data:', (data.forecast || []).length);
@@ -539,12 +532,15 @@
       console.log('[Forecast Chart] Historical count:', data.labels.length);
       console.log('[Forecast Chart] Forecast count:', (data.forecast || []).length);
       
+      // Initialize finalForecast from API data
+      let finalForecast = (data.forecast || []).slice();
+      
       const forecastValidCount = (data.forecast || []).filter(v => v !== null && v !== undefined && Number(v) > 0).length;
       if (!data.forecast || data.forecast.length === 0 || forecastValidCount === 0) {
         console.warn('[Forecast Chart] Forecast missing or empty — generating fallback based on recent trend');
         const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-14);
         const range = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
-        const fallbackHorizon = range === 'Last 7 Days' ? 5 : (range === 'Last 90 Days' ? 14 : 7);
+        const fallbackHorizon = range === 'Last 7 Days' ? 7 : (range === 'Last 90 Days' ? 30 : 30);
         function simpleForecastFromRecent(recentArr, h) {
           if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
           const n = recentArr.length;
@@ -560,6 +556,8 @@
         finalForecast = simpleForecastFromRecent(recent, fallbackHorizon);
         const statusEl = document.getElementById('forecastStatus'); if (statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
         console.warn('[Forecast Chart] Fallback forecast generated:', finalForecast);
+      } else {
+        console.log('[Forecast Chart] Using server forecast data, count:', finalForecast.length);
       }
 
       const actualPaddedFinal = (data.actual || []).concat(Array(finalForecast.length).fill(null));
