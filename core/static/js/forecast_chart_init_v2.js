@@ -530,17 +530,21 @@
       }
       
       console.log('[Forecast Chart] Historical count:', data.labels.length);
-      console.log('[Forecast Chart] Forecast count:', (data.forecast || []).length);
+      console.log('[Forecast Chart] Forecast count from API:', (data.forecast || []).length);
       
       // Initialize finalForecast from API data
       let finalForecast = (data.forecast || []).slice();
+      console.log('[Forecast Chart] Initial forecast array:', finalForecast.slice(0, 5), '...');
       
+      // Always generate sufficient forecast if needed (minimum 7 days)
+      const minimumForecastDays = 7;
       const forecastValidCount = (data.forecast || []).filter(v => v !== null && v !== undefined && Number(v) > 0).length;
-      if (!data.forecast || data.forecast.length === 0 || forecastValidCount === 0) {
-        console.warn('[Forecast Chart] Forecast missing or empty — generating fallback based on recent trend');
+      
+      if (!data.forecast || data.forecast.length === 0 || data.forecast.length < minimumForecastDays || forecastValidCount === 0) {
+        console.warn('[Forecast Chart] Forecast insufficient (' + (data.forecast || []).length + ' days) — generating fallback to ensure minimum ' + minimumForecastDays + ' days');
         const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-14);
-        const range = document.getElementById('rangeSelect')?.value || 'Last 30 Days';
-        const fallbackHorizon = range === 'Last 7 Days' ? 7 : (range === 'Last 90 Days' ? 30 : 30);
+        const requiredDays = Math.max(minimumForecastDays, (data.forecast || []).length || minimumForecastDays);
+        
         function simpleForecastFromRecent(recentArr, h) {
           if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
           const n = recentArr.length;
@@ -553,18 +557,26 @@
           for (let i=1;i<=h;i++){ res.push(Math.max(0, Math.round(base + slope * i))); }
           return res;
         }
-        finalForecast = simpleForecastFromRecent(recent, fallbackHorizon);
-        const statusEl = document.getElementById('forecastStatus'); if (statusEl) statusEl.innerText = 'Forecast (fallback) — based on recent trend';
-        console.warn('[Forecast Chart] Fallback forecast generated:', finalForecast);
+        
+        finalForecast = simpleForecastFromRecent(recent, requiredDays);
+        const statusEl = document.getElementById('forecastStatus'); if (statusEl) statusEl.innerText = 'Forecast (calculated) — estimated from recent trend';
+        console.warn('[Forecast Chart] Generated ' + finalForecast.length + '-day fallback forecast:', finalForecast);
       } else {
-        console.log('[Forecast Chart] Using server forecast data, count:', finalForecast.length);
+        console.log('[Forecast Chart] Using API forecast data, count:', finalForecast.length);
       }
 
-      const actualPaddedFinal = (data.actual || []).concat(Array(finalForecast.length).fill(null));
-      const forecastPaddedFinal = Array((data.actual||[]).length).fill(null).concat(finalForecast);
-
-      // Finally render the chart
-      renderChart({ labels: data.labels || [], actual: data.actual || [], forecast: finalForecast, upper: data.upper || [], lower: data.lower || [] });
+      console.log('[Forecast Chart] Final forecast to render:', finalForecast.slice(0, 10));
+      
+      // Finally render the chart with all components
+      const renderData = { 
+        labels: data.labels || [], 
+        actual: data.actual || [], 
+        forecast: finalForecast,
+        upper: data.upper || [],
+        lower: data.lower || []
+      };
+      console.log('[Forecast Chart] renderChart input:', {labelsCount: renderData.labels.length, actualCount: renderData.actual.length, forecastCount: renderData.forecast.length});
+      renderChart(renderData);
 
     } catch (e) {
       console.error('[Forecast Chart] refreshAndRender failed', e);

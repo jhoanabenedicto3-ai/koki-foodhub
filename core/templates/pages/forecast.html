@@ -144,15 +144,18 @@
       </div>
 
       <!-- Legend -->
-      <div class="legend-row" style="display:flex; justify-content:flex-start; gap:18px; flex-wrap:wrap; padding:8px 0 18px 0;">
-        <div class="legend-item" style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary);">
-          <span class="legend-swatch actual" style="width:12px; height:12px; border-radius:4px; background:#0f172a;"></span>
-          <span>Historical Data</span>
+      <div class="legend-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; padding:8px 0 18px 0; gap:18px;">
+        <div style="display:flex; justify-content:flex-start; gap:18px; flex-wrap:wrap;">
+          <div class="legend-item" style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary);">
+            <span class="legend-swatch actual" style="width:12px; height:12px; border-radius:4px; background:#0f172a;"></span>
+            <span>Historical Data</span>
+          </div>
+          <div class="legend-item" style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary);">
+            <span class="legend-swatch predicted" style="width:12px; height:12px; border-radius:4px; background:#FF8C42;"></span>
+            <span>Forecast Projection</span>
+          </div>
         </div>
-        <div class="legend-item" style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary);">
-          <span class="legend-swatch predicted" style="width:12px; height:12px; border-radius:4px; background:#FF8C42;"></span>
-          <span>Forecast Projection</span>
-        </div>
+        <div id="forecastStatus" style="font-size:12px; color:#2563eb;">Forecast ready</div>
       </div>
 
       <!-- Chart Container -->
