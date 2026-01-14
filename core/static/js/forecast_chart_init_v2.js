@@ -91,6 +91,8 @@
     console.log('[Forecast Chart] Forecast padded count:', forecastPadded.length);
     console.log('[Forecast Chart] actualPadded (first 10):', actualPadded.slice(0, 10));
     console.log('[Forecast Chart] forecastPadded (last 10):', forecastPadded.slice(-10));
+    console.log('[Forecast Chart] CRITICAL: Check if actualPadded has data:', actualPadded.some(v => v !== null));
+    console.log('[Forecast Chart] CRITICAL: Check if forecastPadded has data:', forecastPadded.some(v => v !== null));
     
     const formattedLabels = combined.map((dateStr, idx) => {
       const isHistorical = idx < labels.length;
@@ -186,6 +188,11 @@
     const histGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
     histGradient.addColorStop(0, 'rgba(17,24,39,0.06)');
     histGradient.addColorStop(1, 'rgba(17,24,39,0.02)');
+
+    // DIAGNOSTIC: Log the actual data arrays before chart creation
+    console.log('[Forecast Chart] === PRE-CHART DATA ===');
+    console.log('[Forecast Chart] actualPadded length:', actualPadded.length, 'sample:', actualPadded.slice(0, 3), '...', actualPadded.slice(-3));
+    console.log('[Forecast Chart] forecastPadded length:', forecastPadded.length, 'sample:', forecastPadded.slice(0, 3), '...', forecastPadded.slice(-3));
 
     salesChart = new Chart(ctx, {
       type: 'line',
