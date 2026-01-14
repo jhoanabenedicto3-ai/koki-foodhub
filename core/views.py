@@ -1346,10 +1346,18 @@ def forecast_data_api(request):
     if product_filter:
         products = [p for p in products if p.get('product') == product_filter]
 
+    # CRITICAL FIX: Generate forecasts from UNFILTERED series to ensure we have proper forecast
+    # We need to use the full historical data for forecast generation, not just the filtered range
     try:
-        daily_fore = forecast_time_series(daily_series, horizon=30)
-        weekly_fore = forecast_time_series(weekly_series, horizon=12)
-        monthly_fore = forecast_time_series(monthly_series, horizon=6)
+        # Get unfiltered series for forecast generation
+        daily_series_unfiltered = aggregate_sales('daily', lookback=60)
+        weekly_series_unfiltered = aggregate_sales('weekly', lookback=12)
+        monthly_series_unfiltered = aggregate_sales('monthly', lookback=12)
+        
+        # Generate forecasts from full historical data
+        daily_fore = forecast_time_series(daily_series_unfiltered, horizon=30)
+        weekly_fore = forecast_time_series(weekly_series_unfiltered, horizon=12)
+        monthly_fore = forecast_time_series(monthly_series_unfiltered, horizon=6)
         
         # Ensure we always have arrays (even if empty)
         daily_fore = {
