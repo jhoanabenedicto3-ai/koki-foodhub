@@ -716,52 +716,6 @@ class BackupCommandTests(TestCase):
             if saved_get is not None:
                 setattr(mod, 'get_csv_forecast', saved_get)
 
-    def test_forecast_prefers_csv_when_csv_newer(self):
-        """If CSV contains recent data (we limit to 100 rows), the API should prefer CSV series and scale units to revenue."""
-        import importlib
-        from django.contrib.auth.models import User, Group
-        from decimal import Decimal
-        from datetime import date, timedelta
-        admin = User.objects.create_superuser('admin_csv', 'acsv2@example.com', 'pass')
-        grp, _ = Group.objects.get_or_create(name='Admin')
-        admin.groups.add(grp)
-        c = self.client
-        c.force_login(admin)
-
-        # Create product and recent sales so avg_unit_price > 0 (used to scale CSV units -> revenue)
-        prod = Product.objects.first() or Product.objects.create(name='CSVProd', category='Misc', price=Decimal('10.00'))
-        today = date.today()
-        Sale.objects.create(product=prod, units_sold=2, revenue=Decimal('40.00'), date=today)
-        Sale.objects.create(product=prod, units_sold=3, revenue=Decimal('60.00'), date=today - timedelta(days=5))
-
-        # Monkeypatch csv_aggregate_series to return recent CSV with last date >= DB's last date
-        mod = importlib.import_module('core.services.csv_forecasting')
-        saved = getattr(mod, 'csv_aggregate_series', None)
-        def csv_new(limit=100):
-            dates = [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
-            daily = list(zip(dates, [10,11,12,13,14,15,16]))
-            weekly = [(dates[0], 33)]
-            monthly = [(today.strftime('%Y-%m'), sum([10,11,12]))]
-            return {'daily': daily, 'weekly': weekly, 'monthly': monthly}
-        setattr(mod, 'csv_aggregate_series', csv_new)
-
-        try:
-            resp = c.get('/forecast/api/')
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-            self.assertEqual(data.get('data_source'), 'csv')
-            # The last label should be today's date
-            self.assertTrue(data['daily']['labels'])
-            self.assertEqual(data['daily']['labels'][-1], today.isoformat())
-            # avg_unit_price computed above is (40+60)/(2+3)=20
-            self.assertIn('daily_revenue', data)
-            last_units = 16
-            expected_scaled_last = int(round(last_units * 20))
-            self.assertEqual(data['daily_revenue']['actual'][-1], expected_scaled_last)
-        finally:
-            if saved is not None:
-                setattr(mod, 'csv_aggregate_series', saved)
-
     def test_model_selection_prefers_non_ma_on_trend(self):
         """Model selection should prefer linear/holt over simple MA for trending data."""
         from core.services.forecasting import select_best_forecasting_method

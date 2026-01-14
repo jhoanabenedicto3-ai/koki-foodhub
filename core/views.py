@@ -723,39 +723,6 @@ def _forecast_view_impl(request, logger, json):
         except Exception:
             pass
 
-        # If we selected CSV as the data source, we may need to scale CSV units -> revenue
-        # Recompute forecasts using the revenue-scaled series so UI displays revenue projections
-        if data_source == 'csv':
-            try:
-                # compute avg_unit_price over recent DB sales (safe fallback to 0.0)
-                try:
-                    from django.utils import timezone as _tz
-                    from datetime import timedelta as _td
-                    try:
-                        _today = _tz.localdate()
-                    except Exception:
-                        _today = _tz.now().date()
-                    _lookback = 30
-                    _start = _today - _td(days=_lookback)
-                    _agg = Sale.objects.filter(date__gte=_start, date__lte=_today).aggregate(total_rev=Sum('revenue'), total_units=Sum('units_sold'))
-                    _rev = float(_agg.get('total_rev') or 0.0)
-                    _units = int(_agg.get('total_units') or 0)
-                    avg_unit_price = (_rev / _units) if _units > 0 else 0.0
-                except Exception:
-                    avg_unit_price = 0.0
-
-                if avg_unit_price and avg_unit_price > 0:
-                    daily_series = [(d, int(round(v * avg_unit_price))) for d, v in daily_series]
-                    weekly_series = [(d, int(round(v * avg_unit_price))) for d, v in weekly_series]
-                    monthly_series = [(d, int(round(v * avg_unit_price))) for d, v in monthly_series]
-                    # Recompute forecasts on revenue series
-                    daily_fore = forecast_time_series(daily_series, horizon=30) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
-                    weekly_fore = forecast_time_series(weekly_series, horizon=12) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
-                    monthly_fore = forecast_time_series(monthly_series, horizon=6) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
-            except Exception:
-                # If anything fails, continue with previous forecasts
-                pass
-
         series_error = None
     except Exception as series_exc:
         logger.exception('Error generating time series or forecasts: %s', str(series_exc))
@@ -1335,28 +1302,10 @@ def forecast_data_api(request):
             pass
         return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
 
-    # Use DB aggregates for series by default (daily/weekly/monthly)
+    # Use DB aggregates for series (daily/weekly/monthly) — CSV is not used for forecasts
     daily_series = aggregate_sales('daily', lookback=60)
     weekly_series = aggregate_sales('weekly', lookback=12)
     monthly_series = aggregate_sales('monthly', lookback=12)
-
-    # Try to prefer CSV series when the CSV contains recent data. Limit to 100 rows for stability.
-    data_source = 'db'
-    try:
-        from .services.csv_forecasting import csv_aggregate_series
-        csv_agg = csv_aggregate_series(limit=100)
-        if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
-            csv_last = csv_agg.get('daily')[-1][0] if csv_agg.get('daily') else None
-            db_last = daily_series[-1][0] if daily_series else None
-            # Prefer CSV if DB has no data or CSV is at least as recent as DB
-            if db_last is None or (csv_last and csv_last >= db_last):
-                daily_series = csv_agg.get('daily', [])
-                weekly_series = csv_agg.get('weekly', [])
-                monthly_series = csv_agg.get('monthly', [])
-                data_source = 'csv'
-    except Exception:
-        # If CSV helpers fail for any reason, silently continue using DB series
-        csv_agg = None
 
     # Optional filters from query params: start (YYYY-MM-DD), end (YYYY-MM-DD), product
     start = request.GET.get('start')
@@ -1512,7 +1461,7 @@ def forecast_data_api(request):
 
         payload = {
             'products': products,
-            'data_source': data_source,
+            'data_source': 'db',
             'avg_unit_price': avg_unit_price,
             'currency': '₱',
             'summary': {
@@ -1564,97 +1513,55 @@ def forecast_data_api(request):
             logger.info('API: daily_revenue - dates: %d, actual values: %d, sample actual: %s', 
                         len(daily_dates), len(daily_actual), daily_actual[:3] if daily_actual else 'EMPTY')
 
-            # If we're using CSV-derived series, scale units into revenue using avg_unit_price when available
-            if data_source == 'csv' and avg_unit_price and avg_unit_price > 0:
-                try:
-                    payload['daily_revenue'] = {
-                        'labels': daily_dates,
-                        'actual': [int(round(v * avg_unit_price)) for v in daily_actual],
-                        'forecast': [int(round(f * avg_unit_price)) for f in daily_fore.get('forecast', [])],
-                        'upper': [int(round(u * avg_unit_price)) for u in daily_fore.get('upper', [])],
-                        'lower': [int(round(l * avg_unit_price)) for l in daily_fore.get('lower', [])],
-                        'confidence': daily_fore.get('confidence', 0),
-                        'fallback': bool(daily_fore.get('fallback', False))
-                    }
-                    payload['weekly_revenue'] = {
-                        'labels': [d for d, _ in weekly_series],
-                        'actual': [int(round(v * avg_unit_price)) for _, v in weekly_series],
-                        'forecast': [int(round(f * avg_unit_price)) for f in weekly_fore.get('forecast', [])],
-                        'upper': [int(round(u * avg_unit_price)) for u in weekly_fore.get('upper', [])],
-                        'lower': [int(round(l * avg_unit_price)) for l in weekly_fore.get('lower', [])],
-                        'confidence': weekly_fore.get('confidence', 0),
-                        'fallback': bool(weekly_fore.get('fallback', False))
-                    }
-                    payload['monthly_revenue'] = {
-                        'labels': [d for d, _ in monthly_series],
-                        'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
-                        'forecast': [int(round(f * avg_unit_price)) for f in monthly_fore.get('forecast', [])],
-                        'upper': [int(round(u * avg_unit_price)) for u in monthly_fore.get('upper', [])],
-                        'lower': [int(round(l * avg_unit_price)) for l in monthly_fore.get('lower', [])],
-                        'confidence': monthly_fore.get('confidence', 0),
-                        'fallback': bool(monthly_fore.get('fallback', False))
-                    }
-                    # Yearly aggregated forecast
-                    payload['yearly_revenue'] = {
-                        'labels': [d for d, _ in monthly_series],
-                        'actual': [int(round(v * avg_unit_price)) for _, v in monthly_series],
-                        'forecast': [int(round(f * avg_unit_price)) for f in year_fore.get('forecast', [])],
-                        'upper': [int(round(u * avg_unit_price)) for u in year_fore.get('upper', [])],
-                        'lower': [int(round(l * avg_unit_price)) for l in year_fore.get('lower', [])],
-                        'confidence': year_fore.get('confidence', 0),
-                        'fallback': bool(year_fore.get('fallback', False))
-                    }
-                except Exception:
-                    # Fallback to unscaled (units) values if scaling fails
-                    payload['daily_revenue'] = {
-                        'labels': daily_dates,
-                        'actual': daily_actual,
-                        'forecast': daily_fore.get('forecast', []),
-                        'upper': daily_fore.get('upper', []),
-                        'lower': daily_fore.get('lower', []),
-                        'confidence': daily_fore.get('confidence', 0),
-                        'fallback': bool(daily_fore.get('fallback', False))
-                    }
-            else:
-                payload['daily_revenue'] = {
-                    'labels': daily_dates,
-                    'actual': daily_actual,
-                    'forecast': daily_fore.get('forecast', []),
-                    'upper': daily_fore.get('upper', []),
-                    'lower': daily_fore.get('lower', []),
-                    'confidence': daily_fore.get('confidence', 0),
-                    'fallback': bool(daily_fore.get('fallback', False))
-                }
-                # Weekly/monthly: values are already in revenue form (DB case)
-                payload['weekly_revenue'] = {
-                    'labels': [d for d, _ in weekly_series],
-                    'actual': [v for _, v in weekly_series],
-                    'forecast': weekly_fore.get('forecast', []),
-                    'upper': weekly_fore.get('upper', []),
-                    'lower': weekly_fore.get('lower', []),
-                    'confidence': weekly_fore.get('confidence', 0),
-                    'fallback': bool(weekly_fore.get('fallback', False))
-                }
-                payload['monthly_revenue'] = {
-                    'labels': [d for d, _ in monthly_series],
-                    'actual': [v for _, v in monthly_series],
-                    'forecast': monthly_fore.get('forecast', []),
-                    'upper': monthly_fore.get('upper', []),
-                    'lower': monthly_fore.get('lower', []),
-                    'confidence': monthly_fore.get('confidence', 0),
-                    'fallback': bool(monthly_fore.get('fallback', False))
-                }
+            payload['daily_revenue'] = {
+                'labels': daily_dates,
+                'actual': daily_actual,
+                'forecast': daily_fore.get('forecast', []),
+                'upper': daily_fore.get('upper', []),
+                'lower': daily_fore.get('lower', []),
+                'confidence': daily_fore.get('confidence', 0),
+                'fallback': bool(daily_fore.get('fallback', False))
+            }
+            
+            # Log what we're returning (safely)
+            try:
+                logger.info('API: Payload daily_revenue contains - labels:%d, actual:%d, forecast:%d',
+                            len(payload['daily_revenue'].get('labels', [])),
+                            len(payload['daily_revenue'].get('actual', [])),
+                            len(payload['daily_revenue'].get('forecast', [])))
+            except Exception as e:
+                logger.exception('Error logging daily_revenue: %s', e)
 
-                # Yearly: aggregated forecast across next 12 months (sum of monthly forecasts)
-                payload['yearly_revenue'] = {
-                    'labels': [d for d, _ in monthly_series],
-                    'actual': [v for _, v in monthly_series],
-                    'forecast': year_fore.get('forecast', []),
-                    'upper': year_fore.get('upper', []),
-                    'lower': year_fore.get('lower', []),
-                    'confidence': year_fore.get('confidence', 0),
-                    'fallback': bool(year_fore.get('fallback', False))
-                }
+            # Weekly/monthly: values are already in revenue form
+            payload['weekly_revenue'] = {
+                'labels': [d for d, _ in weekly_series],
+                'actual': [v for _, v in weekly_series],
+                'forecast': weekly_fore.get('forecast', []),
+                'upper': weekly_fore.get('upper', []),
+                'lower': weekly_fore.get('lower', []),
+                'confidence': weekly_fore.get('confidence', 0),
+                'fallback': bool(weekly_fore.get('fallback', False))
+            }
+            payload['monthly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': monthly_fore.get('forecast', []),
+                'upper': monthly_fore.get('upper', []),
+                'lower': monthly_fore.get('lower', []),
+                'confidence': monthly_fore.get('confidence', 0),
+                'fallback': bool(monthly_fore.get('fallback', False))
+            }
+
+            # Yearly: aggregated forecast across next 12 months (sum of monthly forecasts)
+            payload['yearly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': year_fore.get('forecast', []),
+                'upper': year_fore.get('upper', []),
+                'lower': year_fore.get('lower', []),
+                'confidence': year_fore.get('confidence', 0),
+                'fallback': bool(year_fore.get('fallback', False))
+            }
         except Exception:
             # Best-effort: if construction fails, fall back to plain series already present
             pass

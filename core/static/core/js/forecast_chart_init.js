@@ -203,8 +203,7 @@
           const {top, bottom, right} = chart.chartArea;
           const g = chart.ctx.createLinearGradient(x, top, right, top);
           g.addColorStop(0, 'rgba(255,255,255,0)');
-          // Make the overlay subtle so forecast/historical lines remain visible on top
-          g.addColorStop(1, 'rgba(255,255,255,0.15)');
+          g.addColorStop(1, 'rgba(255,255,255,0.95)');
           chart.ctx.save();
           chart.ctx.fillStyle = g;
           chart.ctx.fillRect(x, top, right - x, bottom - top);
@@ -249,7 +248,6 @@
           pointBorderColor: '#f59e0b',
           pointBorderWidth: 2,
           borderWidth: 3,
-          borderDash: [6, 4],
           pointHoverRadius: 8
         }
       ] },
@@ -257,7 +255,7 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true },
+          legend: { display: false },
           tooltip: {
             mode: 'index',
             intersect: false,
