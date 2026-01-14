@@ -88,6 +88,8 @@
     const combined = labels.concat(forecastLabels);
     const combinedDates = combined.slice();
     const firstForecastIndex = actualData.length;
+    
+    // Create padded arrays: historical data has nulls at the end, forecast has nulls at the start
     const actualPadded = actualData.concat(Array(forecastData.length).fill(null));
     const forecastPadded = Array(actualData.length).fill(null).concat(forecastData);
     
@@ -229,8 +231,8 @@
             label: 'Forecast Projection',
             data: forecastPadded,
             borderColor: '#FF8C42',
-            backgroundColor: forecastGradient,
-            fill: true,
+            backgroundColor: 'transparent',  // No fill for forecast to avoid confusion
+            fill: false,
             borderDash: [6,3],
             tension: 0.32,
             pointRadius: (ctx)=> {
