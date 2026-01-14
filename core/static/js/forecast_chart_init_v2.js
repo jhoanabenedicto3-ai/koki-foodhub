@@ -89,6 +89,8 @@
     console.log('[Forecast Chart] Combined labels count:', combined.length);
     console.log('[Forecast Chart] Actual padded count:', actualPadded.length);
     console.log('[Forecast Chart] Forecast padded count:', forecastPadded.length);
+    console.log('[Forecast Chart] actualPadded (first 10):', actualPadded.slice(0, 10));
+    console.log('[Forecast Chart] forecastPadded (last 10):', forecastPadded.slice(-10));
     
     const formattedLabels = combined.map((dateStr, idx) => {
       const isHistorical = idx < labels.length;
@@ -176,19 +178,19 @@
       }
     };
 
+    // Create gradients BEFORE using them in the chart config
+    const forecastGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+    forecastGradient.addColorStop(0, 'rgba(255, 140, 66, 0.18)');
+    forecastGradient.addColorStop(1, 'rgba(255, 140, 66, 0.02)');
+
+    const histGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+    histGradient.addColorStop(0, 'rgba(17,24,39,0.06)');
+    histGradient.addColorStop(1, 'rgba(17,24,39,0.02)');
+
     salesChart = new Chart(ctx, {
       type: 'line',
       data: { 
-        labels: formattedLabels, 
-        // gradients
-        const forecastGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-        forecastGradient.addColorStop(0, 'rgba(255, 140, 66, 0.18)');
-        forecastGradient.addColorStop(1, 'rgba(255, 140, 66, 0.02)');
-
-        const histGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-        histGradient.addColorStop(0, 'rgba(17,24,39,0.06)');
-        histGradient.addColorStop(1, 'rgba(17,24,39,0.02)');
-
+        labels: formattedLabels,
         datasets: [
           {
             label: 'Historical Data',

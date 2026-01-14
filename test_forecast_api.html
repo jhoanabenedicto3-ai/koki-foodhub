@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Forecast API</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <h1>Forecast API Test</h1>
+    <div id="output" style="white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; padding: 10px; margin: 10px 0; max-height: 600px; overflow-y: auto;"></div>
+    <div id="chart" style="width: 100%; height: 400px; border: 1px solid #ccc; margin: 10px 0;"></div>
+    <button onclick="testAPI()">Test Forecast API</button>
+    <button onclick="clearOutput()">Clear Output</button>
+
+    <script>
+        const outputDiv = document.getElementById('output');
+        const chartDiv = document.getElementById('chart');
+        let chart = null;
+
+        function log(msg) {
+            console.log(msg);
+            outputDiv.textContent += msg + '\n';
+            outputDiv.parentElement.scrollTop = outputDiv.parentElement.scrollHeight;
+        }
+
+        function clearOutput() {
+            outputDiv.textContent = '';
+        }
+
+        async function testAPI() {
+            clearOutput();
+            log('=== Testing Forecast API ===');
+            log('Fetching from: /forecast/api/');
+
+            try {
+                const res = await fetch('/forecast/api/?start=2026-01-07&end=2026-01-14', {
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+
+                log(`Response Status: ${res.status} ${res.statusText}`);
+
+                if (!res.ok) {
+                    const txt = await res.text();
+                    log(`Error Response: ${txt}`);
+                    return;
+                }
+
+                const json = await res.json();
+                log('\n=== API Response Structure ===');
+                log(`Top-level keys: ${Object.keys(json).join(', ')}`);
+
+                // Check for daily_revenue
+                if (json.daily_revenue) {
+                    log('\n=== daily_revenue ===');
+                    log(`Labels: ${(json.daily_revenue.labels || []).length} items`);
+                    log(`Actual: ${(json.daily_revenue.actual || []).length} items`);
+                    log(`Forecast: ${(json.daily_revenue.forecast || []).length} items`);
+                    log(`Sample actual: ${JSON.stringify((json.daily_revenue.actual || []).slice(0, 3))}`);
+                    log(`Sample forecast: ${JSON.stringify((json.daily_revenue.forecast || []).slice(0, 3))}`);
+                    
+                    // Try to render the chart
+                    if (json.daily_revenue.labels && json.daily_revenue.labels.length > 0) {
+                        log('\n=== Rendering Chart ===');
+                        renderChart(json.daily_revenue);
+                    }
+                } else {
+                    log('\nWARNING: No daily_revenue in response!');
+                }
+
+                // Check for daily fallback
+                if (json.daily) {
+                    log('\n=== daily (fallback) ===');
+                    log(`Labels: ${(json.daily.labels || []).length} items`);
+                    log(`Actual: ${(json.daily.actual || []).length} items`);
+                    log(`Forecast: ${(json.daily.forecast || []).length} items`);
+                }
+
+                // Log full response
+                log('\n=== Full API Response (JSON) ===');
+                log(JSON.stringify(json, null, 2).slice(0, 2000));
+
+            } catch (e) {
+                log(`Error: ${e.message}`);
+                log(e.stack);
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('chart')?.getContext('2d');
+            if (!ctx) {
+                log('ERROR: Canvas context not found');
+                return;
+            }
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            const labels = data.labels || [];
+            const actual = data.actual || [];
+            const forecast = data.forecast || [];
+
+            log(`Chart Data: ${labels.length} labels, ${actual.length} actual, ${forecast.length} forecast`);
+
+            // Pad data
+            const actualPadded = actual.concat(Array(forecast.length).fill(null));
+            const forecastPadded = Array(actual.length).fill(null).concat(forecast);
+
+            log(`After padding: actual=${actualPadded.length}, forecast=${forecastPadded.length}`);
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels.concat(Array(forecast.length).fill('Forecast')),
+                    datasets: [
+                        {
+                            label: 'Historical Data',
+                            data: actualPadded,
+                            borderColor: '#0f172a',
+                            fill: false,
+                            tension: 0.32,
+                            pointRadius: 4,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Forecast Projection',
+                            data: forecastPadded,
+                            borderColor: '#FF8C42',
+                            fill: false,
+                            borderDash: [6, 3],
+                            tension: 0.32,
+                            pointRadius: 4,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            log('Chart rendered successfully!');
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => testAPI(), 500);
+        });
+    </script>
+</body>
+</html>
