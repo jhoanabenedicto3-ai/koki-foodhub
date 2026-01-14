@@ -61,20 +61,25 @@
   let salesChart = null;
 
   function renderChart(data){
-    console.log('[Forecast Chart] ===== RENDERchart START =====');
-    console.log('[Forecast Chart] Rendering chart with data:', data);
-    
     const labels = (data.labels || []).slice();
     const actualData = (data.actual || []).slice();
     const forecastData = (data.forecast || []).slice();
     
-    console.log('[Forecast Chart] ===== DATA ARRAYS =====');
-    console.log('[Forecast Chart] Historical dates count:', labels.length);
-    console.log('[Forecast Chart] Historical actual data count:', actualData.length);
-    console.log('[Forecast Chart] Forecast data count:', forecastData.length);
-    console.log('[Forecast Chart] Actual data:', actualData);
-    console.log('[Forecast Chart] Forecast data:', forecastData);
-    console.log('[Forecast Chart] First few forecast values:', forecastData.slice(0, 5));
+    console.log('[Forecast Chart] ===== RENDERchart START =====');
+    console.log('[Forecast Chart] Rendering chart with data:', data);
+    console.log('[Forecast Chart] DATA ARRAYS:');
+    console.log('[Forecast Chart]   labels:', labels.length, 'items, first:', labels[0], 'last:', labels[labels.length-1]);
+    console.log('[Forecast Chart]   actualData:', actualData.length, 'items, sample:', actualData.slice(0, 5), '... last:', actualData.slice(-3));
+    console.log('[Forecast Chart]   forecastData:', forecastData.length, 'items, sample:', forecastData.slice(0, 5), '... last:', forecastData.slice(-3));
+    
+    // CRITICAL: Validate that we have actual data to show
+    const hasActualData = actualData.some(v => v !== null && v !== undefined && Number(v) > 0);
+    const hasForecastData = forecastData.some(v => v !== null && v !== undefined && Number(v) > 0);
+    console.log('[Forecast Chart] hasActualData:', hasActualData, 'hasForecastData:', hasForecastData);
+    
+    if (!hasActualData && !hasForecastData) {
+      console.error('[Forecast Chart] CRITICAL: No valid data to display!');
+    }
     
     const forecastLabels = buildForecastLabels(labels, forecastData.length);
     console.log('[Forecast Chart] Generated forecast labels count:', forecastLabels.length);
@@ -186,13 +191,19 @@
     forecastGradient.addColorStop(1, 'rgba(255, 140, 66, 0.02)');
 
     const histGradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-    histGradient.addColorStop(0, 'rgba(17,24,39,0.06)');
+    histGradient.addColorStop(0, 'rgba(17,24,39,0.10)');
     histGradient.addColorStop(1, 'rgba(17,24,39,0.02)');
 
-    // DIAGNOSTIC: Log the actual data arrays before chart creation
+    // CRITICAL DEBUG: Log the arrays that will be used in datasets
     console.log('[Forecast Chart] === PRE-CHART DATA ===');
     console.log('[Forecast Chart] actualPadded length:', actualPadded.length, 'sample:', actualPadded.slice(0, 3), '...', actualPadded.slice(-3));
     console.log('[Forecast Chart] forecastPadded length:', forecastPadded.length, 'sample:', forecastPadded.slice(0, 3), '...', forecastPadded.slice(-3));
+    
+    // Verify padding is correct
+    const actualNullCount = actualPadded.filter(v => v === null).length;
+    const forecastNullCount = forecastPadded.filter(v => v === null).length;
+    console.log('[Forecast Chart] actualPadded nulls:', actualNullCount, '/ non-nulls:', actualPadded.length - actualNullCount);
+    console.log('[Forecast Chart] forecastPadded nulls:', forecastNullCount, '/ non-nulls:', forecastPadded.length - forecastNullCount);
 
     salesChart = new Chart(ctx, {
       type: 'line',
@@ -211,7 +222,8 @@
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
             borderWidth: 3,
-            spanGaps: false
+            spanGaps: false,
+            order: 1  // Render historical data AFTER (on top of) forecast
           },
           {
             label: 'Forecast Projection',
@@ -229,7 +241,8 @@
             pointBorderColor: '#ffffff',
             pointBorderWidth: (ctx)=> ctx.dataIndex === firstForecastIndex ? 3 : 2,
             borderWidth: 3,
-            spanGaps: false
+            spanGaps: false,
+            order: 2  // Render forecast data BEFORE (behind) historical
           }
         ] 
       },
@@ -538,24 +551,38 @@
         return;
       }
       
-      console.log('[Forecast Chart] Historical count:', data.labels.length);
-      console.log('[Forecast Chart] Forecast count from API:', (data.forecast || []).length);
+      console.log('[Forecast Chart] ===== DATA VALIDATION START =====');
+      console.log('[Forecast Chart] Received data.labels:', (data.labels || []).length, 'items');
+      console.log('[Forecast Chart] Received data.actual:', (data.actual || []).length, 'items, sample:', (data.actual || []).slice(0, 3));
+      console.log('[Forecast Chart] Received data.forecast:', (data.forecast || []).length, 'items, sample:', (data.forecast || []).slice(0, 3));
+      
+      // CRITICAL FIX: If actual data is empty or all zeros, we have a problem
+      const actualValues = (data.actual || []).filter(v => v !== null && v !== undefined && Number(v) !== 0);
+      if (actualValues.length === 0) {
+        console.error('[Forecast Chart] CRITICAL: No valid historical data found! data.actual is empty or all zeros.');
+        console.log('[Forecast Chart] Raw actual array:', data.actual);
+      }
       
       // Initialize finalForecast from API data
       let finalForecast = (data.forecast || []).slice();
-      console.log('[Forecast Chart] Initial forecast array:', finalForecast.slice(0, 5), '...');
+      console.log('[Forecast Chart] Initial forecast from API:', finalForecast.slice(0, 5), '...');
       
       // Always generate sufficient forecast if needed (minimum 7 days)
       const minimumForecastDays = 7;
       const forecastValidCount = (data.forecast || []).filter(v => v !== null && v !== undefined && Number(v) > 0).length;
       
       if (!data.forecast || data.forecast.length === 0 || data.forecast.length < minimumForecastDays || forecastValidCount === 0) {
-        console.warn('[Forecast Chart] Forecast insufficient (' + (data.forecast || []).length + ' days) — generating fallback to ensure minimum ' + minimumForecastDays + ' days');
+        console.warn('[Forecast Chart] Forecast insufficient (' + (data.forecast || []).length + ' valid days) — generating fallback');
         const recent = (data.actual || []).filter(v => v !== null && v !== undefined).slice(-14);
+        console.log('[Forecast Chart] Recent historical values for fallback (last 14):', recent);
+        
         const requiredDays = Math.max(minimumForecastDays, (data.forecast || []).length || minimumForecastDays);
         
         function simpleForecastFromRecent(recentArr, h) {
-          if (!recentArr || recentArr.length === 0) return Array(h).fill(0);
+          if (!recentArr || recentArr.length === 0) {
+            console.warn('[Forecast Chart] Empty recent array, returning zero forecast');
+            return Array(h).fill(0);
+          }
           const n = recentArr.length;
           const last = recentArr[n-1] || 0;
           const prev = recentArr[n-2] || last;
@@ -564,27 +591,37 @@
           const base = Math.round(recentArr.reduce((a,b)=>a+b,0)/n);
           const res = [];
           for (let i=1;i<=h;i++){ res.push(Math.max(0, Math.round(base + slope * i))); }
+          console.log('[Forecast Chart] Generated forecast with base=' + base + ', slope=' + slope.toFixed(2) + ', h=' + h);
           return res;
         }
         
         finalForecast = simpleForecastFromRecent(recent, requiredDays);
         const statusEl = document.getElementById('forecastStatus'); if (statusEl) statusEl.innerText = 'Forecast (calculated) — estimated from recent trend';
-        console.warn('[Forecast Chart] Generated ' + finalForecast.length + '-day fallback forecast:', finalForecast);
+        console.warn('[Forecast Chart] Generated ' + finalForecast.length + '-day fallback forecast:', finalForecast.slice(0, 7));
       } else {
         console.log('[Forecast Chart] Using API forecast data, count:', finalForecast.length);
       }
 
-      console.log('[Forecast Chart] Final forecast to render:', finalForecast.slice(0, 10));
+      console.log('[Forecast Chart] Final forecast array:', finalForecast.slice(0, 7), '...', finalForecast.slice(-3));
+      
+      // Validate and prepare data for rendering
+      const historicalLabels = (data.labels || []).slice();
+      const historicalActual = (data.actual || []).slice();
+      
+      console.log('[Forecast Chart] ===== PRE-RENDER DATA =====');
+      console.log('[Forecast Chart] Historical labels:', historicalLabels.length, 'first:', historicalLabels[0], 'last:', historicalLabels[historicalLabels.length-1]);
+      console.log('[Forecast Chart] Historical actual:', historicalActual.length, 'sample:', historicalActual.slice(0, 5));
+      console.log('[Forecast Chart] Forecast to add:', finalForecast.length, 'sample:', finalForecast.slice(0, 5));
       
       // Finally render the chart with all components
       const renderData = { 
-        labels: data.labels || [], 
-        actual: data.actual || [], 
+        labels: historicalLabels, 
+        actual: historicalActual, 
         forecast: finalForecast,
         upper: data.upper || [],
         lower: data.lower || []
       };
-      console.log('[Forecast Chart] renderChart input:', {labelsCount: renderData.labels.length, actualCount: renderData.actual.length, forecastCount: renderData.forecast.length});
+      console.log('[Forecast Chart] renderChart will receive:', {labels: renderData.labels.length, actual: renderData.actual.length, forecast: renderData.forecast.length});
       renderChart(renderData);
 
     } catch (e) {
