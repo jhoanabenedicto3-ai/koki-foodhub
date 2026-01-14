@@ -716,6 +716,33 @@ class BackupCommandTests(TestCase):
             if saved_get is not None:
                 setattr(mod, 'get_csv_forecast', saved_get)
 
+    def test_api_fallback_uses_unfiltered_history(self):
+        """If the client requests a narrow range with little/zero actuals the API fallback
+        forecast should still be computed from the full historical series (not the filtered one)."""
+        from django.contrib.auth.models import User, Group
+        admin = User.objects.create_superuser('admin_fallback', 'afb@example.com', 'pass')
+        grp, _ = Group.objects.get_or_create(name='Admin')
+        admin.groups.add(grp)
+        c = self.client
+        c.force_login(admin)
+
+        # Request with start=end=today so server filtering would produce a tiny series
+        from django.utils import timezone as _tz
+        try:
+            today = _tz.localdate().isoformat()
+        except Exception:
+            import datetime
+            today = datetime.date.today().isoformat()
+
+        resp = c.get(f'/forecast/api/?start={today}&end={today}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # daily_revenue.forecast should be present and contain non-zero predicted values
+        self.assertIn('daily_revenue', data)
+        forecast = data['daily_revenue'].get('forecast') or []
+        non_zero = any((v or 0) != 0 for v in forecast)
+        self.assertTrue(non_zero, 'Fallback forecast must be computed from the unfiltered history and not be all zeros')
+
     def test_model_selection_prefers_non_ma_on_trend(self):
         """Model selection should prefer linear/holt over simple MA for trending data."""
         from core.services.forecasting import select_best_forecasting_method

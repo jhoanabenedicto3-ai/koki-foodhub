@@ -1423,9 +1423,11 @@ def forecast_data_api(request):
             return fore
 
         # Ensure we have non-empty forecasts for clients (daily:30, weekly:12, monthly:6)
-        daily_fore = _ensure_forecast_non_empty(daily_fore, daily_series, horizon=30, label='daily')
-        weekly_fore = _ensure_forecast_non_empty(weekly_fore, weekly_series, horizon=12, label='weekly')
-        monthly_fore = _ensure_forecast_non_empty(monthly_fore, monthly_series, horizon=6, label='monthly')
+        # IMPORTANT: Use the UNFILTERED series for fallback generation so clients that request
+        # a narrow date range still receive a full forecast computed from the complete history.
+        daily_fore = _ensure_forecast_non_empty(daily_fore, daily_series_unfiltered, horizon=30, label='daily')
+        weekly_fore = _ensure_forecast_non_empty(weekly_fore, weekly_series_unfiltered, horizon=12, label='weekly')
+        monthly_fore = _ensure_forecast_non_empty(monthly_fore, monthly_series_unfiltered, horizon=6, label='monthly')
     except Exception as e:
         # If forecast computation fails, just log it and keep the default empty forecasts
         # The view will still render with empty/fallback data
