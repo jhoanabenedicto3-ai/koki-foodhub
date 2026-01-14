@@ -1355,15 +1355,22 @@ def forecast_data_api(request):
         monthly_series_unfiltered = aggregate_sales('monthly', lookback=12)
         
         logger.info('API: Unfiltered daily_series length: %d, weekly: %d, monthly: %d', 
-                    len(daily_series_unfiltered), len(weekly_series_unfiltered), len(monthly_series_unfiltered))
+                    len(daily_series_unfiltered) if daily_series_unfiltered else 0, 
+                    len(weekly_series_unfiltered) if weekly_series_unfiltered else 0, 
+                    len(monthly_series_unfiltered) if monthly_series_unfiltered else 0)
         
         # Generate forecasts from full historical data
         daily_fore = forecast_time_series(daily_series_unfiltered, horizon=30)
         weekly_fore = forecast_time_series(weekly_series_unfiltered, horizon=12)
         monthly_fore = forecast_time_series(monthly_series_unfiltered, horizon=6)
         
-        logger.info('API: Generated forecasts - daily: %d, weekly: %d, monthly: %d', 
-                    len(daily_fore.get('forecast', [])), len(weekly_fore.get('forecast', [])), len(monthly_fore.get('forecast', [])))
+        try:
+            logger.info('API: Generated forecasts - daily: %d, weekly: %d, monthly: %d', 
+                        len(daily_fore.get('forecast', []) or []), 
+                        len(weekly_fore.get('forecast', []) or []), 
+                        len(monthly_fore.get('forecast', []) or []))
+        except Exception as e:
+            logger.exception('Error logging forecast lengths: %s', e)
         
         # Ensure we always have arrays (even if empty)
         daily_fore = {
@@ -1516,11 +1523,14 @@ def forecast_data_api(request):
                 'fallback': bool(daily_fore.get('fallback', False))
             }
             
-            # Log what we're returning
-            logger.info('API: Payload daily_revenue contains - labels:%d, actual:%d, forecast:%d',
-                        len(payload['daily_revenue']['labels']),
-                        len(payload['daily_revenue']['actual']),
-                        len(payload['daily_revenue']['forecast']))
+            # Log what we're returning (safely)
+            try:
+                logger.info('API: Payload daily_revenue contains - labels:%d, actual:%d, forecast:%d',
+                            len(payload['daily_revenue'].get('labels', [])),
+                            len(payload['daily_revenue'].get('actual', [])),
+                            len(payload['daily_revenue'].get('forecast', [])))
+            except Exception as e:
+                logger.exception('Error logging daily_revenue: %s', e)
 
             # Weekly/monthly: values are already in revenue form
             payload['weekly_revenue'] = {
