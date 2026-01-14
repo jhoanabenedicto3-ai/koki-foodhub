@@ -576,6 +576,10 @@
   // Initialize
   window._lastForecastPayload = null;
   window._live = { enabled: false, timerId: null, intervalSec: 60, paused: false };
+  
+  // Expose refreshAndRender globally so template scripts can call it
+  window.refreshForecast = refreshAndRender;
+  
   window.addEventListener('load', function(){ setTimeout(refreshAndRender, 500); });
 
 })();
