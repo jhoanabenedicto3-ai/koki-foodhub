@@ -1354,10 +1354,16 @@ def forecast_data_api(request):
         weekly_series_unfiltered = aggregate_sales('weekly', lookback=12)
         monthly_series_unfiltered = aggregate_sales('monthly', lookback=12)
         
+        logger.info('API: Unfiltered daily_series length: %d, weekly: %d, monthly: %d', 
+                    len(daily_series_unfiltered), len(weekly_series_unfiltered), len(monthly_series_unfiltered))
+        
         # Generate forecasts from full historical data
         daily_fore = forecast_time_series(daily_series_unfiltered, horizon=30)
         weekly_fore = forecast_time_series(weekly_series_unfiltered, horizon=12)
         monthly_fore = forecast_time_series(monthly_series_unfiltered, horizon=6)
+        
+        logger.info('API: Generated forecasts - daily: %d, weekly: %d, monthly: %d', 
+                    len(daily_fore.get('forecast', [])), len(weekly_fore.get('forecast', [])), len(monthly_fore.get('forecast', [])))
         
         # Ensure we always have arrays (even if empty)
         daily_fore = {

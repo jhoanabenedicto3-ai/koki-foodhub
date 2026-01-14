@@ -213,25 +213,10 @@
         labels: formattedLabels,
         datasets: [
           {
-            label: 'Historical Data',
-            data: actualPadded,
-            borderColor: '#0f172a',
-            backgroundColor: histGradient,
-            fill: true,
-            tension: 0.32,
-            pointRadius: (ctx)=> (ctx.raw === null ? 0 : 4),
-            pointBackgroundColor: '#0f172a',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            borderWidth: 3,
-            spanGaps: false,
-            order: 1  // Render historical data AFTER (on top of) forecast
-          },
-          {
             label: 'Forecast Projection',
             data: forecastPadded,
             borderColor: '#FF8C42',
-            backgroundColor: 'transparent',  // No fill for forecast to avoid confusion
+            backgroundColor: 'transparent',
             fill: false,
             borderDash: [6,3],
             tension: 0.32,
@@ -244,7 +229,22 @@
             pointBorderWidth: (ctx)=> ctx.dataIndex === firstForecastIndex ? 3 : 2,
             borderWidth: 3,
             spanGaps: false,
-            order: 2  // Render forecast data BEFORE (behind) historical
+            order: 1  // Draw forecast FIRST (behind)
+          },
+          {
+            label: 'Historical Data',
+            data: actualPadded,
+            borderColor: '#0f172a',
+            backgroundColor: histGradient,
+            fill: true,
+            tension: 0.32,
+            pointRadius: (ctx)=> (ctx.raw === null ? 0 : 4),
+            pointBackgroundColor: '#0f172a',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            borderWidth: 3,
+            spanGaps: false,
+            order: 0  // Draw historical LAST (on top)
           }
         ] 
       },
@@ -605,6 +605,26 @@
       }
 
       console.log('[Forecast Chart] Final forecast array:', finalForecast.slice(0, 7), '...', finalForecast.slice(-3));
+      
+      // CRITICAL: Validate that forecast is populated BEFORE rendering
+      if (!finalForecast || finalForecast.length === 0) {
+        console.error('[Forecast Chart] CRITICAL ERROR: finalForecast is empty! Cannot render forecast line');
+        const statusEl = document.getElementById('forecastStatus');
+        if (statusEl) {
+          statusEl.innerText = 'ERROR: Forecast generation failed';
+          statusEl.style.color = '#dc2626';
+        }
+        return;
+      }
+      
+      const forecastHasData = finalForecast.some(v => v !== null && v !== undefined && Number(v) > 0);
+      if (!forecastHasData) {
+        console.error('[Forecast Chart] CRITICAL ERROR: finalForecast contains no valid data!');
+        console.log('[Forecast Chart] finalForecast array:', finalForecast);
+        return;
+      }
+      
+      console.log('[Forecast Chart] ✓ Forecast validated: ' + finalForecast.length + ' days with data');
       
       // Validate and prepare data for rendering
       const historicalLabels = (data.labels || []).slice();
