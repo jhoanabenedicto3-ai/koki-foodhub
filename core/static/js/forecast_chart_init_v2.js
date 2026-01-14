@@ -167,7 +167,7 @@
 
         // Draw small 'TODAY' pill below the chart
         try{
-          const labelText = 'TODAY';
+          const labelText = 'Today';
           const padding = 8;
           ctx.font = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial';
           const textWidth = ctx.measureText(labelText).width;
@@ -184,6 +184,11 @@
           ctx.fillStyle = '#6b7280';
           ctx.fillText(labelText, xPos - textWidth/2, rectY + rectH/2 + 5);
         }catch(e){ console.warn('Failed to draw TODAY pill', e); }
+
+      },
+    };
+
+    // Create gradients BEFORE using them in the chart config
 
         ctx.restore();
 
@@ -217,38 +222,38 @@
         labels: formattedLabels,
         datasets: [
           {
-            label: 'Forecast Projection',
-            data: forecastPadded,
-            borderColor: '#FF8C42',
-            backgroundColor: 'transparent',
-            fill: false,
-            borderDash: [6,3],
-            tension: 0.32,
-            pointRadius: (ctx)=> {
-              if (ctx.raw === null) return 0;
-              return ctx.dataIndex === firstForecastIndex ? 8 : 5;
-            },
-            pointBackgroundColor: '#FF8C42',
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: (ctx)=> ctx.dataIndex === firstForecastIndex ? 3 : 2,
-            borderWidth: 3,
-            spanGaps: false,
-            order: 1  // Draw forecast FIRST (behind)
-          },
-          {
             label: 'Historical Data',
             data: actualPadded,
             borderColor: '#0f172a',
             backgroundColor: histGradient,
             fill: true,
-            tension: 0.32,
-            pointRadius: (ctx)=> (ctx.raw === null ? 0 : 4),
-            pointBackgroundColor: '#0f172a',
-            pointBorderColor: '#ffffff',
+            tension: 0.36,
+            pointRadius: (ctx)=> (ctx.raw === null ? 0 : 5),
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: '#0f172a',
             pointBorderWidth: 2,
             borderWidth: 3,
             spanGaps: false,
-            order: 0  // Draw historical LAST (on top)
+            order: 0
+          },
+          {
+            label: 'Forecast Projection',
+            data: forecastPadded,
+            borderColor: '#f97316',
+            backgroundColor: forecastGradient,
+            fill: false,
+            borderDash: [6,4],
+            tension: 0.36,
+            pointRadius: (ctx)=> {
+              if (ctx.raw === null) return 0;
+              return ctx.dataIndex === firstForecastIndex ? 8 : 6;
+            },
+            pointBackgroundColor: (ctx)=> ctx.dataIndex === firstForecastIndex ? '#f97316' : '#ffffff',
+            pointBorderColor: '#f97316',
+            pointBorderWidth: (ctx)=> ctx.dataIndex === firstForecastIndex ? 3 : 2,
+            borderWidth: 3,
+            spanGaps: false,
+            order: 1
           }
         ] 
       },
@@ -294,7 +299,7 @@
               },
               label: function(ctx){ 
                 if (ctx.raw === null) {
-                  return ctx.dataset.label + ': —';
+                  return (/forecast|project/i.test(ctx.dataset.label) ? 'Projection: —' : 'Historical: —');
                 }
                 const value = Number(ctx.raw).toLocaleString('en-PH', {
                   style: 'currency',
@@ -303,9 +308,9 @@
                   maximumFractionDigits: 0
                 });
                 if (/forecast|project/i.test(ctx.dataset.label)) {
-                  return 'Projected: ' + value;
+                  return 'Projection: ' + value;
                 }
-                return ctx.dataset.label + ': ' + value; 
+                return 'Historical: ' + value;
               } 
             } 
           } 
