@@ -83,23 +83,27 @@
     
     const forecastLabels = buildForecastLabels(labels, forecastData.length);
     console.log('[Forecast Chart] Generated forecast labels count:', forecastLabels.length);
-    console.log('[Forecast Chart] First few forecast labels:', forecastLabels.slice(0, 5));
     
     const combined = labels.concat(forecastLabels);
     const combinedDates = combined.slice();
     const firstForecastIndex = actualData.length;
     
-    // Create padded arrays: historical data has nulls at the end, forecast has nulls at the start
+    // Pad the data: historical has data then nulls, forecast has nulls then data
     const actualPadded = actualData.concat(Array(forecastData.length).fill(null));
     const forecastPadded = Array(actualData.length).fill(null).concat(forecastData);
     
-    console.log('[Forecast Chart] Combined labels count:', combined.length);
-    console.log('[Forecast Chart] Actual padded count:', actualPadded.length);
-    console.log('[Forecast Chart] Forecast padded count:', forecastPadded.length);
-    console.log('[Forecast Chart] actualPadded (first 10):', actualPadded.slice(0, 10));
-    console.log('[Forecast Chart] forecastPadded (last 10):', forecastPadded.slice(-10));
-    console.log('[Forecast Chart] CRITICAL: Check if actualPadded has data:', actualPadded.some(v => v !== null));
-    console.log('[Forecast Chart] CRITICAL: Check if forecastPadded has data:', forecastPadded.some(v => v !== null));
+    // CRITICAL LOG: Show exactly what we're about to render
+    console.log('[Forecast Chart] ===== FINAL ARRAYS BEFORE RENDER =====');
+    console.log('[Forecast Chart] Combined length:', combined.length);
+    console.log('[Forecast Chart] actualPadded length:', actualPadded.length, 'values:', actualPadded);
+    console.log('[Forecast Chart] forecastPadded length:', forecastPadded.length, 'values:', forecastPadded);
+    console.log('[Forecast Chart] firstForecastIndex:', firstForecastIndex);
+    
+    // Check what will actually be drawn
+    const actualHasData = actualPadded.slice(0, firstForecastIndex).some(v => v !== null && v !== undefined);
+    const forecastHasData = forecastPadded.slice(firstForecastIndex).some(v => v !== null && v !== undefined);
+    console.log('[Forecast Chart] ✓ actualPadded will have data:', actualHasData);
+    console.log('[Forecast Chart] ✓ forecastPadded will have data:', forecastHasData);
     
     const formattedLabels = combined.map((dateStr, idx) => {
       const isHistorical = idx < labels.length;
@@ -430,6 +434,14 @@
       try { window._lastForecastPayload = json; } catch(e){}
 
       console.log('[Forecast Chart] Raw API Response keys:', Object.keys(json));
+      
+      // Log the actual response structure for debugging
+      if (json.daily_revenue) {
+        console.log('[Forecast Chart] daily_revenue exists, keys:', Object.keys(json.daily_revenue));
+        console.log('[Forecast Chart] daily_revenue.labels:', json.daily_revenue.labels);
+        console.log('[Forecast Chart] daily_revenue.actual:', json.daily_revenue.actual);
+        console.log('[Forecast Chart] daily_revenue.forecast:', json.daily_revenue.forecast);
+      }
 
       // Prefer revenue-prefixed series if present (server provides *_revenue in many cases)
       // First check for daily_revenue, then fall back to daily
@@ -437,10 +449,7 @@
       
       console.log('[Forecast Chart] Selected data type:', data === json.daily_revenue ? 'daily_revenue' : data === json.daily ? 'daily' : 'fallback');
       console.log('[Forecast Chart] Selected data structure:', {labels: (data.labels||[]).length, actual: (data.actual||[]).length, forecast: (data.forecast||[]).length});
-
-      console.log('[Forecast Chart] Selected data keys:', Object.keys(data));
-      console.log('[Forecast Chart] Forecast array length in selected data:', (data.forecast || []).length);
-      console.log('[Forecast Chart] Using data (sample):', {labelsCount:(data.labels||[]).length, actualCount:(data.actual||[]).length, forecastCount:(data.forecast||[]).length});
+      console.log('[Forecast Chart] Actual data from API:', (data.actual || []).slice(0, 10));
 
       return { series: data, raw: json };
     }catch(e){ 
@@ -626,7 +635,6 @@
       
       console.log('[Forecast Chart] ✓ Forecast validated: ' + finalForecast.length + ' days with data');
       
-      // Validate and prepare data for rendering
       const historicalLabels = (data.labels || []).slice();
       const historicalActual = (data.actual || []).slice();
       
@@ -634,6 +642,24 @@
       console.log('[Forecast Chart] Historical labels:', historicalLabels.length, 'first:', historicalLabels[0], 'last:', historicalLabels[historicalLabels.length-1]);
       console.log('[Forecast Chart] Historical actual:', historicalActual.length, 'sample:', historicalActual.slice(0, 5));
       console.log('[Forecast Chart] Forecast to add:', finalForecast.length, 'sample:', finalForecast.slice(0, 5));
+      
+      // CRITICAL FIX: If actual data is empty, something is wrong with the API response
+      if (!historicalActual || historicalActual.length === 0) {
+        console.error('[Forecast Chart] ❌ CRITICAL ERROR: historical actual data is EMPTY!');
+        console.log('[Forecast Chart] Full data object:', JSON.stringify(data, null, 2).slice(0, 1000));
+        
+        const statusEl = document.getElementById('forecastStatus');
+        if (statusEl) {
+          statusEl.innerText = 'ERROR: No historical data in API response';
+          statusEl.style.color = '#dc2626';
+          statusEl.style.display = 'block';
+        }
+        return;
+      }
+      
+      // Validate actual data has numeric values
+      const validActualCount = historicalActual.filter(v => v !== null && v !== undefined && Number(v) !== 0).length;
+      console.log('[Forecast Chart] Historical actual has', validActualCount, 'non-zero values out of', historicalActual.length);
       
       // Finally render the chart with all components
       const renderData = { 

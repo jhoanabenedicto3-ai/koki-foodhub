@@ -1503,6 +1503,9 @@ def forecast_data_api(request):
             daily_dates = [d for d, _ in daily_series]
             daily_actual = [v for _, v in daily_series]
 
+            logger.info('API: daily_revenue - dates: %d, actual values: %d, sample actual: %s', 
+                        len(daily_dates), len(daily_actual), daily_actual[:3] if daily_actual else 'EMPTY')
+
             payload['daily_revenue'] = {
                 'labels': daily_dates,
                 'actual': daily_actual,
@@ -1512,6 +1515,12 @@ def forecast_data_api(request):
                 'confidence': daily_fore.get('confidence', 0),
                 'fallback': bool(daily_fore.get('fallback', False))
             }
+            
+            # Log what we're returning
+            logger.info('API: Payload daily_revenue contains - labels:%d, actual:%d, forecast:%d',
+                        len(payload['daily_revenue']['labels']),
+                        len(payload['daily_revenue']['actual']),
+                        len(payload['daily_revenue']['forecast']))
 
             # Weekly/monthly: values are already in revenue form
             payload['weekly_revenue'] = {
