@@ -1920,6 +1920,61 @@ def forecast_diag(request):
         return JsonResponse({'error': 'failed to build diag', 'details': str(e)}, status=500)
 
 
+def product_forecast_debug(request):
+    """Debug endpoint to check database state and why forecasts might be 0."""
+    logger = logging.getLogger(__name__)
+    try:
+        from django.utils import timezone as tz
+        from datetime import timedelta
+        
+        # Check database state
+        product_count = Product.objects.count()
+        sale_count = Sale.objects.count()
+        
+        try:
+            today = tz.localdate()
+        except Exception:
+            today = tz.now().date()
+        
+        week_ago = today - timedelta(days=6)
+        
+        # Get recent sales
+        recent_sales = Sale.objects.filter(date__gte=week_ago, date__lte=today).values('product__name', 'date').annotate(total=models.Sum('units_sold')).order_by('-date')[:10]
+        
+        # Get product with most sales
+        top_product = Product.objects.annotate(total_sales=models.Sum('sale__units_sold')).order_by('-total_sales').first()
+        
+        # Test forecast calculation for top product if it exists
+        top_product_forecast = None
+        if top_product:
+            try:
+                from .services.forecasting import product_forecast_summary
+                summ = product_forecast_summary(top_product.id, horizons=(7,), lookback_days=90)
+                h7 = summ['horizons'].get('h_7', {})
+                top_product_forecast = {
+                    'product': top_product.name,
+                    'forecast_7d': h7.get('forecast', 0),
+                    'confidence': h7.get('confidence', 0),
+                    'series_length': len(summ.get('series', [])),
+                }
+            except Exception as e:
+                top_product_forecast = {'error': str(e)}
+        
+        return JsonResponse({
+            'timestamp': timezone.now().isoformat(),
+            'today': str(today),
+            'week_ago': str(week_ago),
+            'product_count': product_count,
+            'sale_count': sale_count,
+            'recent_sales_sample': [{'product': r['product__name'], 'date': str(r['date']), 'units': r['total']} for r in recent_sales],
+            'top_product_forecast': top_product_forecast,
+        })
+    except Exception as e:
+        logger.exception('Error in product_forecast_debug: %s', str(e))
+        return JsonResponse({'error': str(e), 'timestamp': timezone.now().isoformat()}, status=500)
+
+
+
 @group_required("Admin")
 @require_http_methods(["POST"])
 def admin_toggle_group(request):

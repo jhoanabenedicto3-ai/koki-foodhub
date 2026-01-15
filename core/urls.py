@@ -32,6 +32,7 @@ urlpatterns = [
     path("product-forecast/", views.product_forecast, name="product_forecast"),
     path("product-forecast/api/", views.product_forecast_api, name="product_forecast_api"),
     path("forecast/diag/", views.forecast_diag, name="forecast_diag"),
+    path("forecast/debug/", views.product_forecast_debug, name="product_forecast_debug"),
     # Lightweight health check endpoint
     path("healthz/", views.healthz, name="healthz"),
     # User management (avoid colliding with Django admin URL prefix)
