@@ -590,6 +590,10 @@
         document.getElementById('summaryTopCategory').textContent = topCategory;
         document.getElementById('summaryTopCategoryCount').textContent = categoryCounts[topCategory] + ' products';
 
+        // Average confidence
+        const avgConfidence = Math.round(products.reduce((sum, p) => sum + (p.confidence || 0), 0) / products.length);
+        document.getElementById('summaryAvgConfidence').textContent = avgConfidence + '%';
+
         console.log('[Summary] Updated with', products.length, 'products');
       }
 
