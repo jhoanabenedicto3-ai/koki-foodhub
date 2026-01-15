@@ -155,11 +155,23 @@
     // Dashboard Overview Data Fetching
     async function fetchDashboardData(){
       try {
-        const res = await fetch('/forecast/api/', { credentials: 'same-origin', cache: 'no-store' });
-        if(!res.ok) return;
+        // Fetch from the product forecast API that powers the Product Performance table
+        const res = await fetch('/product-forecast/api/?horizon=7&top=100', { credentials: 'same-origin', cache: 'no-store' });
+        console.log('[Dashboard] Fetch response status:', res.status);
+        if(!res.ok) {
+          console.error('[Dashboard] API returned status', res.status);
+          return;
+        }
         
         const data = await res.json();
+        console.log('[Dashboard] API response:', data);
         const topProducts = data.top || [];
+        console.log('[Dashboard] Top products count:', topProducts.length);
+        
+        if(topProducts.length === 0) {
+          console.warn('[Dashboard] No products returned from API');
+          return;
+        }
         
         // Get forecasts from top products
         const forecasts = {
@@ -169,19 +181,20 @@
         };
         
         // Aggregate forecasts from top products
+        // Each product's forecast_h is for 7 days, so divide by 7 for 1-day
         topProducts.slice(0, 15).forEach(p => {
-          // 1-day
-          const f1 = p.forecast_h || 0;
+          // 1-day (forecast_h is 7-day, so divide by 7 for daily)
+          const f1 = Math.round((p.forecast_h || 0) / 7);
           forecasts['1d'].units += f1;
           forecasts['1d'].items.push({ name: p.product, units: f1, conf: p.confidence || 0 });
           
-          // 7-day (multiply 1d forecast by 7)
-          const f7 = (f1 * 7);
+          // 7-day (use forecast_h directly)
+          const f7 = (p.forecast_h || 0);
           forecasts['7d'].units += f7;
           forecasts['7d'].items.push({ name: p.product, units: f7, conf: p.confidence || 0 });
           
-          // 30-day (multiply 1d forecast by 30)
-          const f30 = (f1 * 30);
+          // 30-day (multiply 7-day by ~4.3)
+          const f30 = Math.round(f7 * 4.3);
           forecasts['30d'].units += f30;
           forecasts['30d'].items.push({ name: p.product, units: f30, conf: p.confidence || 0 });
         });
@@ -216,6 +229,7 @@
     }
     
     function updateDashboardCard(prefix, data){
+      console.log('[Dashboard] Updating card', prefix, 'with data:', data);
       // Update forecast number
       const numEl = document.getElementById(prefix);
       if(numEl) numEl.textContent = data.units.toLocaleString();
@@ -243,14 +257,18 @@
       const itemsEl = document.getElementById(prefix + 'Items');
       if(itemsEl){
         itemsEl.innerHTML = '';
-        data.items.slice(0, 3).forEach(item => {
-          const div = document.createElement('div');
-          div.style.display = 'flex';
-          div.style.justifyContent = 'space-between';
-          div.style.fontSize = '13px';
-          div.innerHTML = `<span style="color:var(--fg); font-weight:500;">${item.name}</span><span style="color:var(--accent); font-weight:600;">${item.units.toLocaleString()} units</span>`;
-          itemsEl.appendChild(div);
-        });
+        if(data.items && data.items.length > 0) {
+          data.items.slice(0, 3).forEach(item => {
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.fontSize = '13px';
+            div.innerHTML = `<span style="color:var(--fg); font-weight:500;">${item.name}</span><span style="color:var(--accent); font-weight:600;">${item.units.toLocaleString()} units</span>`;
+            itemsEl.appendChild(div);
+          });
+        } else {
+          console.warn('[Dashboard] No items for', prefix);
+        }
       }
     }
     
@@ -524,6 +542,7 @@
           params.set('horizon', '7');
           params.set('top', '1000');
 
+          const apiUrl = '/product-forecast/api/';
           console.log('[Product Performance] Fetching with URL:', apiUrl + '?' + params.toString());
           const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
           
