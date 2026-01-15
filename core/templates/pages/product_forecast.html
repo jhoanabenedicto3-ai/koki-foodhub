@@ -203,17 +203,28 @@
         forecasts['30d'].conf = Math.max(50, avgConfidence - 10);  // Slightly lower for longer horizon
         
         // Calculate trend from top 3 products (weighted average by forecast volume)
-        let trendWeightedSum = 0;
+        // The API growth_rate is based on horizon=7, so it shows 7-day growth
+        let trend7dWeightedSum = 0;
         let trendWeightSum = 0;
         topProducts.slice(0, 3).forEach(p => {
           const weight = p.forecast_h || 1;
-          trendWeightedSum += (p.growth_rate || 0) * weight;
+          trend7dWeightedSum += (p.growth_rate || 0) * weight;
           trendWeightSum += weight;
         });
-        const avgTrend = trendWeightSum > 0 ? trendWeightedSum / trendWeightSum : 0;
-        forecasts['1d'].trend = Math.round(avgTrend * 10) / 10;
-        forecasts['7d'].trend = Math.round(avgTrend * 10) / 10;
-        forecasts['30d'].trend = Math.round(avgTrend * 10) / 10;  // Same trend for all horizons
+        const trend7d = trendWeightSum > 0 ? trend7dWeightedSum / trendWeightSum : 0;
+        
+        // For 1-day: use a portion of the 7-day trend (daily rate of change)
+        const trend1d = Math.round((trend7d / 7) * 10) / 10;
+        
+        // For 7-day: use the 7-day trend as-is
+        const trend7dRounded = Math.round(trend7d * 10) / 10;
+        
+        // For 30-day: extrapolate from 7-day (approximately 4.3 weeks, so apply trend multiple times)
+        const trend30d = Math.round(trend7d * 0.5 * 10) / 10;  // More conservative for longer horizon
+        
+        forecasts['1d'].trend = trend1d;
+        forecasts['7d'].trend = trend7dRounded;
+        forecasts['30d'].trend = trend30d;
         
         // Sort items by units descending and keep top 3
         Object.keys(forecasts).forEach(key => {
