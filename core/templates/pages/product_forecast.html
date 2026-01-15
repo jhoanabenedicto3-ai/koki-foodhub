@@ -614,21 +614,32 @@
           
           if(!res.ok){ 
             console.warn('[Product Performance] API error status:', res.status);
+            const errText = await res.text();
+            console.error('[Product Performance] Error response:', errText);
             return; 
           }
 
           const json = await res.json();
+          console.log('[Product Performance] Full API response:', json);
+          
           if(json && json.error){ 
             console.warn('[Product Performance] API error:', json.error);
             return; 
           }
 
           const top = json.top || [];
-          console.log('[Product Performance] Got', top.length, 'products');
+          console.log('[Product Performance] Got', top.length, 'products from top array');
+          console.log('[Product Performance] Summary:', json.summary);
+          
+          if(top.length === 0) {
+            console.warn('[Product Performance] No products returned - API returned empty top array');
+          }
+          
           renderTable(top);
           updateSummaryStats(top);
         }catch(e){ 
           console.error('[Product Performance] Error:', e); 
+          console.error('[Product Performance] Stack:', e.stack);
         }
       }
 
