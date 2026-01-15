@@ -192,21 +192,26 @@
         
         // Aggregate forecasts from top products
         topProducts.slice(0, 20).forEach(p => {
-          // 1-day (forecast_h is 7-day, so divide by 7 for daily)
-          const f1 = Math.round((p.forecast_h || 0) / 7);
-          forecasts['1d'].units += f1;
-          forecasts['1d'].items.push({ name: p.product, units: f1, conf: p.confidence || 0 });
-          
           // 7-day (use forecast_h directly)
           const f7 = (p.forecast_h || 0);
           forecasts['7d'].units += f7;
           forecasts['7d'].items.push({ name: p.product, units: f7, conf: p.confidence || 0 });
           
+          // 1-day (calculated as daily average from 7-day forecast)
+          const f1 = f7 / 7;
+          forecasts['1d'].units += f1;
+          forecasts['1d'].items.push({ name: p.product, units: Math.round(f1), conf: p.confidence || 0 });
+          
           // 30-day (multiply 7-day by ~4.3)
-          const f30 = Math.round(f7 * 4.3);
+          const f30 = f7 * 4.3;
           forecasts['30d'].units += f30;
-          forecasts['30d'].items.push({ name: p.product, units: f30, conf: p.confidence || 0 });
+          forecasts['30d'].items.push({ name: p.product, units: Math.round(f30), conf: p.confidence || 0 });
         });
+        
+        // Round the totals after summing all products
+        forecasts['1d'].units = Math.round(forecasts['1d'].units);
+        forecasts['7d'].units = Math.round(forecasts['7d'].units);
+        forecasts['30d'].units = Math.round(forecasts['30d'].units);
         
         // Calculate average confidence for each horizon
         forecasts['1d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 5).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(5, topProducts.length)) : 0;
