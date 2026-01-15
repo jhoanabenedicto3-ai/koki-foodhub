@@ -7,9 +7,12 @@
   </div>
 
   <div class="card" style="margin-top:18px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px;">
-      <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <input id="perfSearch" class="input small" placeholder="Search products..." style="min-width:300px;" />
+        <select id="categoryFilter" class="input small" style="width:150px;">
+          <option value="">All</option>
+        </select>
       </div>
       <div style="display:flex; gap:8px; align-items:center;">
         <select id="rowsPerPage" class="input small" style="width:86px;"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
@@ -20,13 +23,13 @@
     <div style="overflow:auto;">
       <table class="table" id="productPerformanceTable" aria-label="Product performance table" style="width:100%; border-collapse:collapse;">
         <thead>
-          <tr style="border-bottom:2px solid #e5e7eb;">
-            <th style="text-align:left; padding:12px 8px; font-weight:700; color:#374151;">PRODUCT NAME</th>
-            <th style="text-align:left; padding:12px 8px; font-weight:700; color:#374151;">CATEGORY</th>
-            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#374151;">LAST 7 DAYS</th>
-            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#374151;">LAST 30 DAYS</th>
-            <th style="text-align:center; padding:12px 8px; font-weight:700; color:#374151;">TREND</th>
-            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#374151;">PREDICTED (NEXT 7D)</th>
+          <tr style="border-bottom:2px solid #e5e7eb; background:#f9fafb;">
+            <th style="text-align:left; padding:12px 8px; font-weight:700; color:#374151; cursor:pointer;" class="sortable-col" data-sort="product">PRODUCT NAME <span class="sort-arrow">↕</span></th>
+            <th style="text-align:left; padding:12px 8px; font-weight:700; color:#374151; cursor:pointer;" class="sortable-col" data-sort="category">CATEGORY <span class="sort-arrow">↕</span></th>
+            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#374151; cursor:pointer;" class="sortable-col" data-sort="last_7">LAST 7 DAYS <span class="sort-arrow">↕</span></th>
+            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#374151; cursor:pointer;" class="sortable-col" data-sort="last_30">LAST 30 DAYS <span class="sort-arrow">↕</span></th>
+            <th style="text-align:center; padding:12px 8px; font-weight:700; color:#374151; cursor:pointer;" class="sortable-col" data-sort="trend">TREND <span class="sort-arrow">↕</span></th>
+            <th style="text-align:right; padding:12px 8px; font-weight:700; color:#059669; cursor:pointer;" class="sortable-col" data-sort="forecast">PREDICTED (NEXT 7D) <span class="sort-arrow">↕</span></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -46,6 +49,9 @@
       let perfProducts = [];
       let perfCurrentPage = 1;
       let perfRowsPerPage = 10;
+      let perfSortCol = 'forecast';
+      let perfSortAsc = false;
+      let allCategories = new Set();
 
       function formatNumber(n){ 
         return (n === 0 ? '0' : n.toLocaleString()); 
@@ -53,8 +59,72 @@
 
       function renderTable(products){
         perfProducts = (products || []).slice();
+        
+        // Collect all unique categories
+        allCategories.clear();
+        perfProducts.forEach(p => {
+          if(p.category) allCategories.add(p.category);
+        });
+        
+        // Populate category filter
+        const catFilter = document.getElementById('categoryFilter');
+        if(catFilter){
+          const currentValue = catFilter.value;
+          catFilter.innerHTML = '<option value="">All</option>';
+          Array.from(allCategories).sort().forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            catFilter.appendChild(opt);
+          });
+          catFilter.value = currentValue;
+        }
+        
         perfCurrentPage = 1;
         renderPerfTablePage();
+      }
+
+      function sortProducts(products){
+        const sorted = [...products];
+        sorted.sort((a, b) => {
+          let aVal, bVal;
+          
+          switch(perfSortCol){
+            case 'product':
+              aVal = (a.product || '').toLowerCase();
+              bVal = (b.product || '').toLowerCase();
+              break;
+            case 'category':
+              aVal = (a.category || '').toLowerCase();
+              bVal = (b.category || '').toLowerCase();
+              break;
+            case 'last_7':
+              aVal = a.last_7_days || a.past_7_days || 0;
+              bVal = b.last_7_days || b.past_7_days || 0;
+              break;
+            case 'last_30':
+              aVal = a.last_30_days || a.past_30_days || 0;
+              bVal = b.last_30_days || b.past_30_days || 0;
+              break;
+            case 'trend':
+              aVal = a.growth_rate || 0;
+              bVal = b.growth_rate || 0;
+              break;
+            case 'forecast':
+              aVal = a.forecast_h || 0;
+              bVal = b.forecast_h || 0;
+              break;
+            default:
+              return 0;
+          }
+          
+          if(typeof aVal === 'string'){
+            return perfSortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+          }
+          return perfSortAsc ? aVal - bVal : bVal - aVal;
+        });
+        
+        return sorted;
       }
 
       function renderPerfTablePage(){
@@ -62,10 +132,16 @@
         if(!tbody) return;
 
         const searchVal = (document.getElementById('perfSearch')?.value || '').toLowerCase().trim();
-        const filtered = perfProducts.filter(p => {
-          if(!searchVal) return true;
-          return (p.product || '').toLowerCase().includes(searchVal) || (p.category || '').toLowerCase().includes(searchVal);
+        const categoryVal = (document.getElementById('categoryFilter')?.value || '').trim();
+        
+        let filtered = perfProducts.filter(p => {
+          const matchSearch = !searchVal || (p.product || '').toLowerCase().includes(searchVal) || (p.category || '').toLowerCase().includes(searchVal);
+          const matchCategory = !categoryVal || (p.category || '') === categoryVal;
+          return matchSearch && matchCategory;
         });
+        
+        // Apply sorting
+        filtered = sortProducts(filtered);
 
         const total = filtered.length;
         const rowsPerPageEl = document.getElementById('rowsPerPage');
@@ -175,6 +251,26 @@
       if(perfSearchEl){ 
         perfSearchEl.addEventListener('input', function(){ perfCurrentPage = 1; setTimeout(renderPerfTablePage, 200); }); 
       }
+      
+      const categoryFilterEl = document.getElementById('categoryFilter');
+      if(categoryFilterEl){
+        categoryFilterEl.addEventListener('change', function(){ perfCurrentPage = 1; renderPerfTablePage(); });
+      }
+      
+      const sortableHeaders = document.querySelectorAll('.sortable-col');
+      sortableHeaders.forEach(th => {
+        th.addEventListener('click', function(){
+          const col = this.getAttribute('data-sort');
+          if(perfSortCol === col){
+            perfSortAsc = !perfSortAsc;
+          } else {
+            perfSortCol = col;
+            perfSortAsc = false;
+          }
+          perfCurrentPage = 1;
+          renderPerfTablePage();
+        });
+      });
       
       const rowsPerPageEl = document.getElementById('rowsPerPage');
       if(rowsPerPageEl){ 
