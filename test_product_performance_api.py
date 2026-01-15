@@ -102,7 +102,7 @@ if response.status_code == 200:
     print(f"  - Summary:")
     summary = data.get('summary', {})
     print(f"    - Total forecast units: {summary.get('total_forecast_units')}")
-    print(f"    - Projected revenue: ${summary.get('projected_revenue', 0):.2f}")
+    print(f"    - Projected revenue: ₱{summary.get('projected_revenue', 0):.2f}")
     print(f"    - Product count: {summary.get('count')}")
     
     # Check first product data

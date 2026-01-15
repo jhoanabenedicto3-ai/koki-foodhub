@@ -39,7 +39,7 @@ if not products:
     print("   ⚠️  NO PRODUCTS FOUND IN DATABASE")
 else:
     for p in products:
-        print(f"   - {p.name} (ID: {p.id}, Active: {p.is_active}, Price: ${p.price})")
+        print(f"   - {p.name} (ID: {p.id}, Active: {p.is_active}, Price: ₱{p.price})")
 
 # 3. Check sales data
 print("\n3. SALES DATA CHECK:")

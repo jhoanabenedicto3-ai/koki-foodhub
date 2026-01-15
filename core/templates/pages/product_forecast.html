@@ -555,7 +555,7 @@
         const totalForecast = products.reduce((sum, p) => sum + (p.forecast_h || 0), 0);
         const totalRevenue = products.reduce((sum, p) => sum + (p.projected_revenue || 0), 0);
         document.getElementById('summaryTotalForecast').textContent = totalForecast.toLocaleString();
-        document.getElementById('summaryProjectedRevenue').textContent = '$' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('summaryProjectedRevenue').textContent = '₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
         // Average trend
         const avgTrend = products.reduce((sum, p) => sum + (p.growth_rate || 0), 0) / products.length;

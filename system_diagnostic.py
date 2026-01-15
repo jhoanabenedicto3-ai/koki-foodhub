@@ -209,11 +209,11 @@ try:
     avg_revenue = Sale.objects.aggregate(Avg('revenue'))['revenue__avg'] or 0
     total_units = Sale.objects.aggregate(Sum('units_sold'))['units_sold__sum'] or 0
     
-    print(f"   Total Revenue: ${total_revenue:.2f}")
-    print(f"   Average Sale: ${avg_revenue:.2f}")
+    print(f"   Total Revenue: ₱{total_revenue:.2f}")
+    print(f"   Average Sale: ₱{avg_revenue:.2f}")
     print(f"   Total Units Sold: {total_units}")
     
-    log_check("Revenue Data Available", total_revenue > 0, f"Total: ${total_revenue:.2f}")
+    log_check("Revenue Data Available", total_revenue > 0, f"Total: ₱{total_revenue:.2f}")
 except Exception as e:
     log_check("Revenue Summary", False, str(e))
 

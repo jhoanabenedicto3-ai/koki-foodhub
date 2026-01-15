@@ -50,7 +50,7 @@ try:
     summary = data.get('summary', {})
     print(f"\nSummary:")
     print(f"  Total Forecast (7d): {summary.get('total_forecast_units')} units")
-    print(f"  Projected Revenue: ${summary.get('projected_revenue')}")
+    print(f"  Projected Revenue: ₱{summary.get('projected_revenue')}")
     
     # Simulate dashboard calculation
     top_products = data.get('top', [])[:15]
