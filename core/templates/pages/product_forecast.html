@@ -1,6 +1,113 @@
 {% extends "layouts/base.html" %}
 {% block content %}
 <div class="forecast-wrapper">
+  <!-- Dashboard Overview Section -->
+  <div style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div>
+        <h1 class="section-title">Dashboard Overview</h1>
+        <p class="muted" style="font-size:15px; margin-top:8px;">AI-powered sales predictions and inventory insights.</p>
+      </div>
+      <div style="font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
+        <span style="width:8px; height:8px; background:#059669; border-radius:50%; display:inline-block;"></span>
+        <span>Last updated: <span id="lastUpdated">Just now</span></span>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-bottom:24px;">
+      <!-- Next Day Forecast Card -->
+      <div class="card" style="padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div>
+            <p style="margin:0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Next Day Forecast</p>
+            <div style="display:flex; align-items:baseline; gap:8px; margin-top:8px;">
+              <h2 id="forecast1d" style="margin:0; font-size:28px; font-weight:700; color:var(--fg);">0</h2>
+              <span id="forecast1dTrend" style="color:#059669; font-weight:600;">↑ 0%</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-secondary);">Confidence Score</span>
+            <span style="font-size:12px; font-weight:600; color:var(--fg);" id="forecast1dConf">92%</span>
+          </div>
+          <div style="height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
+            <div id="forecast1dConfBar" style="height:100%; background:#059669; width:92%; border-radius:3px;"></div>
+          </div>
+        </div>
+        <div>
+          <p style="margin:0 0 8px 0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Top Predicted Items</p>
+          <div id="forecast1dItems" style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;">
+              <span>-</span><span style="color:var(--text-secondary);">0 units</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Week Forecast Card -->
+      <div class="card" style="padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div>
+            <p style="margin:0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Next Week Forecast</p>
+            <div style="display:flex; align-items:baseline; gap:8px; margin-top:8px;">
+              <h2 id="forecast7d" style="margin:0; font-size:28px; font-weight:700; color:var(--fg);">0</h2>
+              <span id="forecast7dTrend" style="color:#059669; font-weight:600;">↑ 0%</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-secondary);">Confidence Score</span>
+            <span style="font-size:12px; font-weight:600; color:var(--fg);" id="forecast7dConf">85%</span>
+          </div>
+          <div style="height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
+            <div id="forecast7dConfBar" style="height:100%; background:#059669; width:85%; border-radius:3px;"></div>
+          </div>
+        </div>
+        <div>
+          <p style="margin:0 0 8px 0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Top Predicted Items</p>
+          <div id="forecast7dItems" style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;">
+              <span>-</span><span style="color:var(--text-secondary);">0 units</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Month Forecast Card -->
+      <div class="card" style="padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div>
+            <p style="margin:0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Next Month Forecast</p>
+            <div style="display:flex; align-items:baseline; gap:8px; margin-top:8px;">
+              <h2 id="forecast30d" style="margin:0; font-size:28px; font-weight:700; color:var(--fg);">0</h2>
+              <span id="forecast30dTrend" style="color:#059669; font-weight:600;">↑ 0%</span>
+            </div>
+          </div>
+          <div style="font-size:18px; color:var(--warning);">⏱</div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-secondary);">Confidence Score</span>
+            <span style="font-size:12px; font-weight:600; color:var(--fg);" id="forecast30dConf">68%</span>
+          </div>
+          <div style="height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
+            <div id="forecast30dConfBar" style="height:100%; background:var(--warning); width:68%; border-radius:3px;"></div>
+          </div>
+        </div>
+        <div>
+          <p style="margin:0 0 8px 0; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Top Predicted Items</p>
+          <div id="forecast30dItems" style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;">
+              <span>-</span><span style="color:var(--text-secondary);">0 units</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Product Performance Section -->
   <div class="page-header">
     <h1 class="section-title">Product Performance</h1>
@@ -83,6 +190,121 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // Dashboard Overview Data Fetching
+    async function fetchDashboardData(){
+      try {
+        const res = await fetch('/product-forecast/api/?horizon=7&top=100', { credentials: 'same-origin', cache: 'no-store' });
+        if(!res.ok) return;
+        
+        const data = await res.json();
+        const topProducts = data.top || [];
+        
+        if(topProducts.length === 0) return;
+        
+        // Get forecasts from top products
+        const forecasts = {
+          '1d': { units: 0, trend: 0, conf: 0, items: [] },
+          '7d': { units: 0, trend: 0, conf: 0, items: [] },
+          '30d': { units: 0, trend: 0, conf: 0, items: [] }
+        };
+        
+        // Aggregate forecasts from top products
+        topProducts.slice(0, 20).forEach(p => {
+          // 1-day (forecast_h is 7-day, so divide by 7 for daily)
+          const f1 = Math.round((p.forecast_h || 0) / 7);
+          forecasts['1d'].units += f1;
+          forecasts['1d'].items.push({ name: p.product, units: f1, conf: p.confidence || 0 });
+          
+          // 7-day (use forecast_h directly)
+          const f7 = (p.forecast_h || 0);
+          forecasts['7d'].units += f7;
+          forecasts['7d'].items.push({ name: p.product, units: f7, conf: p.confidence || 0 });
+          
+          // 30-day (multiply 7-day by ~4.3)
+          const f30 = Math.round(f7 * 4.3);
+          forecasts['30d'].units += f30;
+          forecasts['30d'].items.push({ name: p.product, units: f30, conf: p.confidence || 0 });
+        });
+        
+        // Calculate average confidence for each horizon
+        forecasts['1d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 5).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(5, topProducts.length)) : 0;
+        forecasts['7d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 10).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(10, topProducts.length)) : 0;
+        forecasts['30d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 15).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(15, topProducts.length)) : 0;
+        
+        // Calculate trends (use growth_rate from top products)
+        const trendValues = topProducts.slice(0, 15).map(p => p.growth_rate || 0);
+        const avgTrend = trendValues.length > 0 ? trendValues.reduce((s, t) => s + t, 0) / trendValues.length : 0;
+        forecasts['1d'].trend = Math.round(avgTrend * 10) / 10;
+        forecasts['7d'].trend = Math.round(avgTrend * 10) / 10;
+        forecasts['30d'].trend = Math.round(avgTrend * 0.5 * 10) / 10;
+        
+        // Sort items by units descending and keep top 3
+        Object.keys(forecasts).forEach(key => {
+          forecasts[key].items.sort((a, b) => b.units - a.units);
+          forecasts[key].items = forecasts[key].items.slice(0, 3);
+        });
+        
+        // Update UI
+        updateDashboardCard('forecast1d', forecasts['1d']);
+        updateDashboardCard('forecast7d', forecasts['7d']);
+        updateDashboardCard('forecast30d', forecasts['30d']);
+        
+        // Update timestamp
+        const now = new Date();
+        document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+      } catch(e){
+        console.error('Dashboard fetch error:', e);
+      }
+    }
+    
+    function updateDashboardCard(prefix, data){
+      // Update forecast number
+      const numEl = document.getElementById(prefix);
+      if(numEl) numEl.textContent = data.units.toLocaleString();
+      
+      // Update trend
+      const trendEl = document.getElementById(prefix + 'Trend');
+      if(trendEl){
+        const arrow = data.trend >= 0 ? '↑' : '↓';
+        const color = data.trend >= 0 ? '#059669' : '#dc2626';
+        trendEl.innerHTML = `<span style="color:${color}; font-weight:600;">${arrow} ${Math.abs(data.trend)}%</span>`;
+      }
+      
+      // Update confidence
+      const confEl = document.getElementById(prefix + 'Conf');
+      if(confEl) confEl.textContent = data.conf + '%';
+      
+      // Update confidence bar
+      const confBar = document.getElementById(prefix + 'ConfBar');
+      if(confBar){
+        confBar.style.width = data.conf + '%';
+        confBar.style.background = data.conf >= 70 ? '#059669' : data.conf >= 50 ? '#f59e0b' : '#dc2626';
+      }
+      
+      // Update items
+      const itemsEl = document.getElementById(prefix + 'Items');
+      if(itemsEl){
+        itemsEl.innerHTML = '';
+        if(data.items && data.items.length > 0) {
+          data.items.slice(0, 3).forEach((item, i) => {
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.fontSize = '13px';
+            div.innerHTML = `<span style="color:var(--fg); font-weight:500;">${item.name}</span><span style="color:var(--accent); font-weight:600;">${item.units.toLocaleString()} units</span>`;
+            itemsEl.appendChild(div);
+          });
+        }
+      }
+    }
+    
+    // Fetch dashboard data on page load
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', fetchDashboardData);
+    } else {
+      fetchDashboardData();
+    }
+
     // Product Performance Table
     let perfProducts = [];
     let perfCurrentPage = 1;
