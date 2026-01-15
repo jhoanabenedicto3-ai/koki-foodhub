@@ -213,17 +213,25 @@
         forecasts['7d'].units = Math.round(forecasts['7d'].units);
         forecasts['30d'].units = Math.round(forecasts['30d'].units);
         
-        // Calculate average confidence for each horizon
-        forecasts['1d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 5).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(5, topProducts.length)) : 0;
-        forecasts['7d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 10).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(10, topProducts.length)) : 0;
-        forecasts['30d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 15).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(15, topProducts.length)) : 0;
+        // Calculate average confidence for each horizon (use top 3 products only for better signal)
+        const topConfidences = topProducts.slice(0, 3).map(p => p.confidence || 0);
+        const avgConfidence = topConfidences.length > 0 ? Math.round(topConfidences.reduce((s, c) => s + c, 0) / topConfidences.length) : 0;
+        forecasts['1d'].conf = avgConfidence;
+        forecasts['7d'].conf = avgConfidence;
+        forecasts['30d'].conf = Math.max(50, avgConfidence - 10);  // Slightly lower for longer horizon
         
-        // Calculate trends (use growth_rate from top products)
-        const trendValues = topProducts.slice(0, 15).map(p => p.growth_rate || 0);
-        const avgTrend = trendValues.length > 0 ? trendValues.reduce((s, t) => s + t, 0) / trendValues.length : 0;
+        // Calculate trend from top 3 products (weighted average by forecast volume)
+        let trendWeightedSum = 0;
+        let trendWeightSum = 0;
+        topProducts.slice(0, 3).forEach(p => {
+          const weight = p.forecast_h || 1;
+          trendWeightedSum += (p.growth_rate || 0) * weight;
+          trendWeightSum += weight;
+        });
+        const avgTrend = trendWeightSum > 0 ? trendWeightedSum / trendWeightSum : 0;
         forecasts['1d'].trend = Math.round(avgTrend * 10) / 10;
         forecasts['7d'].trend = Math.round(avgTrend * 10) / 10;
-        forecasts['30d'].trend = Math.round(avgTrend * 0.5 * 10) / 10;
+        forecasts['30d'].trend = Math.round(avgTrend * 10) / 10;  // Same trend for all horizons
         
         // Sort items by units descending and keep top 3
         Object.keys(forecasts).forEach(key => {

@@ -1777,17 +1777,71 @@ def product_forecast_api(request):
                     # If DB query fails, use series values as fallback
                     pass
                 
-                # growth: compare forecast for horizon to last_7 (if horizon==7) or past_30 if horizon==30
+                # growth: compare forecast for horizon to previous period
+                # Calculate trend from the summary (which compares last 7 to previous 7)
                 if horizon == 7:
+                    # For 7-day horizon, forecast should reflect trend vs previous 7 days
+                    # The API returns forecast_h which is based on last 7 days
+                    # Calculate what the growth rate would be vs. previous period
                     denom = last_7 if last_7 > 0 else None
+                    
+                    # Get the trend factor from the summary (compares last 7 to prev 7)
+                    # Since forecast_7d uses last_7_vals and prev_7_vals, we can estimate growth
+                    try:
+                        from datetime import timedelta
+                        from django.utils import timezone as tz
+                        prev_week_ago = week_ago - timedelta(days=7)  # days 8-14
+                        prev_7_sales = Sale.objects.filter(
+                            product_id=p.id,
+                            date__gte=prev_week_ago,
+                            date__lt=week_ago
+                        ).aggregate(total=Sum('units_sold'))
+                        prev_7_db = int(prev_7_sales.get('total') or 0)
+                        
+                        if prev_7_db > 0:
+                            growth = round((last_7 - prev_7_db) / float(prev_7_db) * 100.0, 1)
+                        else:
+                            growth = 0.0
+                    except Exception:
+                        growth = 0.0
                 elif horizon == 30:
                     denom = past_30 if past_30 > 0 else None
+                    try:
+                        from datetime import timedelta
+                        from django.utils import timezone as tz
+                        prev_month_ago = month_ago - timedelta(days=30)  # 30 days before the target period
+                        prev_30_sales = Sale.objects.filter(
+                            product_id=p.id,
+                            date__gte=prev_month_ago,
+                            date__lt=month_ago
+                        ).aggregate(total=Sum('units_sold'))
+                        prev_30_db = int(prev_30_sales.get('total') or 0)
+                        
+                        if prev_30_db > 0:
+                            growth = round((past_30 - prev_30_db) / float(prev_30_db) * 100.0, 1)
+                        else:
+                            growth = 0.0
+                    except Exception:
+                        growth = 0.0
                 else:
                     denom = last_7 if last_7 > 0 else None
-                if denom:
-                    growth = round((forecast_h - denom) / float(denom) * 100.0, 1)
-                else:
-                    growth = 0.0
+                    try:
+                        from datetime import timedelta
+                        from django.utils import timezone as tz
+                        prev_week_ago = week_ago - timedelta(days=7)
+                        prev_7_sales = Sale.objects.filter(
+                            product_id=p.id,
+                            date__gte=prev_week_ago,
+                            date__lt=week_ago
+                        ).aggregate(total=Sum('units_sold'))
+                        prev_7_db = int(prev_7_sales.get('total') or 0)
+                        
+                        if prev_7_db > 0:
+                            growth = round((last_7 - prev_7_db) / float(prev_7_db) * 100.0, 1)
+                        else:
+                            growth = 0.0
+                    except Exception:
+                        growth = 0.0
                 price = float(p.price) if p.price is not None else 0.0
                 projected_revenue = round(forecast_h * price, 2)
 
