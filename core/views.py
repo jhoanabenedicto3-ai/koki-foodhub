@@ -452,9 +452,14 @@ def sales_dashboard(request):
         today = timezone.now().date()
     start_date = today - timedelta(days=6)
     try:
+        # Initialize all 7 days with zero values, even if no sales
+        day_map = {}
+        for i in range(7):
+            day = start_date + timedelta(days=i)
+            day_map[day] = {'revenue': 0.0, 'orders': 0}
+        
         # Avoid DB-specific TruncDate by aggregating in Python which is portable across backends
         sales_for_days = Sale.objects.filter(date__gte=start_date).values('date', 'revenue')
-        day_map = {}
         for rec in sales_for_days:
             d = rec.get('date')
             if d is None:
@@ -462,9 +467,11 @@ def sales_dashboard(request):
             # ensure d is a date
             if hasattr(d, 'date'):
                 d = d.date()
-            entry = day_map.setdefault(d, {'revenue': 0.0, 'orders': 0})
-            entry['revenue'] += float(rec.get('revenue') or 0)
-            entry['orders'] += 1
+            # Only update if this day is in our 7-day window
+            if d in day_map:
+                entry = day_map[d]
+                entry['revenue'] += float(rec.get('revenue') or 0)
+                entry['orders'] += 1
 
         daily_sales = [
             {'day': day, 'revenue': data['revenue'], 'orders': data['orders']}
@@ -1734,8 +1741,13 @@ def product_forecast_api(request):
                 # ALWAYS use database fallback for accurate Last 7 Days and Last 30 Days
                 # (don't wait for vals to be empty; the series may have zeros which is ambiguous)
                 try:
-                    from datetime import date, timedelta
-                    today = date.today()
+                    from datetime import timedelta
+                    from django.utils import timezone as tz
+                    # Use Django's timezone-aware date function to match Sale model's timezone settings
+                    try:
+                        today = tz.localdate()
+                    except Exception:
+                        today = tz.now().date()
                     week_ago = today - timedelta(days=6)  # inclusive of today = 7 days total
                     month_ago = today - timedelta(days=29)  # inclusive of today = 30 days total
                     
