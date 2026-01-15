@@ -182,7 +182,7 @@
         
         // Aggregate forecasts from top products
         // Each product's forecast_h is for 7 days, so divide by 7 for 1-day
-        topProducts.slice(0, 15).forEach(p => {
+        topProducts.slice(0, 20).forEach(p => {
           // 1-day (forecast_h is 7-day, so divide by 7 for daily)
           const f1 = Math.round((p.forecast_h || 0) / 7);
           forecasts['1d'].units += f1;
@@ -205,14 +205,16 @@
         forecasts['30d'].conf = topProducts.length > 0 ? Math.round(topProducts.slice(0, 15).reduce((s, p) => s + (p.confidence || 0), 0) / Math.min(15, topProducts.length)) : 0;
         
         // Calculate trends (use growth_rate from top products)
-        const avg7d = topProducts.slice(0, 10).reduce((s, p) => s + (p.growth_rate || 0), 0) / Math.max(1, Math.min(10, topProducts.length));
-        forecasts['1d'].trend = Math.round(avg7d);
-        forecasts['7d'].trend = Math.round(avg7d);
-        forecasts['30d'].trend = Math.round(avg7d * 0.5); // Month trend slightly different
+        const trendValues = topProducts.slice(0, 15).map(p => p.growth_rate || 0);
+        const avgTrend = trendValues.length > 0 ? trendValues.reduce((s, t) => s + t, 0) / trendValues.length : 0;
+        forecasts['1d'].trend = Math.round(avgTrend * 10) / 10;
+        forecasts['7d'].trend = Math.round(avgTrend * 10) / 10;
+        forecasts['30d'].trend = Math.round(avgTrend * 0.5 * 10) / 10; // Month trend slightly different
         
-        // Sort items by units descending
+        // Sort items by units descending and keep top 3
         Object.keys(forecasts).forEach(key => {
           forecasts[key].items.sort((a, b) => b.units - a.units);
+          forecasts[key].items = forecasts[key].items.slice(0, 3);
         });
         
         // Update UI
@@ -232,7 +234,10 @@
       console.log('[Dashboard] Updating card', prefix, 'with data:', data);
       // Update forecast number
       const numEl = document.getElementById(prefix);
-      if(numEl) numEl.textContent = data.units.toLocaleString();
+      if(numEl) {
+        numEl.textContent = data.units.toLocaleString();
+        console.log('[Dashboard]', prefix, 'units:', data.units);
+      }
       
       // Update trend
       const trendEl = document.getElementById(prefix + 'Trend');
@@ -244,7 +249,10 @@
       
       // Update confidence
       const confEl = document.getElementById(prefix + 'Conf');
-      if(confEl) confEl.textContent = data.conf + '%';
+      if(confEl) {
+        confEl.textContent = data.conf + '%';
+        console.log('[Dashboard]', prefix, 'confidence:', data.conf);
+      }
       
       // Update confidence bar
       const confBar = document.getElementById(prefix + 'ConfBar');
@@ -258,13 +266,15 @@
       if(itemsEl){
         itemsEl.innerHTML = '';
         if(data.items && data.items.length > 0) {
-          data.items.slice(0, 3).forEach(item => {
+          console.log('[Dashboard]', prefix, 'top items count:', data.items.length);
+          data.items.slice(0, 3).forEach((item, i) => {
             const div = document.createElement('div');
             div.style.display = 'flex';
             div.style.justifyContent = 'space-between';
             div.style.fontSize = '13px';
             div.innerHTML = `<span style="color:var(--fg); font-weight:500;">${item.name}</span><span style="color:var(--accent); font-weight:600;">${item.units.toLocaleString()} units</span>`;
             itemsEl.appendChild(div);
+            console.log('[Dashboard]', prefix, 'item', i+1, ':', item.name, '-', item.units, 'units');
           });
         } else {
           console.warn('[Dashboard] No items for', prefix);
