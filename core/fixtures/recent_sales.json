@@ -1,0 +1,981 @@
+[
+{
+  "model": "core.sale",
+  "pk": 200,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 201,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 202,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 203,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 204,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 205,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 206,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 207,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 208,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 209,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 210,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 211,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 212,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 213,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 214,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 215,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 216,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 217,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 218,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 219,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 220,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 221,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 222,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 223,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 224,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 225,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 226,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 227,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 228,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 229,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 230,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 231,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 232,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 233,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 234,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 235,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 236,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 237,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 238,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 239,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 240,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 241,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 242,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 243,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 244,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 4,
+    "revenue": "20.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 245,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 246,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 247,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 248,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 249,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 250,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 251,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 252,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 253,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 254,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 255,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 256,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-02",
+    "timestamp": "2026-01-02T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 257,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-03",
+    "timestamp": "2026-01-03T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 258,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-04",
+    "timestamp": "2026-01-04T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 259,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-05",
+    "timestamp": "2026-01-05T12:00:00Z",
+    "units_sold": 3,
+    "revenue": "15.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 260,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-06",
+    "timestamp": "2026-01-06T12:00:00Z",
+    "units_sold": 5,
+    "revenue": "25.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 261,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-07",
+    "timestamp": "2026-01-07T12:00:00Z",
+    "units_sold": 1,
+    "revenue": "5.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 262,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-08",
+    "timestamp": "2026-01-08T12:00:00Z",
+    "units_sold": 2,
+    "revenue": "10.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 263,
+  "fields": {
+    "product": 160,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:21.934Z",
+    "units_sold": 17,
+    "revenue": "225.25"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 264,
+  "fields": {
+    "product": 160,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:21.951Z",
+    "units_sold": 30,
+    "revenue": "397.50"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 265,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:21.969Z",
+    "units_sold": 10,
+    "revenue": "200.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 266,
+  "fields": {
+    "product": 1,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:21.986Z",
+    "units_sold": 9,
+    "revenue": "180.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 267,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.003Z",
+    "units_sold": 27,
+    "revenue": "1350.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 268,
+  "fields": {
+    "product": 2,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.022Z",
+    "units_sold": 18,
+    "revenue": "900.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 269,
+  "fields": {
+    "product": 3,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.039Z",
+    "units_sold": 22,
+    "revenue": "280.50"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 270,
+  "fields": {
+    "product": 3,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.055Z",
+    "units_sold": 21,
+    "revenue": "267.75"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 271,
+  "fields": {
+    "product": 4,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.071Z",
+    "units_sold": 30,
+    "revenue": "360.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 272,
+  "fields": {
+    "product": 4,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.088Z",
+    "units_sold": 13,
+    "revenue": "156.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 273,
+  "fields": {
+    "product": 5,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.106Z",
+    "units_sold": 15,
+    "revenue": "354.75"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 274,
+  "fields": {
+    "product": 5,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.121Z",
+    "units_sold": 12,
+    "revenue": "283.80"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 275,
+  "fields": {
+    "product": 6,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.137Z",
+    "units_sold": 12,
+    "revenue": "195.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 276,
+  "fields": {
+    "product": 6,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.153Z",
+    "units_sold": 13,
+    "revenue": "211.25"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 277,
+  "fields": {
+    "product": 10,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.167Z",
+    "units_sold": 27,
+    "revenue": "432.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 278,
+  "fields": {
+    "product": 10,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.183Z",
+    "units_sold": 8,
+    "revenue": "128.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 279,
+  "fields": {
+    "product": 11,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.197Z",
+    "units_sold": 5,
+    "revenue": "92.50"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 280,
+  "fields": {
+    "product": 11,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.212Z",
+    "units_sold": 15,
+    "revenue": "277.50"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 281,
+  "fields": {
+    "product": 12,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.232Z",
+    "units_sold": 17,
+    "revenue": "305.15"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 282,
+  "fields": {
+    "product": 12,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.247Z",
+    "units_sold": 13,
+    "revenue": "233.35"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 283,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.262Z",
+    "units_sold": 30,
+    "revenue": "1500.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 284,
+  "fields": {
+    "product": 135,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.278Z",
+    "units_sold": 30,
+    "revenue": "1500.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 285,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.296Z",
+    "units_sold": 16,
+    "revenue": "880.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 286,
+  "fields": {
+    "product": 141,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.312Z",
+    "units_sold": 12,
+    "revenue": "660.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 287,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-15",
+    "timestamp": "2026-01-15T03:06:22.329Z",
+    "units_sold": 9,
+    "revenue": "585.00"
+  }
+},
+{
+  "model": "core.sale",
+  "pk": 288,
+  "fields": {
+    "product": 142,
+    "date": "2026-01-14",
+    "timestamp": "2026-01-15T03:06:22.346Z",
+    "units_sold": 11,
+    "revenue": "715.00"
+  }
+}
+]
