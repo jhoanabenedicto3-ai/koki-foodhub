@@ -690,8 +690,9 @@ def product_forecast_summary(product_id, horizons=(1, 7, 30), lookback_days=90):
     # 1-day: use daily average of last 7 days
     forecast_1d = int(round(avg_7))
     
-    # 7-day: use last 7 days actual sales (best baseline)
-    forecast_7d = int(sum(last_7_vals))
+    # 7-day: use last 7 days as baseline, then apply trend factor for forward-looking forecast
+    # This makes the forecast different from historical data while grounded in recent performance
+    forecast_7d = int(sum(last_7_vals) * trend_factor)
     
     # 30-day: extrapolate from average with trend adjustment
     forecast_30d = int(round(avg_7 * 30 * trend_factor))
