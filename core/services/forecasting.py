@@ -655,42 +655,105 @@ def product_daily_series(product_id, lookback_days=90):
 def product_forecast_summary(product_id, horizons=(1, 7, 30), lookback_days=90):
     """Compute forecasts for a single product for multiple horizons.
     Returns dict with per-horizon forecasts and summary info.
+    
+    Uses a simple and reliable approach: extrapolate from recent sales trends.
     """
     try:
         series = product_daily_series(product_id, lookback_days=lookback_days)
     except Exception:
         series = []
 
-    # Build a simple summary using the existing forecast_time_series helper
+    # Extract values from series
+    vals = [v for _, v in series]
+    
+    # Build a simple summary using recent sales data as the baseline
     payload = {}
+    
+    # Calculate recent averages for better forecasting
+    last_7_vals = vals[-7:] if len(vals) >= 7 else vals
+    last_14_vals = vals[-14:] if len(vals) >= 14 else vals
+    last_30_vals = vals[-30:] if len(vals) >= 30 else vals
+    
+    avg_7 = sum(last_7_vals) / len(last_7_vals) if last_7_vals else 0
+    avg_14 = sum(last_14_vals) / len(last_14_vals) if last_14_vals else 0
+    avg_30 = sum(last_30_vals) / len(last_30_vals) if last_30_vals else 0
+    
+    # Calculate trend: compare recent (last 7 days) to previous (days 8-14)
+    if len(vals) >= 14:
+        prev_7_vals = vals[-14:-7]
+        prev_avg = sum(prev_7_vals) / len(prev_7_vals)
+        trend_factor = (avg_7 / prev_avg) if prev_avg > 0 else 1.0
+    else:
+        trend_factor = 1.0
+    
+    # Generate forecasts for each horizon based on recent trends
+    # 1-day: use daily average of last 7 days
+    forecast_1d = int(round(avg_7))
+    
+    # 7-day: use last 7 days actual sales (best baseline)
+    forecast_7d = int(sum(last_7_vals))
+    
+    # 30-day: extrapolate from average with trend adjustment
+    forecast_30d = int(round(avg_7 * 30 * trend_factor))
+    
+    # Calculate confidence based on data availability and consistency
+    if len(vals) < 7:
+        confidence_7d = 20  # Very low confidence with minimal data
+    elif len(vals) < 30:
+        confidence_7d = 40  # Low confidence with short history
+    else:
+        # Calculate coefficient of variation to measure consistency
+        cv = (sum([(v - avg_7)**2 for v in last_7_vals]) / len(last_7_vals)) ** 0.5 / (avg_7 + 1e-9) if avg_7 > 0 else 1.0
+        # High consistency = high confidence
+        confidence_7d = max(60, min(95, int(100 * (1 - min(cv, 1.0)))))
+    
+    # Set forecasts for each horizon
     for h in horizons:
-        try:
-            fore = forecast_time_series(series, horizon=h)
+        if h == 1:
             payload[f'h_{h}'] = {
-                'forecast': fore.get('forecast', [0])[-1] if fore.get('forecast') else 0,
-                'upper': fore.get('upper', [0])[-1] if fore.get('upper') else 0,
-                'lower': fore.get('lower', [0])[-1] if fore.get('lower') else 0,
-                'confidence': fore.get('confidence', 0),
-                'accuracy': fore.get('accuracy', 'Low')
+                'forecast': forecast_1d,
+                'upper': int(forecast_1d * 1.3),
+                'lower': max(0, int(forecast_1d * 0.7)),
+                'confidence': confidence_7d,
+                'accuracy': 'High' if confidence_7d >= 70 else 'Medium' if confidence_7d >= 40 else 'Low'
             }
-        except Exception:
+        elif h == 7:
+            payload[f'h_{h}'] = {
+                'forecast': forecast_7d,
+                'upper': int(forecast_7d * 1.3),
+                'lower': max(0, int(forecast_7d * 0.7)),
+                'confidence': confidence_7d,
+                'accuracy': 'High' if confidence_7d >= 70 else 'Medium' if confidence_7d >= 40 else 'Low'
+            }
+        elif h == 30:
+            confidence_30d = max(50, confidence_7d - 10)  # Slightly lower confidence for longer horizon
+            payload[f'h_{h}'] = {
+                'forecast': forecast_30d,
+                'upper': int(forecast_30d * 1.5),
+                'lower': max(0, int(forecast_30d * 0.5)),
+                'confidence': confidence_30d,
+                'accuracy': 'High' if confidence_30d >= 70 else 'Medium' if confidence_30d >= 40 else 'Low'
+            }
+        else:
+            # Fallback for other horizons
             payload[f'h_{h}'] = {'forecast': 0, 'upper': 0, 'lower': 0, 'confidence': 0, 'accuracy': 'Low'}
 
     # Additional summary metrics
-    vals = [v for _, v in series]
-    last_7 = int(sum(vals[-7:])) if vals else 0
+    last_7_sum = int(sum(last_7_vals)) if last_7_vals else 0
     avg = float(sum(vals) / len(vals)) if vals else 0.0
-    # crude trend estimate
+    
+    # Crude trend estimate
     trend = 'stable'
-    if len(vals) >= 2 and vals[-1] > vals[0]:
-        trend = 'increasing'
-    elif len(vals) >= 2 and vals[-1] < vals[0]:
-        trend = 'decreasing'
+    if len(vals) >= 2:
+        if vals[-1] > vals[0] * 1.1:  # 10% increase
+            trend = 'increasing'
+        elif vals[-1] < vals[0] * 0.9:  # 10% decrease
+            trend = 'decreasing'
 
     return {
         'product_id': product_id,
         'series': series,
-        'last_7_days': last_7,
+        'last_7_days': last_7_sum,
         'avg': avg,
         'trend': trend,
         'horizons': payload
