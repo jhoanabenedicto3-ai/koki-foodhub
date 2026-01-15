@@ -16,38 +16,8 @@
       <p class="muted">AI-powered predictions based on your historical sales data.</p>
     </div>
     <div class="page-controls" style="display:flex; gap:10px; align-items:center;">
-      <button class="btn btn-ghost" id="btnFilter" title="Filter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px; vertical-align:middle;"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 6h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Filter</button>
-
-      <div id="filterPanel" style="display:none; position:absolute; right:40px; top:68px; background:#fff; border:1px solid var(--border); padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(16,24,40,0.06); z-index:40; width:320px;">
-        <div style="display:flex; gap:8px; align-items:center;">
-          <div style="flex:1;"><label style="font-weight:700; font-size:12px; color:var(--text-secondary);">Start</label><input id="filterStart" type="date" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; margin-top:6px;"/></div>
-          <div style="flex:1;"><label style="font-weight:700; font-size:12px; color:var(--text-secondary);">End</label><input id="filterEnd" type="date" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; margin-top:6px;"/></div>
-        </div>
-        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
-          <button id="clearFilter" class="btn btn-ghost">Clear</button>
-          <button id="applyFilter" class="btn" style="background:#2563eb; color:#fff; border-color:transparent;">Apply</button>
-        </div>
-      </div>
-
-      <button class="btn btn-ghost" id="btnExport" title="Export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px; vertical-align:middle;"><path d="M12 3v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Export</button>
-
-      <div class="live-controls" style="display:flex; gap:8px; align-items:center;">
-        <button id="btnLiveToggle" class="btn btn-ghost" title="Live updates" aria-pressed="false" style="display:flex; gap:8px; align-items:center;">
-          <span id="liveIndicator" style="width:10px; height:10px; border-radius:999px; background:#d1d5db; display:inline-block; box-shadow:inset 0 0 0 2px rgba(0,0,0,0.02);"></span>
-          <span style="font-weight:700; font-size:13px;">Live</span>
-        </button>
-        <select id="liveIntervalSelect" class="btn" style="min-width:90px; padding:6px 8px;">
-          <option value="30">30s</option>
-          <option value="60" selected>60s</option>
-          <option value="300">5m</option>
-        </select>
-      </div>
-
-      <button class="btn" id="refreshForecastBtn" style="background:#2563eb; color:#fff; border-color:transparent;">Refresh Data</button>
-      <button class="btn btn-ghost" id="btnDiag" title="Show diagnostics" style="margin-left:8px;">Diag</button>
+      <button class="btn btn-ghost" id="btnExport" title="Export CSV"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:8px; vertical-align:middle;"><path d="M12 3v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21H3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Export</button>
     </div>
-
-    <div id="forecast-debug-panel" style="display:none; position:fixed; right:20px; bottom:20px; width:420px; max-height:56vh; overflow:auto; background:#fff; border:1px solid rgba(15,23,36,0.06); box-shadow:0 10px 30px rgba(2,6,23,0.08); border-radius:12px; padding:12px; z-index:9999; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-size:12px;"> <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;"><strong>Forecast Debug</strong><button id="closeDebug" class="btn btn-ghost" style="padding:4px 6px;">Close</button></div><pre id="forecastDebugJson" style="white-space:pre-wrap; word-break:break-word;">No payload yet</pre></div>
   </div>
 
     <!-- Forecast hero cards (three-up layout matching mock) -->
@@ -155,36 +125,67 @@
 
 <!-- forecast-hero-grid: moved earlier in the file to match requested design -->
     <script>
-      function updateLiveUI(){
-        const ind = document.getElementById('liveIndicator');
-        const btn = document.getElementById('btnLiveToggle');
-        const sel = document.getElementById('liveIntervalSelect');
-        if(window._live.enabled){
-          ind.classList.remove('live-indicator-off'); ind.classList.add('live-indicator-on'); ind.style.background = '#10b981'; btn.setAttribute('aria-pressed','true');
-          sel.disabled = false;
-        } else {
-          ind.classList.remove('live-indicator-on'); ind.classList.add('live-indicator-off'); ind.style.background = '#d1d5db'; btn.setAttribute('aria-pressed','false');
-          sel.disabled = false;
+      // Export button functionality
+      document.getElementById('btnExport')?.addEventListener('click', function(){
+        const data = {
+          daily: window._serverDaily,
+          weekly: window._serverWeekly,
+          monthly: window._serverMonthly,
+          yearly: window._serverYearly,
+          currency: window.currencySymbol
+        };
+        
+        const csv = generateForecastCSV(data);
+        downloadCSV(csv, 'forecast-' + new Date().toISOString().split('T')[0] + '.csv');
+      });
+
+      function generateForecastCSV(data) {
+        let csv = 'Forecast Export\n';
+        csv += 'Generated: ' + new Date().toLocaleString() + '\n\n';
+        
+        // Daily data
+        csv += 'Daily Forecast\n';
+        csv += 'Date,Revenue\n';
+        if(data.daily && data.daily.labels) {
+          for(let i = 0; i < data.daily.labels.length; i++) {
+            csv += data.daily.labels[i] + ',' + (data.daily.actual?.[i] || '') + '\n';
+          }
         }
+        csv += '\n';
+        
+        // Weekly data
+        csv += 'Weekly Forecast\n';
+        csv += 'Week,Revenue\n';
+        if(data.weekly && data.weekly.labels) {
+          for(let i = 0; i < data.weekly.labels.length; i++) {
+            csv += data.weekly.labels[i] + ',' + (data.weekly.actual?.[i] || '') + '\n';
+          }
+        }
+        csv += '\n';
+        
+        // Monthly data
+        csv += 'Monthly Forecast\n';
+        csv += 'Month,Revenue\n';
+        if(data.monthly && data.monthly.labels) {
+          for(let i = 0; i < data.monthly.labels.length; i++) {
+            csv += data.monthly.labels[i] + ',' + (data.monthly.actual?.[i] || '') + '\n';
+          }
+        }
+        
+        return csv;
       }
-      function startLive(){
-        try{
-          stopLive();
-          window._live.intervalSec = parseInt(document.getElementById('liveIntervalSelect').value || '60', 10);
-          window._live.enabled = true;
-          // do an immediate refresh then schedule
-          refreshForecast();
-          window._live.timerId = setInterval(function(){ if(!window._live.paused) refreshForecast(); }, Math.max(1000, window._live.intervalSec * 1000));
-          updateLiveUI();
-        }catch(e){ console.warn('startLive failed', e); }
+
+      function downloadCSV(csv, filename) {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-      function stopLive(){
-        window._live.enabled = false;
-        if(window._live.timerId){ try{ clearInterval(window._live.timerId); }catch(e){} window._live.timerId = null; }
-        updateLiveUI();
-      }
-      document.getElementById('btnLiveToggle')?.addEventListener('click', function(){ if(window._live.enabled) stopLive(); else startLive(); });
-      document.getElementById('liveIntervalSelect')?.addEventListener('change', function(){ if(window._live.enabled){ startLive(); } });
 
       // Add range selector listener for Revenue Trend chart
       document.getElementById('rangeSelect')?.addEventListener('change', function(){ 
@@ -193,25 +194,6 @@
           refreshForecast(); 
         }
       });
-
-      // Add refresh button listener
-      document.getElementById('refreshForecastBtn')?.addEventListener('click', function(){ 
-        console.log('[Forecast] Refresh button clicked');
-        if(typeof refreshForecast === 'function'){ 
-          refreshForecast(); 
-        }
-      });
-
-      // Pause polling when tab is hidden to reduce noise
-      document.addEventListener('visibilitychange', function(){ if(!window._live) return; if(document.hidden){ window._live.paused = true; } else { window._live.paused = false; if(window._live.enabled){ refreshForecast(); } } });
-
-      // Stop polling when unloading
-      window.addEventListener('beforeunload', function(){ stopLive(); });
-
-      // Auto-refresh after load
-      window.addEventListener('load', function(){ setTimeout(function(){ if(typeof refreshForecast === 'function'){ refreshForecast(); } else { console.warn('[Forecast] refreshForecast not defined yet'); } }, 600); });
-
-      // Debug toggle removed in simplified UI
     </script>
 
     <script>
@@ -380,12 +362,6 @@
       .growth-down{ background:#fff1f2; color:#991b1b; }
       .forecast-hero-card .hero-pct{ text-align:right; font-size:12px; }
       .forecast-hero-card .hero-icon svg{ opacity:0.85; }
-
-      /* Live polling control */
-      .live-controls .btn { padding:6px 8px; border-radius:10px; }
-      .live-indicator-on{ background:#10b981 !important; box-shadow:0 4px 14px rgba(16,185,129,0.12); }
-      .live-indicator-off{ background:#d1d5db !important; }
-      .live-controls select.btn{ padding:6px 8px; border-radius:8px; }
 
       /* Responsive tweaks */
       @media (max-width: 520px) { .filters-row { flex-direction: column; align-items: stretch; } .filters-actions{ margin-left:0; justify-content:flex-end; }
