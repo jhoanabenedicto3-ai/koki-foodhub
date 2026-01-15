@@ -214,7 +214,12 @@ def moving_average_forecast(window=3, lookback_days=21):
     Outlier protection: cap per-sale units at `MAX_UNITS_PER_SALE` before averaging so a
     single large sale doesn't dominate the forecast.
     """
-    start = date.today() - timedelta(days=lookback_days)
+    from django.utils import timezone
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+    start = today - timedelta(days=lookback_days)
     sales = Sale.objects.filter(date__gte=start).order_by("product_id", "date")
     series = defaultdict(list)
 
@@ -323,7 +328,11 @@ def aggregate_sales(period='daily', lookback=90):
     lookback: number of days (for daily), weeks (for weekly), months (for monthly)
     Returns list of (label, revenue) ordered chronologically.
     """
-    today = date.today()
+    from django.utils import timezone
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
     series = []
 
     from django.db.models import Case, When, Value, IntegerField, DecimalField
@@ -615,10 +624,14 @@ def product_daily_series(product_id, lookback_days=90):
     """Return a daily aggregated series for a product as list of (iso_date, units).
     Fills missing days with zeros for the requested lookback window.
     """
-    from datetime import date, timedelta
+    from datetime import timedelta
     from django.db.models import Sum, Case, When, Value, IntegerField
-
-    end = date.today()
+    from django.utils import timezone
+    
+    try:
+        end = timezone.localdate()
+    except Exception:
+        end = timezone.now().date()
     start = end - timedelta(days=lookback_days - 1)
 
     # Initialize all days to zero
