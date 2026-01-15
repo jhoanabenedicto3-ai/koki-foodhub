@@ -1,0 +1,2334 @@
+# -*- coding: utf-8 -*-
+from django.shortcuts import render, get_object_or_404, redirect
+from django.db.models import Sum
+from django.db.models.functions import Lower
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from django.db import close_old_connections
+from django.db import utils as db_utils
+from django.contrib.auth.models import User, Group
+from django.contrib.auth import authenticate, login as auth_login
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from django.conf import settings
+import logging
+import json
+import traceback
+import os
+from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseForbidden
+from django.contrib.auth import logout as auth_logout
+import base64
+
+from .models import Product, InventoryItem, Sale
+from .forms import ProductForm, InventoryForm, SaleForm
+from .auth import group_required  # new: role guard
+from django.views.decorators.http import require_http_methods
+
+def product_image(request, product_id):
+    """Serve product image - handles missing files gracefully"""
+    try:
+        product = get_object_or_404(Product, pk=product_id)
+        
+        if not product.image:
+            # Return a 404 so client can show placeholder
+            return HttpResponse(status=404)
+        
+        # Try to read the image file
+        try:
+            with open(product.image.path, 'rb') as f:
+                image_data = f.read()
+            
+            # Determine content type
+            import mimetypes
+            content_type = mimetypes.guess_type(product.image.name)[0] or 'image/jpeg'
+            
+            response = HttpResponse(image_data, content_type=content_type)
+            response['Cache-Control'] = 'public, max-age=86400'  # Cache for 1 day
+            return response
+        except FileNotFoundError:
+            # Image record exists but file doesn't - return 404
+            return HttpResponse(status=404)
+    except Exception as e:
+        logging.error(f'Error serving product image {product_id}: {str(e)}')
+        return HttpResponse(status=500)
+
+def signup(request):
+    """User registration view"""
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '')
+        password_confirm = request.POST.get('password_confirm', '')
+        
+        # Validation
+        if not username or not email or not password:
+            messages.error(request, 'All fields are required')
+            return render(request, 'pages/signup.html')
+        
+        if password != password_confirm:
+            messages.error(request, 'Passwords do not match')
+            return render(request, 'pages/signup.html')
+        
+        if len(password) < 6:
+            messages.error(request, 'Password must be at least 6 characters')
+            return render(request, 'pages/signup.html')
+        
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists')
+            return render(request, 'pages/signup.html')
+        
+        if User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already exists')
+            return render(request, 'pages/signup.html')
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
+        )
+
+        # Assign selected role/group if provided. Allowed roles: Cashier and Owner.
+        role = request.POST.get('role', '').strip()
+        if role == 'Owner':
+            grp, _ = Group.objects.get_or_create(name='Owner')
+            user.groups.add(grp)
+            user.save()
+            # Owner accounts can login immediately
+            try:
+                auth_user = authenticate(request, username=username, password=password)
+                if auth_user:
+                    auth_login(request, auth_user)
+                    messages.success(request, 'Owner account created and logged in successfully!')
+                    return redirect('dashboard')
+            except Exception:
+                messages.success(request, 'Account created successfully! Please login.')
+                return redirect('login')
+
+        elif role == 'Cashier':
+            # Cashier registrations require Owner approval. Create user as inactive
+            # and add to a 'PendingCashier' group so owners can review and approve.
+            pending_grp, _ = Group.objects.get_or_create(name='PendingCashier')
+            user.groups.add(pending_grp)
+            user.is_active = False
+            user.save()
+            messages.success(request, 'Account created and is pending Owner approval. You will be notified when approved.')
+            return redirect('login')
+
+        else:
+            # No role selected or unknown role — create account without group and allow login
+            try:
+                auth_user = authenticate(request, username=username, password=password)
+                if auth_user:
+                    auth_login(request, auth_user)
+                    messages.success(request, 'Account created and logged in successfully!')
+                    return redirect('dashboard')
+            except Exception:
+                messages.success(request, 'Account created successfully! Please login.')
+                return redirect('login')
+    
+    return render(request, 'pages/signup.html')
+
+
+def logout_view(request):
+    """Log out the user on GET or POST and redirect to login."""
+    try:
+        auth_logout(request)
+    except Exception:
+        pass
+    return redirect('login')
+
+@login_required
+def profile(request):
+    return render(request, "pages/profile.html", {})
+
+# Dashboard: any authenticated user
+@login_required
+def dashboard(request):
+    top_products = Sale.objects.values("product__name").annotate(
+        total_units=Sum("units_sold"), total_revenue=Sum("revenue")
+    ).order_by("-total_units")[:5]
+
+    low_stock = [i for i in InventoryItem.objects.select_related("product").all() if i.is_low_stock()]
+    
+    # Get all products with inventory info
+    all_products = Product.objects.all().prefetch_related('inventory_items')
+    products_data = []
+    categories_set = set()
+    
+    for product in all_products:
+        inv = product.inventory_items.first() if product.inventory_items.exists() else None
+        # Normalize name display (replace underscores, title case) - WITHOUT the size suffix
+        pretty_name = product.name.replace('_', ' ').title()
+        
+        # Build size-price mapping with automatic multipliers
+        # Small: base - 5, Medium: Regular + 5, Large: base + 10
+        base_price = float(product.price)
+        size_prices = {}
+        if product.size:
+            size_prices = {
+                'S': max(0, base_price - 5),        # Small: -5
+                'M': base_price + 5,                 # Medium: Regular +5
+                'L': base_price + 10,                # Large: +10
+                'XL': base_price + 15,               # XL: +15 (bonus)
+                'XXL': base_price + 20,              # XXL: +20 (bonus)
+                'Regular': base_price,               # Regular: base
+            }
+        
+        products_data.append({
+            'id': product.id,
+            'name': pretty_name,
+            'price': base_price,
+            'category': product.category,
+            'size': product.size,
+            'size_prices': size_prices,
+            'quantity': inv.quantity if inv else 0,
+            'is_low_stock': inv.is_low_stock() if inv else False,
+            'image': product.image.url if product.image else None
+        })
+        categories_set.add(product.category)
+    
+    # Sort categories for consistent display
+    categories = sorted([c for c in categories_set if c])
+    
+    context = {
+        "top_products": top_products,
+        "low_stock": low_stock,
+        "all_products": products_data,
+        "categories": categories
+    }
+    return render(request, "pages/dashboard.html", context)
+
+
+def healthz(request):
+    """Lightweight health endpoint used for quick production checks (no DB access)."""
+    return HttpResponse("OK")
+
+# Products: Admin only (read), Cashier can view
+def product_list(request):
+    # Inline, resilient permission checks instead of decorator to avoid
+    # decorator-related failures on some deployments. This preserves the
+    # original semantics: Owners bypass checks, and Admin/Cashier may view.
+    logger = logging.getLogger(__name__)
+    try:
+        try:
+            # If user is not authenticated, redirect to login (matches @login_required)
+            if not request.user or not request.user.is_authenticated:
+                return redirect('login')
+
+            # Owner bypass
+            if request.user.groups.filter(name='Owner').exists():
+                allowed = True
+            else:
+                allowed = request.user.groups.filter(name__in=("Admin", "Cashier")).exists()
+
+            if not allowed:
+                return HttpResponseForbidden("You do not have permission to access this resource.")
+        except Exception as perm_exc:
+            # Be forgiving: log and continue — worst case the view will still try to render.
+            logger.warning('Permission check failed (falling back to safe default): %s', str(perm_exc))
+
+        sort = request.GET.get('sort', '')
+        products = Product.objects.all()
+        if sort == 'price-asc':
+            products = products.order_by('price')
+        elif sort == 'price-desc':
+            products = products.order_by('-price')
+        elif sort == 'name':
+            # Case-insensitive alphabetical sort so lowercase names (e.g. "burger")
+            # appear in the expected A → Z order.
+            products = products.order_by(Lower('name'))
+        elif sort == 'newest':
+            # uses created_at for accurate ordering
+            products = products.order_by('-created_at')
+
+        return render(request, "pages/product_list.html", {"products": products, "sort": sort})
+    except Exception as e:
+        # Log traceback explicitly so hosting logs capture the error
+        logger.exception('Unhandled exception in product_list: %s', str(e))
+        return HttpResponse('Server Error (500) - An unexpected error occurred while listing products.', status=500)
+
+@group_required("Admin", "Cashier")
+def product_create(request):
+    logger = logging.getLogger(__name__)
+    
+    if request.method == "POST":
+        form = ProductForm(request.POST, request.FILES)
+        try:
+            # Ensure media directory exists before attempting to save image
+            media_root = settings.MEDIA_ROOT
+            if not os.path.exists(media_root):
+                os.makedirs(media_root, exist_ok=True)
+                logger.info(f'Created media directory: {media_root}')
+            
+            # Also ensure products subdirectory exists
+            products_dir = os.path.join(media_root, 'products')
+            if not os.path.exists(products_dir):
+                os.makedirs(products_dir, exist_ok=True)
+                logger.info(f'Created products directory: {products_dir}')
+            
+            if form.is_valid():
+                product = form.save(commit=False)
+                # Ensure created_at is set
+                if not product.created_at:
+                    product.created_at = timezone.now()
+                product.save()
+                logger.info(f'Product created successfully: {product.name} (ID: {product.id})')
+                messages.success(request, "Product created successfully.")
+                return redirect("product_list")
+            else:
+                # Form invalid - render with errors
+                logger.warning(f'Form validation failed: {form.errors}')
+                messages.error(request, "Please correct the errors below.")
+        except Exception as e:
+            # Log full traceback and show friendly message instead of 500
+            logger.error('Error in product_create: %s', str(e))
+            logger.error('Traceback:\n%s', traceback.format_exc())
+            messages.error(request, f"Error creating product: {str(e)[:100]}")
+    else:
+        form = ProductForm()
+    return render(request, "pages/product_form.html", {"form": form, "title": "Create Product"})
+
+@group_required("Admin", "Cashier")
+def product_update(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    if request.method == "POST":
+        form = ProductForm(request.POST, request.FILES, instance=product)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Product updated.")
+            return redirect("product_list")
+    else:
+        form = ProductForm(instance=product)
+    return render(request, "pages/product_form.html", {"form": form, "title": "Edit Product"})
+
+@group_required("Admin", "Cashier")
+def product_delete(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    if request.method == "POST":
+        product.delete()
+        messages.success(request, "Product deleted.")
+        return redirect("product_list")
+    return render(request, "pages/product_form.html", {"form": None, "title": "Delete Product", "confirm": True})
+
+# Inventory: Admin only
+@group_required("Admin")
+def inventory_list(request):
+    items = InventoryItem.objects.select_related("product").all()
+    return render(request, "pages/inventory_list.html", {"items": items})
+
+@group_required("Admin")
+def inventory_create(request):
+    if request.method == "POST":
+        form = InventoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Inventory item created.")
+            return redirect("inventory_list")
+    else:
+        form = InventoryForm()
+    return render(request, "pages/inventory_form.html", {"form": form, "title": "Create Inventory Item"})
+
+@group_required("Admin")
+def inventory_update(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    if request.method == "POST":
+        form = InventoryForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Inventory item updated.")
+            return redirect("inventory_list")
+    else:
+        form = InventoryForm(instance=item)
+    return render(request, "pages/inventory_form.html", {"form": form, "title": "Edit Inventory Item"})
+
+@group_required("Admin")
+def inventory_delete(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    if request.method == "POST":
+        item.delete()
+        messages.success(request, "Inventory item deleted.")
+        return redirect("inventory_list")
+    return render(request, "pages/inventory_form.html", {"form": None, "title": "Delete Inventory Item", "confirm": True})
+
+# Sales: Admin only (Cashier should not access sales list page)
+@group_required("Admin")
+def sale_list(request):
+    sales = Sale.objects.select_related("product").all()
+    return render(request, "pages/sale_list.html", {"sales": sales})
+
+@group_required("Admin")
+@group_required("Admin", "Cashier")
+def sale_create(request):
+    # Redirect to the sales period form for automatic reporting
+    return redirect('record_sales_period')
+
+@group_required("Admin")
+def sale_update(request, pk):
+    sale = get_object_or_404(Sale, pk=pk)
+    if request.method == "POST":
+        form = SaleForm(request.POST, instance=sale)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Sale updated.")
+            return redirect("sale_list")
+    else:
+        form = SaleForm(instance=sale)
+    return render(request, "pages/sale_form.html", {"form": form, "title": "Edit Sale"})
+
+@group_required("Admin")
+def sale_delete(request, pk):
+    sale = get_object_or_404(Sale, pk=pk)
+    if request.method == "POST":
+        sale.delete()
+        messages.success(request, "Sale deleted.")
+        return redirect("sale_list")
+    return render(request, "pages/sale_form.html", {"form": None, "title": "Delete Sale", "confirm": True})
+
+# Sales Dashboard: any authenticated user
+@login_required
+def sales_dashboard(request):
+    from django.db.models import Sum, Count
+    from django.utils import timezone
+    from datetime import timedelta
+
+    # Total sales and orders
+    total_sales = Sale.objects.aggregate(total_revenue=Sum('revenue'))['total_revenue'] or 0
+    total_orders = Sale.objects.count()
+    avg_order = (total_sales / total_orders) if total_orders else 0
+
+    # Top selling items (by units)
+    top_items_qs = (
+        Sale.objects.values('product__name')
+        .annotate(units_sold=Sum('units_sold'), revenue=Sum('revenue'))
+        .order_by('-units_sold')[:5]
+    )
+    top_items = [{'product': t['product__name'], 'units': t['units_sold'], 'revenue': float(t['revenue'])} for t in top_items_qs]
+
+    # Recent sales history (last 20 sale records)
+    recent_qs = Sale.objects.select_related('product').order_by('-id')[:20]
+    recent_sales = []
+    for s in recent_qs:
+        # Format time using the timestamp field for accurate time display
+        time_str = ''
+        if getattr(s, 'timestamp', None):
+            try:
+                # Convert to local timezone and format
+                from django.utils import timezone as tz
+                local_time = tz.localtime(s.timestamp)
+                time_str = local_time.strftime('%I:%M:%S %p').lstrip('0')
+            except Exception:
+                # Fallback to ISO format if strftime fails
+                time_str = getattr(s, 'timestamp').isoformat()
+        elif getattr(s, 'date', None):
+            # Fallback to date field if timestamp doesn't exist
+            time_str = '12:00 AM'
+
+        recent_sales.append({
+            'item': s.product.name,
+            'qty': s.units_sold,
+            'price': float(s.revenue) / s.units_sold if s.units_sold else 0,
+            'total': float(s.revenue),
+            'time': time_str
+        })
+
+    # Sales by category (sum units and revenue)
+    cat_qs = (
+        Sale.objects.select_related('product')
+        .values('product__category')
+        .annotate(units=Sum('units_sold'), revenue=Sum('revenue'))
+    )
+    category_sales = []
+    for c in cat_qs:
+        category_sales.append({'category': c['product__category'] or 'Uncategorized', 'quantity': int(c['units'] or 0), 'revenue': float(c['revenue'] or 0)})
+
+    # Daily totals (last 7 days)
+    # Use server local date to match how dates are stored/displayed
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+    start_date = today - timedelta(days=6)
+    try:
+        # Initialize all 7 days with zero values, even if no sales
+        day_map = {}
+        for i in range(7):
+            day = start_date + timedelta(days=i)
+            day_map[day] = {'revenue': 0.0, 'orders': 0}
+        
+        # Avoid DB-specific TruncDate by aggregating in Python which is portable across backends
+        sales_for_days = Sale.objects.filter(date__gte=start_date).values('date', 'revenue')
+        for rec in sales_for_days:
+            d = rec.get('date')
+            if d is None:
+                continue
+            # ensure d is a date
+            if hasattr(d, 'date'):
+                d = d.date()
+            # Only update if this day is in our 7-day window
+            if d in day_map:
+                entry = day_map[d]
+                entry['revenue'] += float(rec.get('revenue') or 0)
+                entry['orders'] += 1
+
+        daily_sales = [
+            {'day': day, 'revenue': data['revenue'], 'orders': data['orders']}
+            for day, data in sorted(day_map.items())
+        ]
+    except Exception as e:
+        logging.getLogger(__name__).exception('Failed to compute daily_sales: %s', e)
+        daily_sales = []
+
+    # Weekly totals (last 4 weeks) - compute in Python to avoid DB-specific TruncWeek issues
+    start_week = today - timedelta(weeks=3)
+    weekly_sales = []
+    try:
+        weekly_map = {}
+        sales_for_weeks = Sale.objects.filter(date__gte=start_week).values('date', 'revenue')
+        for rec in sales_for_weeks:
+            d = rec.get('date')
+            if d is None:
+                continue
+            # Normalize to date if datetime
+            if hasattr(d, 'date'):
+                d = d.date()
+            # Compute week start (Monday)
+            week_start = d - timedelta(days=d.weekday())
+            entry = weekly_map.setdefault(week_start, {'revenue': 0.0, 'orders': 0})
+            entry['revenue'] += float(rec.get('revenue') or 0)
+            entry['orders'] += 1
+
+        weekly_sales = [
+            {'week_start': wk, 'revenue': data['revenue'], 'orders': data['orders']}
+            for wk, data in sorted(weekly_map.items())
+        ]
+    except Exception as e:
+        logging.getLogger(__name__).exception('Failed to compute weekly_sales: %s', e)
+        weekly_sales = []
+
+    # Prepare context
+    # Compute explicit today totals so client can rely on server-defined "today".
+    # Use a direct DB aggregate to avoid DB-function issues (e.g. TruncDate failing on SQLite).
+    try:
+        today_agg = Sale.objects.filter(date=today).aggregate(today_revenue=Sum('revenue'), today_orders=Count('id'))
+        today_orders = int(today_agg.get('today_orders') or 0)
+        today_revenue = float(today_agg.get('today_revenue') or 0.0)
+    except Exception:
+        # Fallback to daily_sales if the aggregate fails
+        today_entry = next((d for d in daily_sales if d.get('day') == today), None) if daily_sales else None
+        today_orders = int(today_entry['orders']) if today_entry else 0
+        today_revenue = float(today_entry['revenue']) if today_entry else 0.0
+    today_label = str(today)
+    # Provide a server-side ISO timestamp so the client can use the server's notion of "now"
+    server_today_iso = timezone.localtime().isoformat()
+    context = {
+        'total_sales': float(total_sales),
+        'total_orders': int(total_orders),
+        'avg_order': float(avg_order),
+        'top_items': top_items,
+        'recent_sales': recent_sales,
+        'category_sales': category_sales,
+        'daily_sales': daily_sales,
+        'weekly_sales': weekly_sales,
+        'today_label': today_label,
+        'today_orders': today_orders,
+        'today_revenue': today_revenue,
+        'server_today_iso': server_today_iso,
+    }
+    return render(request, "pages/sales_dashboard.html", context)
+
+
+@login_required
+def sales_today_api(request):
+    """Return JSON with today's sales totals (orders, revenue) and server timestamp."""
+    from django.utils import timezone
+    from django.db.models import Sum, Count
+
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+
+    try:
+        agg = Sale.objects.filter(date=today).aggregate(today_revenue=Sum('revenue'), today_orders=Count('id'))
+        orders = int(agg.get('today_orders') or 0)
+        revenue = float(agg.get('today_revenue') or 0.0)
+    except Exception:
+        orders = 0
+        revenue = 0.0
+
+    server_today_iso = timezone.localtime().isoformat()
+    return JsonResponse({'orders': orders, 'revenue': revenue, 'server_today_iso': server_today_iso})
+
+# Forecast: any authenticated user
+@login_required
+@login_required
+def forecast_view(request):
+    """
+    Render the sales forecast dashboard with historical data and predictions.
+    This view is heavily defensive to handle various deployment environments
+    and gracefully fall back when data is unavailable.
+    """
+    import json
+    import traceback
+    import uuid
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        return _forecast_view_impl(request, logger, json)
+    except Exception as e:
+        # Ultimate fallback: any uncaught error shows a friendly message
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
+        
+        # Log for debugging
+        logger.exception('Unhandled error in forecast_view (id=%s): %s', error_id, str(e))
+        
+        # Show friendly error to user
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return HttpResponse(f'<pre>Forecast Error ({error_id}):\n\n{tb}</pre>', status=500)
+        except:
+            pass
+        
+        return HttpResponse(f'Forecast temporarily unavailable (Error {error_id}). Please try again in a few moments.', status=500)
+
+
+def _forecast_view_impl(request, logger, json):
+
+    # Ensure any stale DB connections are closed before we start heavy DB work
+    try:
+        close_old_connections()
+    except:
+        pass
+
+    # Import forecasting functions with safe fallbacks
+    import_error = None
+    try:
+        from .services.forecasting import aggregate_sales, forecast_time_series, moving_average_forecast
+    except Exception as exc:
+        logger.exception('Forecasting import failed: %s', str(exc))
+        import_error = exc
+        def moving_average_forecast(window=3):
+            return {'db_forecasts': {}}
+        def forecast_time_series(series, horizon=7, method='linear', window=3):
+            vals = [v for _, v in (series or [])]
+            if not vals:
+                return {'forecast': [0] * horizon, 'upper': [0] * horizon, 'lower': [0] * horizon, 'confidence': 0, 'accuracy': 'Low'}
+            recent = vals[-window:] if window and len(vals) >= 1 else vals
+            avg = sum(recent) / len(recent)
+            slope = 0.0
+            if len(recent) >= 2:
+                slope = (recent[-1] - recent[0]) / float(len(recent) - 1)
+            preds = [max(0, int(round(avg + slope * (i + 1)))) for i in range(horizon)]
+            mean = avg
+            var = sum((x - mean) ** 2 for x in recent) / len(recent) if len(recent) else 0.0
+            std = var ** 0.5
+            upper = [int(round(p + 1.5 * std)) for p in preds]
+            lower = [max(0, int(round(p - 1.5 * std))) for p in preds]
+            confidence = 0.0 if mean <= 0 else max(0.0, min(100.0, (1.0 - (std / (mean + 1e-9))) * 100.0))
+            accuracy = 'High' if confidence >= 70 else 'Medium' if confidence >= 40 else 'Low'
+            return {'forecast': preds, 'upper': upper, 'lower': lower, 'confidence': confidence, 'accuracy': accuracy}
+        def aggregate_sales(period='daily', lookback=90):
+            # Fallback: aggregate sales directly from database
+            from datetime import date, timedelta
+            from django.db.models import Sum
+            
+            end = date.today()
+            start = end - timedelta(days=lookback - 1)
+            
+            if period == 'daily':
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue')).order_by('date')
+                return [(r['date'].isoformat(), int(r['total'] or 0)) for r in qs]
+            elif period == 'weekly':
+                # Group by week
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue'))
+                weekly = {}
+                for r in qs:
+                    d = r['date']
+                    week_start = d - timedelta(days=d.weekday())
+                    week_key = week_start.isoformat()
+                    weekly[week_key] = weekly.get(week_key, 0) + int(r['total'] or 0)
+                return [(k, v) for k, v in sorted(weekly.items())]
+            elif period == 'monthly':
+                # Group by month
+                qs = Sale.objects.filter(date__gte=start, date__lte=end).values('date').annotate(total=Sum('revenue'))
+                monthly = {}
+                for r in qs:
+                    d = r['date']
+                    month_key = d.strftime('%Y-%m')
+                    monthly[month_key] = monthly.get(month_key, 0) + int(r['total'] or 0)
+                return [(k, v) for k, v in sorted(monthly.items())]
+            return []
+
+    # Initialize safe defaults for all variables
+    data = []
+    daily_series, weekly_series, monthly_series = [], [], []
+    daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+    series_error = None
+
+    # Build per-product forecasts using DB historical sales only
+    try:
+        db_results = moving_average_forecast(window=3)
+        db_forecasts = db_results.get('db_forecasts', {}) if db_results else {}
+        for pid, r in db_forecasts.items():
+            try:
+                product = Product.objects.get(pk=pid)
+                confidence = r.get('confidence', 0) or 0
+                # normalise to percentage if method returned 0-1
+                if confidence and confidence <= 1.0:
+                    confidence = confidence * 100
+
+                hist = r.get('history', []) or []
+                last_7 = sum([u for _, u in hist[-7:]]) if hist else 0
+
+                data.append({
+                    "product": product.name,
+                    "forecast": int(r.get('forecast', 0)),
+                    "avg": float(r.get('avg', 0)),
+                    "trend": r.get('trend', 'unknown'),
+                    "confidence": int(confidence or 0),
+                    "history": hist,
+                    "last_7_days": int(last_7),
+                    "source": "Database",
+                    "is_csv": False
+                })
+            except (Product.DoesNotExist, Exception):
+                continue
+    except Exception as e:
+        logger.exception('Error generating per-product DB forecasts: %s', str(e))
+        data = []
+
+    # Always use DB aggregate series for charts and forecasting
+    try:
+        db_daily = aggregate_sales('daily', lookback=60)
+        db_weekly = aggregate_sales('weekly', lookback=12)
+        db_monthly = aggregate_sales('monthly', lookback=12)
+
+        daily_series = db_daily or []
+        weekly_series = db_weekly or []
+        monthly_series = db_monthly or []
+
+        forecast_daily_base = db_daily or []
+        forecast_weekly_base = db_weekly or []
+        forecast_monthly_base = db_monthly or []
+
+        # Use a compact 7-day horizon for the UI and chart (we only display next 7 days)
+        daily_fore = forecast_time_series(forecast_daily_base, horizon=7) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        weekly_fore = forecast_time_series(forecast_weekly_base, horizon=12) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        monthly_fore = forecast_time_series(forecast_monthly_base, horizon=6) or {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+
+        # Ensure the first daily projection aligns with the last historical value so "Today" shows both Historical and Projection
+        try:
+            if daily_series and isinstance(daily_series, (list, tuple)) and daily_fore.get('forecast'):
+                # daily_series is list of (label, value) pairs; extract last actual revenue if available
+                last_actual = None
+                try:
+                    last_actual = int(round(float(daily_series[-1][1])))
+                except Exception:
+                    try:
+                        last_actual = int(round(float(daily_series[-1][1] or 0)))
+                    except Exception:
+                        last_actual = None
+
+                if last_actual is not None and len(daily_fore.get('forecast', [])) >= 1:
+                    # Replace the first forecast point with the last actual so tooltip shows the same value for Today
+                    daily_fore['forecast'][0] = last_actual
+                    # Keep bounds consistent for the first day
+                    if daily_fore.get('upper') and len(daily_fore['upper']) >= 1:
+                        daily_fore['upper'][0] = last_actual
+                    if daily_fore.get('lower') and len(daily_fore['lower']) >= 1:
+                        daily_fore['lower'][0] = last_actual
+        except Exception:
+            logger.exception('Failed to align first daily forecast to last actual')
+
+        # If any of the forecasts used a fallback (e.g., sklearn unavailable), log a warning so we can monitor frequency
+        try:
+            if daily_fore.get('fallback') or weekly_fore.get('fallback') or monthly_fore.get('fallback'):
+                logger.warning('Forecasts used fallback: daily=%s weekly=%s monthly=%s', daily_fore.get('fallback_reason'), weekly_fore.get('fallback_reason'), monthly_fore.get('fallback_reason'))
+        except Exception:
+            pass
+
+        series_error = None
+    except Exception as series_exc:
+        logger.exception('Error generating time series or forecasts: %s', str(series_exc))
+        daily_series, weekly_series, monthly_series = [], [], []
+        daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        series_error = str(series_exc)
+
+    # Simple analytics
+    # Note: use aggregated series forecasts for business-level next-period totals
+    total_forecasted_units = sum(item['forecast'] for item in data)
+    avg_confidence = sum(item['confidence'] for item in data) / len(data) if data else 0
+
+    # Prefer aggregated weekly forecast from the series (one-step ahead). Fall back to per-product projection if unavailable.
+    try:
+        series_week_next = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else None
+        next_week_forecast = int(series_week_next) if series_week_next is not None else int(total_forecasted_units * 7)
+    except Exception:
+        next_week_forecast = int(total_forecasted_units * 7)
+
+    # For peak-day and peak-orders, use a heuristic: take the maximal predicted daily value in the next 7 days if available
+    try:
+        upcoming_daily = (daily_fore.get('forecast') or [])[:7]
+        if upcoming_daily:
+            peak_day = 'Next peak'  # label for UI; chart provides dates
+            peak_orders = int(max(upcoming_daily))
+        else:
+            peak_day = "Saturday"
+            peak_orders = int(total_forecasted_units * 1.2)
+    except Exception:
+        peak_day = "Saturday"
+        peak_orders = int(total_forecasted_units * 1.2)
+
+    last_week_total = sum(item['last_7_days'] for item in data)
+    growth_percentage = ((next_week_forecast - last_week_total) / last_week_total * 100) if last_week_total > 0 else 0
+
+    # Compute period summaries (use DB actuals shown on charts)
+    # Import helpers with defensive fallback so a missing dependency in production
+    # doesn't cause the whole view to 500. If the import fails, we log and
+    # provide simple stub implementations that return safe defaults.
+    try:
+        from .services.forecasting import compute_period_overview, generate_insight
+    except Exception as e:
+        logger.exception('Error importing period overview helpers: %s', str(e))
+
+        def compute_period_overview(series):
+            if not series:
+                return {'total': 0, 'previous': 0, 'pct_change': 0.0, 'arrow': 'same'}
+            cur_label, cur_val = series[-1]
+            prev_val = series[-2][1] if len(series) >= 2 else 0
+            total = int(cur_val)
+            previous = int(prev_val)
+            if previous == 0:
+                pct = 100.0 if total > 0 else 0.0
+            else:
+                pct = round(((total - previous) / float(previous)) * 100.0, 2)
+            if pct > 0:
+                arrow = 'up'
+            elif pct < 0:
+                arrow = 'down'
+            else:
+                arrow = 'same'
+            return {'total': total, 'previous': previous, 'pct_change': pct, 'arrow': arrow}
+
+        def generate_insight(period_name, series, forecast_payload):
+            return ''
+    # Compute period summaries
+    daily_summary = compute_period_overview(daily_series)
+    weekly_summary = compute_period_overview(weekly_series)
+    monthly_summary = compute_period_overview(monthly_series)
+
+    # Compute currency-based sales totals (revenue) for the hero tiles so values
+    # displayed with the currency symbol reflect actual revenue (not unit counts).
+    from django.utils import timezone
+    from django.db.models import Sum
+    from datetime import timedelta
+
+    try:
+        today = timezone.localdate()
+    except Exception:
+        today = timezone.now().date()
+
+    # Initialize week_start and month_start before try block to avoid UnboundLocalError
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+
+    try:
+        today_revenue = float(Sale.objects.filter(date=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        this_week_revenue = float(Sale.objects.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        this_month_revenue = float(Sale.objects.filter(date__gte=month_start, date__lte=today).aggregate(total=Sum('revenue')).get('total') or 0.0)
+        # Also compute unit counts (units sold) for the same periods so we can
+        # show "X units / PHPY" in the hero tiles for clarity.
+        today_units = int(Sale.objects.filter(date=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+        this_week_units = int(Sale.objects.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+        this_month_units = int(Sale.objects.filter(date__gte=month_start, date__lte=today).aggregate(total=Sum('units_sold')).get('total') or 0)
+    except Exception:
+        # Fallback to the previously-computed unit-based summaries if revenue aggregation fails
+        today_revenue = float(daily_summary.get('total', 0))
+        this_week_revenue = float(weekly_summary.get('total', 0))
+        this_month_revenue = float(monthly_summary.get('total', 0))
+        # daily_summary still contains unit counts — use them as fallbacks for units
+        today_units = int(daily_summary.get('total', 0))
+        this_week_units = int(weekly_summary.get('total', 0))
+        this_month_units = int(monthly_summary.get('total', 0))
+
+    # Forecast preview values (next period forecast) from forecast payloads
+    # NOTE: These are now in REVENUE (not units) since aggregate_sales returns revenue
+    today_forecast = (daily_fore.get('forecast') or [0])[0] if daily_fore.get('forecast') else 0
+    week_forecast = (weekly_fore.get('forecast') or [0])[0] if weekly_fore.get('forecast') else 0
+    month_forecast = (monthly_fore.get('forecast') or [0])[0] if monthly_fore.get('forecast') else 0
+
+    # Yearly forecast: sum of next 12 months predicted by running forecast_time_series on monthly series
+    try:
+        year_fore = forecast_time_series(monthly_series, horizon=12)
+        year_forecast_total = int(sum(year_fore.get('forecast', []) or []))
+        year_fore_upper = year_fore.get('upper', []) or []
+        year_fore_lower = year_fore.get('lower', []) or []
+        year_confidence = int(round(year_fore.get('confidence', 0) or 0))
+    except Exception:
+        year_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0}
+        year_forecast_total = 0
+        year_fore_upper = []
+        year_fore_lower = []
+        year_confidence = 0
+
+    # These forecasts are already in revenue form, so use them directly without multiplying by avg_unit_price
+    today_forecast_revenue = today_forecast
+    week_forecast_revenue = week_forecast
+    month_forecast_revenue = month_forecast
+    year_forecast_revenue = year_forecast_total
+
+    # Confidence margins helper function - define before use
+    def confidence_margin_currency(fore_payload, idx=0):
+        try:
+            upper = (fore_payload.get('upper') or [None])[idx]
+            lower = (fore_payload.get('lower') or [None])[idx]
+            if upper is None or lower is None:
+                return 0.0
+            # Values are already in revenue form, so just calculate the margin
+            margin = max(0.0, (upper - lower) / 2.0)
+            return margin
+        except Exception:
+            return 0.0
+
+    today_conf_margin = confidence_margin_currency(daily_fore, 0)
+    week_conf_margin = confidence_margin_currency(weekly_fore, 0)
+    month_conf_margin = confidence_margin_currency(monthly_fore, 0)
+
+    # Year confidence margin & percent (approximate by summing monthly margins)
+    try:
+        year_conf_margin = max(0.0, sum(((u - l) / 2.0) for u, l in zip(year_fore_upper, year_fore_lower)))
+    except Exception:
+        year_conf_margin = 0.0
+
+    # Confidence percentages (normalize 0-100)
+    today_conf_pct = int(round(daily_fore.get('confidence', 0) or 0))
+    week_conf_pct = int(round(weekly_fore.get('confidence', 0) or 0))
+    month_conf_pct = int(round(monthly_fore.get('confidence', 0) or 0))
+    year_conf_pct = int(round(year_confidence or 0))
+
+    # Define compute_growth function before using it
+    def compute_growth(new, old):
+        try:
+            if old and old > 0:
+                pct = round(((new - old) / float(old)) * 100.0, 1)
+            else:
+                pct = 100.0 if new > 0 else 0.0
+            return pct
+        except Exception:
+            return 0.0
+
+    # Compute previous-year revenue (sum of last 12 months actuals) and year growth
+    try:
+        prev_year_revenue = int(sum(v for _, v in (monthly_series[-12:] or []))) if monthly_series else 0
+    except Exception:
+        prev_year_revenue = 0
+    year_growth_pct = compute_growth(year_forecast_revenue, prev_year_revenue)
+
+    # Next year label (year number)
+    try:
+        next_year_label = str(today.year + 1)
+    except Exception:
+        next_year_label = 'Next Year' 
+
+    # Compute previous-period revenues to show growth/decline badges on hero cards
+    try:
+        yesterday = today - timedelta(days=1)
+        yesterday_revenue = float(Sale.objects.filter(date=yesterday).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        yesterday_revenue = 0.0
+
+    try:
+        prev_week_start = week_start - timedelta(days=7)
+        prev_week_end = prev_week_start + timedelta(days=6)
+        prev_week_revenue = float(Sale.objects.filter(date__gte=prev_week_start, date__lte=prev_week_end).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        prev_week_revenue = 0.0
+
+    try:
+        # previous month (month before current month)
+        if today.month == 1:
+            pm_year = today.year - 1
+            pm_month = 12
+        else:
+            pm_year = today.year
+            pm_month = today.month - 1
+        from calendar import monthrange
+        pm_start = today.replace(year=pm_year, month=pm_month, day=1)
+        pm_end = pm_start.replace(day=monthrange(pm_start.year, pm_start.month)[1])
+        prev_month_revenue = float(Sale.objects.filter(date__gte=pm_start, date__lte=pm_end).aggregate(total=Sum('revenue')).get('total') or 0.0)
+    except Exception:
+        prev_month_revenue = 0.0
+
+    today_growth_pct = compute_growth(today_forecast_revenue, yesterday_revenue)
+    week_growth_pct = compute_growth(week_forecast_revenue, prev_week_revenue)
+    month_growth_pct = compute_growth(month_forecast_revenue, prev_month_revenue)
+
+    def fmt_currency(x):
+        try:
+            return f'₱{int(round(x)):,}'
+        except Exception:
+            return f'₱{int(x)}'
+
+    # Human-friendly date labels for hero cards
+    try:
+        tomorrow_date = today + timedelta(days=1)
+        tomorrow_label = tomorrow_date.strftime('%b %d, %Y')
+    except Exception:
+        tomorrow_label = ''
+
+    # Next week: compute next-week range (Mon-Sun)
+    try:
+        week_start = today - timedelta(days=today.weekday())
+        next_week_start = week_start + timedelta(days=7)
+        next_week_end = next_week_start + timedelta(days=6)
+        next_week_label = f"{next_week_start.strftime('%b %d')} - {next_week_end.strftime('%b %d')}"
+    except Exception:
+        next_week_label = ''
+
+    # Next month label (Month Year)
+    try:
+        ny = today.year + 1 if today.month == 12 else today.year
+        nm = 1 if today.month == 12 else today.month + 1
+        from datetime import date as _date
+        next_month_label = _date(ny, nm, 1).strftime('%B %Y')
+    except Exception:
+        next_month_label = ''
+
+    # Data source: we use database historical sales only for forecasting
+    data_source = 'db'
+
+    # counts and date range
+    def first_last(series):
+        if not series:
+            return (None, None)
+        first = series[0][0]
+        last = series[-1][0]
+        return (first, last)
+
+    d_first, d_last = first_last(daily_series)
+    w_first, w_last = first_last(weekly_series)
+    m_first, m_last = first_last(monthly_series)
+
+    # Initialize forecast objects with defaults - will be populated by forecast_time_series below
+    # These defaults ensure variables are always defined before being used in context
+    daily_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+    weekly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+    monthly_fore = {'forecast': [], 'upper': [], 'lower': [], 'confidence': 0, 'accuracy': '', 'fallback': False}
+
+    # Build small formatted helpers for the template
+    def fmt_pct(p):
+        try:
+            sign = '+' if p > 0 else ('-' if p < 0 else '')
+            return f"{sign}{abs(p):.1f}%"
+        except Exception:
+            return '0.0%'
+    # Build context dictionary with all required variables initialized
+    context = {
+        "data": data,
+        "total_forecast": next_week_forecast,
+        "avg_confidence": avg_confidence,
+        "peak_day": peak_day,
+        "peak_orders": peak_orders,
+        "growth_percentage": growth_percentage,
+        # Use revenue (currency) values for the hero tiles so they're consistent
+        # with other parts of the app that display monetary totals.
+        "today_sales": today_revenue,
+        "this_week_sales": this_week_revenue,
+        "this_month_sales": this_month_revenue,
+        # Growth percentages for hero badges
+        "today_growth_pct": today_growth_pct,
+        "week_growth_pct": week_growth_pct,
+        "month_growth_pct": month_growth_pct,
+        "today_growth_pct_display": fmt_pct(today_growth_pct),
+        "week_growth_pct_display": fmt_pct(week_growth_pct),
+        "month_growth_pct_display": fmt_pct(month_growth_pct),
+        "today_growth_positive": (today_growth_pct > 0),
+        "week_growth_positive": (week_growth_pct > 0),
+        "month_growth_positive": (month_growth_pct > 0),
+        # Unit counts to be shown alongside revenue in the hero tiles
+        "today_units": today_units,
+        "this_week_units": this_week_units,
+        "this_month_units": this_month_units,
+        "today_forecast_preview": today_forecast,
+        "week_forecast_preview": week_forecast,
+        "month_forecast_preview": month_forecast,
+        "today_forecast_revenue": today_forecast_revenue,
+        "week_forecast_revenue": week_forecast_revenue,
+        "month_forecast_revenue": month_forecast_revenue,
+        "today_forecast_revenue_display": fmt_currency(today_forecast_revenue),
+        "week_forecast_revenue_display": fmt_currency(week_forecast_revenue),
+        "month_forecast_revenue_display": fmt_currency(month_forecast_revenue),
+        "today_confidence_pct": today_conf_pct,
+        "week_confidence_pct": week_conf_pct,
+        "month_confidence_pct": month_conf_pct,
+        "today_confidence_margin_display": fmt_currency(today_conf_margin),
+        "week_confidence_margin_display": fmt_currency(week_conf_margin),
+        "month_confidence_margin_display": fmt_currency(month_conf_margin),
+        "tomorrow_label": tomorrow_label,
+        "next_week_label": next_week_label,
+        "next_month_label": next_month_label,
+        "next_year_label": next_year_label,
+        "today_sales_display": fmt_currency(today_revenue),
+        "this_week_sales_display": fmt_currency(this_week_revenue),
+        "this_month_sales_display": fmt_currency(this_month_revenue),
+        "year_forecast_revenue": year_forecast_revenue,
+        "year_forecast_revenue_display": fmt_currency(year_forecast_revenue),
+        "year_confidence_pct": year_conf_pct,
+        "year_confidence_margin_display": fmt_currency(year_conf_margin),
+        "year_growth_pct": year_growth_pct,
+        "year_growth_pct_display": fmt_pct(year_growth_pct),
+        "year_growth_positive": (year_growth_pct > 0),
+        "currency": "₱",
+        # Period summaries for server-side fallbacks in template
+        "daily_summary": daily_summary,
+        "weekly_summary": weekly_summary,
+        "monthly_summary": monthly_summary,
+        # Forecast confidences for server-side display
+        "daily_confidence": daily_fore.get('confidence', 0),
+        "weekly_confidence": weekly_fore.get('confidence', 0),
+        "monthly_confidence": monthly_fore.get('confidence', 0),
+        # JSON for charts - values are already in REVENUE form, no conversion needed
+        "daily_json": json.dumps({
+            'labels': [d for d, _ in daily_series],
+            'actual': [v for _, v in daily_series],
+            'forecast': daily_fore.get('forecast', []),
+            'upper': daily_fore.get('upper', []),
+            'lower': daily_fore.get('lower', []),
+            'confidence': daily_fore.get('confidence', 0)
+        }),
+        "weekly_json": json.dumps({
+            'labels': [d for d, _ in weekly_series],
+            'actual': [v for _, v in weekly_series],
+            'forecast': weekly_fore.get('forecast', []),
+            'upper': weekly_fore.get('upper', []),
+            'lower': weekly_fore.get('lower', []),
+            'confidence': weekly_fore.get('confidence', 0)
+        }),
+        "monthly_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series],
+            'forecast': monthly_fore.get('forecast', []),
+            'upper': monthly_fore.get('upper', []),
+            'lower': monthly_fore.get('lower', []),
+            'confidence': monthly_fore.get('confidence', 0)
+        }),
+        "yearly_revenue_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series],
+            'forecast': year_fore.get('forecast', []),
+            'upper': year_fore.get('upper', []),
+            'lower': year_fore.get('lower', []),
+            'confidence': year_confidence
+        }),
+        # Server-side revenue JSON for template quick access (values are already in REVENUE form)
+        "daily_revenue_json": json.dumps({
+            'labels': [d for d, _ in daily_series],
+            'actual': []  # populated below to avoid double work
+        }),
+        "weekly_revenue_json": json.dumps({
+            'labels': [d for d, _ in weekly_series],
+            'actual': [v for _, v in weekly_series]
+        }),
+        "monthly_revenue_json": json.dumps({
+            'labels': [d for d, _ in monthly_series],
+            'actual': [v for _, v in monthly_series]
+        })
+    }
+
+    # Allow enabling a server-side debug dump via ?debug=1 on the view (temporary troubleshooting)
+    try:
+        context['debug_mode'] = bool(request.GET.get('debug'))
+    except Exception:
+        context['debug_mode'] = False
+
+    # include diagnostics
+    context.update({
+        'data_source': data_source,
+        'daily_count': len(daily_series),
+        'weekly_count': len(weekly_series),
+        'monthly_count': len(monthly_series),
+        'daily_first': d_first,
+        'daily_last': d_last,
+        'weekly_first': w_first,
+        'weekly_last': w_last,
+        'monthly_first': m_first,
+        'monthly_last': m_last,
+    })
+
+    # If import or series generation failed, pass an error message to template so it can show a friendly alert
+    if import_error:
+        context['error_message'] = 'Forecasting functionality is currently unavailable on this instance. Check logs for details.'
+    elif series_error:
+        context['error_message'] = 'Forecast computation failed. Displaying limited results.'
+    else:
+        # If no DB series were produced, show friendly message
+        if (not daily_series) and (not weekly_series) and (not monthly_series):
+            context['error_message'] = 'No historical sales data available to generate forecasts.'
+
+    # Populate the server-side daily revenue actuals and forecasts for the template (best-effort direct DB aggregation)
+    try:
+        from datetime import date as date_class
+        daily_labels = [d for d, _ in daily_series]
+        if daily_labels:
+            # Convert ISO date strings back to date objects for the query
+            daily_dates = []
+            for d in daily_labels:
+                try:
+                    if isinstance(d, str):
+                        daily_dates.append(date_class.fromisoformat(d))
+                    else:
+                        daily_dates.append(d)
+                except Exception:
+                    # Skip dates that can't be parsed
+                    continue
+            
+            if daily_dates:
+                q = Sale.objects.filter(date__in=daily_dates).values('date').annotate(total_rev=Sum('revenue')).order_by('date')
+                rev_map = {r['date'].isoformat(): int(round(float(r.get('total_rev') or 0.0))) for r in q}
+                # Include forecast data from the API payload computation (done earlier in view)
+                try:
+                    # Use the daily_fore that was computed above for the API response
+                    context['daily_revenue_json'] = json.dumps({
+                        'labels': daily_labels,
+                        'actual': [rev_map.get(d, 0) for d in daily_labels],
+                        'forecast': daily_fore.get('forecast', []),
+                        'upper': daily_fore.get('upper', []),
+                        'lower': daily_fore.get('lower', []),
+                        'confidence': daily_fore.get('confidence', 0)
+                    })
+                except NameError:
+                    # If daily_fore is not defined (shouldn't happen), fallback to just actuals
+                    context['daily_revenue_json'] = json.dumps({
+                        'labels': daily_labels,
+                        'actual': [rev_map.get(d, 0) for d in daily_labels]
+                    })
+            else:
+                context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [], 'forecast': [] })
+        else:
+            context['daily_revenue_json'] = json.dumps({ 'labels': [], 'actual': [], 'forecast': [] })
+    except Exception as e:
+        logger.exception('Error populating daily revenue JSON: %s', str(e))
+        # fallback to using daily_json which may have used avg_unit_price
+        context['daily_revenue_json'] = context.get('daily_json', '{}')
+
+    try:
+        # Render and set no-cache headers so browsers always fetch fresh computed values
+        response = render(request, "pages/forecast.html", context)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        return response
+    except db_utils.InterfaceError as ie:
+        # Transient DB connection closed errors can occur on some deployments
+        # (e.g. during a worker restart); attempt to close stale connections
+        # and retry the render once before returning a 500.
+        logger = logging.getLogger(__name__)
+        logger.warning('InterfaceError during render; retrying after close_old_connections: %s', str(ie))
+        try:
+            close_old_connections()
+            response = render(request, "pages/forecast.html", context)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            return response
+        except Exception as render_exc:
+            # fall through to the common error handler below
+            pass
+    except Exception as render_exc:
+        import traceback, uuid
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
+        logger = logging.getLogger(__name__)
+        # Log the full traceback with an identifier so we can correlate production logs
+        logger.exception('Error rendering forecast template (id=%s): %s\n%s', error_id, str(render_exc), tb)
+        # If an admin requests with ?debug=1, return the full stack trace (temporary safe debugging aid)
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return HttpResponse('<pre style="white-space:pre-wrap;">Server Error (500) (id=' + error_id + ')\n\n' + tb + '</pre>', status=500)
+        except Exception:
+            # ignore and fall back to friendly message
+            pass
+        # Show a friendly error page with an error id so admins can look up logs
+        return HttpResponse(f'Server Error (500) - Forecasts temporarily unavailable. Error ID: {error_id}', status=500)
+
+
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def forecast_data_api(request):
+    """Return JSON with aggregated series and forecasts for daily/weekly/monthly and per-product summaries."""
+    logger = logging.getLogger(__name__)
+    try:
+        user_info = None
+        if hasattr(request, 'user') and request.user and hasattr(request.user, 'is_authenticated'):
+            try:
+                groups = list(request.user.groups.values_list('name', flat=True))
+            except Exception:
+                groups = []
+            user_info = {
+                'username': getattr(request.user, 'username', None),
+                'authenticated': bool(request.user.is_authenticated),
+                'groups': groups
+            }
+        logger.info('forecast_data_api called; path=%s user=%s remote=%s x-requested-with=%s', request.path, user_info, request.META.get('REMOTE_ADDR'), request.META.get('HTTP_X_REQUESTED_WITH'))
+    except Exception:
+        logger.exception('Error logging forecast_data_api request info')
+    # Wrap main API logic so unexpected exceptions return a controlled JSON error
+    try:
+        try:
+            from .services.forecasting import aggregate_sales, forecast_time_series, moving_average_forecast
+        except Exception as e:
+            logger.exception('Forecast API import failed: %s', str(e))
+            return JsonResponse({'error': 'Forecasting libraries unavailable', 'details': str(e)}, status=500)
+
+        import json
+
+        # Build per-product forecasts from DB historical sales only
+        products = []
+        try:
+            db_results = moving_average_forecast(window=3)
+            db_forecasts = db_results.get('db_forecasts', {})
+            for pid, r in db_forecasts.items():
+                try:
+                    product_obj = Product.objects.get(pk=pid)
+                except Product.DoesNotExist:
+                    continue
+                conf = r.get('confidence', 0)
+                if conf and conf <= 1.0:
+                    conf = conf * 100
+                accuracy = r.get('accuracy') or ('High' if conf >= 70 else 'Medium' if conf >= 40 else 'Low')
+                history = r.get('history', []) or []
+                products.append({
+                    'product': product_obj.name,
+                    'product_id': pid,
+                    'forecast': int(r.get('forecast', 0)),
+                    'avg': float(r.get('avg', 0)),
+                    'trend': r.get('trend', 'unknown'),
+                    'confidence': int(conf or 0),
+                    'accuracy': accuracy,
+                    'last_7_days': int(sum([u for _, u in history[-7:]]))
+                })
+        except Exception as e:
+            logger.exception('Error building DB product forecasts: %s', str(e))
+            products = []
+    except Exception as e:
+        # Catch-all: return JSON error; include traceback when admin requests debug=1
+        import traceback, uuid
+        tb = traceback.format_exc()
+        error_id = uuid.uuid4().hex[:8]
+        logger.exception('Unexpected error in forecast_data_api (id=%s): %s\n%s', error_id, str(e), tb)
+        try:
+            is_admin = hasattr(request, 'user') and getattr(request.user, 'is_superuser', False)
+            if request.GET.get('debug') and is_admin:
+                return JsonResponse({'error': 'Internal Server Error', 'trace': tb, 'id': error_id}, status=500)
+        except Exception:
+            pass
+        return JsonResponse({'error': 'Internal Server Error', 'id': error_id}, status=500)
+
+    # Use DB aggregates for series (daily/weekly/monthly) — CSV is not used for forecasts
+    daily_series = aggregate_sales('daily', lookback=60)
+    weekly_series = aggregate_sales('weekly', lookback=12)
+    monthly_series = aggregate_sales('monthly', lookback=12)
+
+    # Optional filters from query params: start (YYYY-MM-DD), end (YYYY-MM-DD), product
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+    product_filter = request.GET.get('product')
+
+    def filter_series_by_range(series, granularity):
+        if not series or not (start or end):
+            return series
+        out = []
+        for label, val in series:
+            try:
+                if granularity == 'monthly':
+                    # label like 'YYYY-MM'
+                    lab_key = label
+                    if start:
+                        if lab_key < start[:7]:
+                            continue
+                    if end:
+                        if lab_key > end[:7]:
+                            continue
+                else:
+                    # daily/weekly ISO date
+                    lab_date = label
+                    if start and lab_date < start:
+                        continue
+                    if end and lab_date > end:
+                        continue
+                out.append((label, val))
+            except Exception:
+                continue
+        return out
+
+    daily_series = filter_series_by_range(daily_series, 'daily')
+    weekly_series = filter_series_by_range(weekly_series, 'weekly')
+    monthly_series = filter_series_by_range(monthly_series, 'monthly')
+
+    if product_filter:
+        products = [p for p in products if p.get('product') == product_filter]
+
+    # CRITICAL FIX: Generate forecasts from UNFILTERED series to ensure we have proper forecast
+    # We need to use the full historical data for forecast generation, not just the filtered range
+    try:
+        # Get unfiltered series for forecast generation
+        daily_series_unfiltered = aggregate_sales('daily', lookback=60)
+        weekly_series_unfiltered = aggregate_sales('weekly', lookback=12)
+        monthly_series_unfiltered = aggregate_sales('monthly', lookback=12)
+        
+        logger.info('API: Unfiltered daily_series length: %d, weekly: %d, monthly: %d', 
+                    len(daily_series_unfiltered) if daily_series_unfiltered else 0, 
+                    len(weekly_series_unfiltered) if weekly_series_unfiltered else 0, 
+                    len(monthly_series_unfiltered) if monthly_series_unfiltered else 0)
+        
+        # Generate forecasts from full historical data
+        daily_fore = forecast_time_series(daily_series_unfiltered, horizon=30)
+        weekly_fore = forecast_time_series(weekly_series_unfiltered, horizon=12)
+        monthly_fore = forecast_time_series(monthly_series_unfiltered, horizon=6)
+        
+        try:
+            logger.info('API: Generated forecasts - daily: %d, weekly: %d, monthly: %d', 
+                        len(daily_fore.get('forecast', []) or []), 
+                        len(weekly_fore.get('forecast', []) or []), 
+                        len(monthly_fore.get('forecast', []) or []))
+        except Exception as e:
+            logger.exception('Error logging forecast lengths: %s', e)
+        
+        # Ensure we always have arrays (even if empty)
+        daily_fore = {
+            'forecast': daily_fore.get('forecast') or [],
+            'upper': daily_fore.get('upper') or [],
+            'lower': daily_fore.get('lower') or [],
+            'confidence': daily_fore.get('confidence') or 0,
+            'accuracy': daily_fore.get('accuracy', '')
+        }
+        weekly_fore = {
+            'forecast': weekly_fore.get('forecast') or [],
+            'upper': weekly_fore.get('upper') or [],
+            'lower': weekly_fore.get('lower') or [],
+            'confidence': weekly_fore.get('confidence') or 0,
+            'accuracy': weekly_fore.get('accuracy', '')
+        }
+        monthly_fore = {
+            'forecast': monthly_fore.get('forecast') or [],
+            'upper': monthly_fore.get('upper') or [],
+            'lower': monthly_fore.get('lower') or [],
+            'confidence': monthly_fore.get('confidence') or 0,
+            'accuracy': monthly_fore.get('accuracy', '')
+        }
+
+        # Server-side fallback: if model returned empty or trivial forecasts (all zeros),
+        # compute a simple fallback using recent actuals so the API always provides a usable projection.
+        def _ensure_forecast_non_empty(fore, series, horizon, label='series'):
+            try:
+                preds = fore.get('forecast') or []
+                valid = sum(1 for v in preds if v is not None and v != 0)
+                if not preds or valid == 0:
+                    vals = [v for _, v in series]
+                    recent = vals[-14:] if vals else []
+                    if not recent:
+                        preds2 = [0] * horizon
+                    else:
+                        # simple slope + mean baseline
+                        baseline = sum(recent) / len(recent)
+                        slope = (recent[-1] - recent[0]) / max(1, len(recent) - 1)
+                        preds2 = [max(0, int(round(baseline + slope * (i + 1)))) for i in range(horizon)]
+                    fore['forecast'] = preds2
+                    fore['upper'] = [int(round(p * 1.2 + 10)) for p in preds2]
+                    fore['lower'] = [max(0, int(round(p * 0.8 - 10))) for p in preds2]
+                    # mark as fallback so clients can show a notice
+                    fore['fallback'] = True
+                else:
+                    fore['fallback'] = False
+            except Exception:
+                fore['fallback'] = True
+            return fore
+
+        # Ensure we have non-empty forecasts for clients (daily:30, weekly:12, monthly:6)
+        # IMPORTANT: Use the UNFILTERED series for fallback generation so clients that request
+        # a narrow date range still receive a full forecast computed from the complete history.
+        daily_fore = _ensure_forecast_non_empty(daily_fore, daily_series_unfiltered, horizon=30, label='daily')
+        weekly_fore = _ensure_forecast_non_empty(weekly_fore, weekly_series_unfiltered, horizon=12, label='weekly')
+        monthly_fore = _ensure_forecast_non_empty(monthly_fore, monthly_series_unfiltered, horizon=6, label='monthly')
+    except Exception as e:
+        # If forecast computation fails, just log it and keep the default empty forecasts
+        # The view will still render with empty/fallback data
+        logger.warning('Forecast computation failed (will use defaults): %s', str(e))
+    try:
+        from .services.forecasting import compute_period_overview, generate_insight
+
+        # Build summary for overview cards and AI insights
+        daily_summary = compute_period_overview(daily_series)
+        weekly_summary = compute_period_overview(weekly_series)
+        monthly_summary = compute_period_overview(monthly_series)
+
+        daily_insight = generate_insight('daily', daily_series, daily_fore)
+        weekly_insight = generate_insight('weekly', weekly_series, weekly_fore)
+        monthly_insight = generate_insight('monthly', monthly_series, monthly_fore)
+
+        # compute average unit price over the last 30 days so clients can scale unit-based series into revenue
+        try:
+            from django.utils import timezone as _tz
+            from datetime import timedelta as _td
+            try:
+                _today = _tz.localdate()
+            except Exception:
+                _today = _tz.now().date()
+            _lookback = 30
+            _start = _today - _td(days=_lookback)
+            _agg = Sale.objects.filter(date__gte=_start, date__lte=_today).aggregate(total_rev=Sum('revenue'), total_units=Sum('units_sold'))
+            _rev = float(_agg.get('total_rev') or 0.0)
+            _units = int(_agg.get('total_units') or 0)
+            avg_unit_price = (_rev / _units) if _units > 0 else 0.0
+        except Exception:
+            avg_unit_price = 0.0
+
+        payload = {
+            'products': products,
+            'data_source': 'db',
+            'avg_unit_price': avg_unit_price,
+            'currency': '₱',
+            'summary': {
+                'daily': daily_summary,
+                'weekly': weekly_summary,
+                'monthly': monthly_summary
+            },
+            'ai_insights': [ins for ins in (daily_insight, weekly_insight, monthly_insight) if ins],
+            'daily': {
+                'labels': [d for d, _ in daily_series],
+                'actual': [v for _, v in daily_series],
+                'forecast': daily_fore['forecast'],
+                'upper': daily_fore['upper'],
+                'lower': daily_fore['lower'],
+                'confidence': daily_fore['confidence'],
+                'accuracy': daily_fore.get('accuracy', ''),
+                'fallback': bool(daily_fore.get('fallback', False))
+            },
+
+            'weekly': {
+                'labels': [d for d, _ in weekly_series],
+                'actual': [v for _, v in weekly_series],
+                'forecast': weekly_fore['forecast'],
+                'upper': weekly_fore['upper'],
+                'lower': weekly_fore['lower'],
+                'confidence': weekly_fore['confidence'],
+                'accuracy': weekly_fore.get('accuracy', ''),
+                'fallback': bool(weekly_fore.get('fallback', False))
+            },
+            'monthly': {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': monthly_fore['forecast'],
+                'upper': monthly_fore['upper'],
+                'lower': monthly_fore['lower'],
+                'confidence': monthly_fore['confidence'],
+                'accuracy': monthly_fore.get('accuracy', ''),
+                'fallback': bool(monthly_fore.get('fallback', False))
+            }
+        }
+
+        # Also include server-side revenue series (now direct from DB since aggregate_sales returns revenue)
+        # No need to convert anymore since aggregate_sales() now returns revenue directly
+        try:
+            # Daily actuals are already in revenue form from aggregate_sales()
+            daily_dates = [d for d, _ in daily_series]
+            daily_actual = [v for _, v in daily_series]
+
+            logger.info('API: daily_revenue - dates: %d, actual values: %d, sample actual: %s', 
+                        len(daily_dates), len(daily_actual), daily_actual[:3] if daily_actual else 'EMPTY')
+
+            payload['daily_revenue'] = {
+                'labels': daily_dates,
+                'actual': daily_actual,
+                'forecast': daily_fore.get('forecast', []),
+                'upper': daily_fore.get('upper', []),
+                'lower': daily_fore.get('lower', []),
+                'confidence': daily_fore.get('confidence', 0),
+                'fallback': bool(daily_fore.get('fallback', False))
+            }
+            
+            # Log what we're returning (safely)
+            try:
+                logger.info('API: Payload daily_revenue contains - labels:%d, actual:%d, forecast:%d',
+                            len(payload['daily_revenue'].get('labels', [])),
+                            len(payload['daily_revenue'].get('actual', [])),
+                            len(payload['daily_revenue'].get('forecast', [])))
+            except Exception as e:
+                logger.exception('Error logging daily_revenue: %s', e)
+
+            # Weekly/monthly: values are already in revenue form
+            payload['weekly_revenue'] = {
+                'labels': [d for d, _ in weekly_series],
+                'actual': [v for _, v in weekly_series],
+                'forecast': weekly_fore.get('forecast', []),
+                'upper': weekly_fore.get('upper', []),
+                'lower': weekly_fore.get('lower', []),
+                'confidence': weekly_fore.get('confidence', 0),
+                'fallback': bool(weekly_fore.get('fallback', False))
+            }
+            payload['monthly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': monthly_fore.get('forecast', []),
+                'upper': monthly_fore.get('upper', []),
+                'lower': monthly_fore.get('lower', []),
+                'confidence': monthly_fore.get('confidence', 0),
+                'fallback': bool(monthly_fore.get('fallback', False))
+            }
+
+            # Yearly: aggregated forecast across next 12 months (sum of monthly forecasts)
+            payload['yearly_revenue'] = {
+                'labels': [d for d, _ in monthly_series],
+                'actual': [v for _, v in monthly_series],
+                'forecast': year_fore.get('forecast', []),
+                'upper': year_fore.get('upper', []),
+                'lower': year_fore.get('lower', []),
+                'confidence': year_fore.get('confidence', 0),
+                'fallback': bool(year_fore.get('fallback', False))
+            }
+        except Exception:
+            # Best-effort: if construction fails, fall back to plain series already present
+            pass
+
+        return JsonResponse(payload)
+    except Exception as out_exc:
+        logger.exception('Error building forecast API response: %s', str(out_exc))
+        return JsonResponse({'error': 'Failed to build forecast response', 'details': str(out_exc)}, status=500)
+
+
+@login_required
+def product_forecast(request):
+    """Render the product-level forecast page which fetches data from `product_forecast_api` via JS."""
+    # Minimal server-side context; most data is fetched client-side for interactivity
+    context = {
+        'api_url': '/product-forecast/api/',
+        'title': 'Product Forecast'
+    }
+
+    # Provide known product categories to the template for filter controls
+    try:
+        categories_qs = Product.objects.order_by('category').values_list('category', flat=True).distinct()
+        categories = [c for c in categories_qs if c]
+        context['categories'] = categories
+    except Exception:
+        context['categories'] = []
+    logger = logging.getLogger(__name__)
+    # Close any stale DB connections before rendering to avoid psycopg2.InterfaceError
+    try:
+        close_old_connections()
+    except Exception:
+        pass
+
+    try:
+        response = render(request, 'pages/product_forecast.html', context)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
+    except db_utils.InterfaceError as ie:
+        # transient DB connection issue: try to close old connections and retry once
+        logger.warning('InterfaceError when rendering product_forecast; retrying after close_old_connections: %s', str(ie))
+        try:
+            close_old_connections()
+            response = render(request, 'pages/product_forecast.html', context)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            return response
+        except Exception:
+            logger.exception('Retry render failed for product_forecast')
+    except Exception as e:
+        # Log full traceback for post-mortem on deployed systems
+        import traceback, sys
+        tb = traceback.format_exc()
+        logger.exception('Error rendering product_forecast: %s\n%s', str(e), tb)
+        # Try to render a minimal static fallback page so the endpoint remains functional
+        # Render a minimal inline fallback without using templates to avoid any further DB queries
+        simple_html = """
+          <!doctype html>
+          <html>
+            <head><meta charset='utf-8'><title>Product Forecast (offline)</title></head>
+            <body style="font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;">
+              <h1>Product Forecast (offline)</h1>
+              <p>The interactive dashboard is temporarily unavailable. You can still access raw data at <a href="/product-forecast/api/">/product-forecast/api/</a></p>
+            </body>
+          </html>
+        """
+        resp = HttpResponse(simple_html, content_type='text/html')
+        resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
+
+    # Last resort: return a simple textual error for monitoring
+    return HttpResponse('Server Error (500) - unable to render product forecast', status=500)
+
+
+@login_required
+def product_forecast_api(request):
+    """Return JSON payload with per-product multi-horizon forecasts and top-ranked lists.
+    Optional query params:
+      - horizon: one of '1','7','30' to select ranking horizon (default 7)
+      - top: integer number of top products to return (default 10)
+      - product_id: if provided, include a detailed series and forecast for this product
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        from .services.forecasting import product_forecast_summary
+    except Exception as exc:
+        logger.exception('Forecast helpers unavailable: %s', str(exc))
+        return JsonResponse({'error': 'Forecasting helpers unavailable', 'details': str(exc)}, status=500)
+
+    horizon = int(request.GET.get('horizon', '7'))
+    try:
+        top_n = int(request.GET.get('top', '10'))
+    except Exception:
+        top_n = 10
+
+    product_id = request.GET.get('product_id')
+    category = request.GET.get('category')
+    search = request.GET.get('search', '').strip()
+    # New filters: active/in-stock and price range
+    active_only = request.GET.get('active')
+    in_stock_only = request.GET.get('in_stock')
+    try:
+        min_price = float(request.GET.get('min_price')) if request.GET.get('min_price') not in (None, '') else None
+    except Exception:
+        min_price = None
+    try:
+        max_price = float(request.GET.get('max_price')) if request.GET.get('max_price') not in (None, '') else None
+    except Exception:
+        max_price = None
+
+    products_payload = []
+    try:
+        # Build base queryset with optional filters
+        qs = Product.objects.all().order_by('name')
+        if category:
+            qs = qs.filter(category=category)
+        if search:
+            qs = qs.filter(name__icontains=search)
+        # Apply active filter
+        if active_only in ('1', 'true', 'True'):
+            qs = qs.filter(is_active=True)
+        # Apply price filters
+        if min_price is not None:
+            qs = qs.filter(price__gte=min_price)
+        if max_price is not None:
+            qs = qs.filter(price__lte=max_price)
+        # If in_stock filter requested, narrow queryset to products with inventory quantity > 0
+        if in_stock_only in ('1', 'true', 'True'):
+            qs = qs.filter(inventory_items__quantity__gt=0).distinct()
+
+        logger.debug('product_forecast_api: Processing %d products for horizon %d', qs.count(), horizon)
+        
+        # Compute per-product summaries
+        for p in qs:
+            try:
+                summ = product_forecast_summary(p.id, horizons=(1, 7, 30), lookback_days=180)
+                # pick forecast for requested horizon
+                h_key = f'h_{horizon}'
+                hinfo = summ['horizons'].get(h_key, {'forecast': 0, 'confidence': 0})
+                forecast_h = int(hinfo.get('forecast', 0))
+                
+                # Get past 7 and 30 days from the series returned by product_forecast_summary
+                vals = [v for _, v in summ.get('series', [])]
+                last_7 = int(sum(vals[-7:])) if len(vals) >= 7 else int(sum(vals)) if vals else 0
+                past_30 = int(sum(vals[-30:])) if len(vals) >= 30 else int(sum(vals)) if vals else 0
+                
+                # ALWAYS use database fallback for accurate Last 7 Days and Last 30 Days
+                # (don't wait for vals to be empty; the series may have zeros which is ambiguous)
+                try:
+                    from datetime import timedelta
+                    from django.utils import timezone as tz
+                    # Use Django's timezone-aware date function to match Sale model's timezone settings
+                    try:
+                        today = tz.localdate()
+                    except Exception:
+                        today = tz.now().date()
+                    week_ago = today - timedelta(days=6)  # inclusive of today = 7 days total
+                    month_ago = today - timedelta(days=29)  # inclusive of today = 30 days total
+                    
+                    # Query actual units sold from database for last 7 days
+                    last_7_sales = Sale.objects.filter(
+                        product_id=p.id,
+                        date__gte=week_ago,
+                        date__lte=today
+                    ).aggregate(total=Sum('units_sold'))
+                    last_7_db = int(last_7_sales.get('total') or 0)
+                    
+                    # Query actual units sold for last 30 days
+                    last_30_sales = Sale.objects.filter(
+                        product_id=p.id,
+                        date__gte=month_ago,
+                        date__lte=today
+                    ).aggregate(total=Sum('units_sold'))
+                    past_30_db = int(last_30_sales.get('total') or 0)
+                    
+                    # Prefer database values over series (more accurate for recent data)
+                    last_7 = last_7_db
+                    past_30 = past_30_db
+                except Exception as e:
+                    logger.exception('Fallback DB query for product %s last_7/past_30 failed: %s', p.id, e)
+                    # If DB query fails, use series values as fallback
+                    pass
+                
+                # growth: compare forecast for horizon to last_7 (if horizon==7) or past_30 if horizon==30
+                if horizon == 7:
+                    denom = last_7 if last_7 > 0 else None
+                elif horizon == 30:
+                    denom = past_30 if past_30 > 0 else None
+                else:
+                    denom = last_7 if last_7 > 0 else None
+                if denom:
+                    growth = round((forecast_h - denom) / float(denom) * 100.0, 1)
+                else:
+                    growth = 0.0
+                price = float(p.price) if p.price is not None else 0.0
+                projected_revenue = round(forecast_h * price, 2)
+
+                in_stock = p.inventory_items.filter(quantity__gt=0).exists()
+                
+                # Log the first few products to help debug
+                if len(products_payload) < 3:
+                    logger.info('Product %s: forecast_h=%d, last_7=%d, past_30=%d, confidence=%f', 
+                               p.name, forecast_h, last_7, past_30, hinfo.get('confidence', 0))
+                
+                products_payload.append({
+                    'product_id': p.id,
+                    'product': p.name,
+                    'forecast_h': forecast_h,
+                    'confidence': float(hinfo.get('confidence', 0)),
+                    'trend': summ.get('trend', 'stable'),
+                    'last_7_days': last_7,
+                    'past_30_days': past_30,
+                    'avg': summ.get('avg', 0.0),
+                    'growth_rate': growth,
+                    'price': price,
+                    'projected_revenue': projected_revenue,
+                    'category': p.category or '',
+                    'is_active': bool(p.is_active),
+                    'in_stock': bool(in_stock)
+                })
+            except Exception:
+                logger.exception('Error computing product summary for product id %s', p.id)
+                continue
+    except Exception as e:
+        logger.exception('Error building product forecast payload: %s', str(e))
+        return JsonResponse({'error': 'Internal Server Error'}, status=500)
+
+    # Sort by forecast descending
+    products_sorted = sorted(products_payload, key=lambda x: x['forecast_h'], reverse=True)
+
+    # Summary aggregates (respecting filters)
+    total_forecast_units = sum(p['forecast_h'] for p in products_sorted)
+    total_projected_revenue = round(sum(p['projected_revenue'] for p in products_sorted), 2)
+
+    # Trending: sort by growth_rate descending
+    trending_sorted = sorted(products_payload, key=lambda x: x.get('growth_rate', 0.0), reverse=True)
+    
+    logger.info('product_forecast_api returning %d/%d top products for horizon %d, total forecast=%d', 
+               len(products_sorted[:top_n]), len(products_sorted), horizon, total_forecast_units)
+
+    result = {
+        'horizon': horizon,
+        'top': products_sorted[:top_n],
+        'trending': trending_sorted[:max(10, top_n)],
+        'best': products_sorted[0] if products_sorted else None,
+        'summary': {
+            'total_forecast_units': total_forecast_units,
+            'projected_revenue': total_projected_revenue,
+            'count': len(products_sorted)
+        }
+    }
+
+    # If product_id requested, include detailed series and forecasts
+    if product_id:
+        try:
+            pid = int(product_id)
+            summ = product_forecast_summary(pid, horizons=(1, 7, 30), lookback_days=180)
+            result['product_detail'] = summ
+        except Exception:
+            result['product_detail'] = None
+
+    return JsonResponse(result)
+
+
+# Admin: user management (Admin only)
+@group_required("Admin")
+def admin_user_list(request):
+    users = User.objects.all().prefetch_related('groups')
+    users_info = []
+    for u in users:
+        users_info.append({
+            'user': u,
+            'is_admin': u.groups.filter(name='Admin').exists(),
+            'is_cashier': u.groups.filter(name='Cashier').exists(),
+        })
+    return render(request, 'pages/admin_user_list.html', {'users': users_info})
+
+
+@group_required("Admin")
+def forecast_diag(request):
+    """Compact diagnostics for deployed instances so admins can quickly verify data source and counts."""
+    logger = logging.getLogger(__name__)
+    try:
+        # CSV helpers were moved to a separate module to keep runtime forecasts DB-only
+        from .services.csv_forecasting import csv_aggregate_series
+        from .services.forecasting import aggregate_sales
+    except Exception as e:
+        logger.exception('Diag import failed: %s', str(e))
+        return JsonResponse({'error': 'diagnostics unavailable', 'details': str(e)}, status=500)
+
+    try:
+        csv_agg = None
+        try:
+            csv_agg = csv_aggregate_series(limit=100)
+        except Exception:
+            csv_agg = None
+
+        if csv_agg and (csv_agg.get('daily') or csv_agg.get('weekly') or csv_agg.get('monthly')):
+            src = 'csv'
+            daily = csv_agg.get('daily', [])
+            weekly = csv_agg.get('weekly', [])
+            monthly = csv_agg.get('monthly', [])
+        else:
+            src = 'db'
+            daily = aggregate_sales('daily', lookback=60)
+            weekly = aggregate_sales('weekly', lookback=12)
+            monthly = aggregate_sales('monthly', lookback=12)
+
+        def first_last(series):
+            if not series:
+                return {'count': 0, 'first': None, 'last': None}
+            return {'count': len(series), 'first': series[0][0], 'last': series[-1][0]}
+
+        payload = {
+            'data_source': src,
+            'daily': first_last(daily),
+            'weekly': first_last(weekly),
+            'monthly': first_last(monthly),
+            'now': timezone.now().isoformat()
+        }
+        return JsonResponse(payload)
+    except Exception as e:
+        logger.exception('Error building diag response: %s', str(e))
+        return JsonResponse({'error': 'failed to build diag', 'details': str(e)}, status=500)
+
+
+def product_forecast_debug(request):
+    """Debug endpoint to check database state and why forecasts might be 0."""
+    logger = logging.getLogger(__name__)
+    try:
+        from django.utils import timezone as tz
+        from datetime import timedelta
+        
+        # Check database state
+        product_count = Product.objects.count()
+        sale_count = Sale.objects.count()
+        
+        try:
+            today = tz.localdate()
+        except Exception:
+            today = tz.now().date()
+        
+        week_ago = today - timedelta(days=6)
+        
+        # Get recent sales
+        recent_sales = Sale.objects.filter(date__gte=week_ago, date__lte=today).values('product__name', 'date').annotate(total=models.Sum('units_sold')).order_by('-date')[:10]
+        
+        # Get product with most sales
+        top_product = Product.objects.annotate(total_sales=models.Sum('sale__units_sold')).order_by('-total_sales').first()
+        
+        # Test forecast calculation for top product if it exists
+        top_product_forecast = None
+        if top_product:
+            try:
+                from .services.forecasting import product_forecast_summary
+                summ = product_forecast_summary(top_product.id, horizons=(7,), lookback_days=90)
+                h7 = summ['horizons'].get('h_7', {})
+                top_product_forecast = {
+                    'product': top_product.name,
+                    'forecast_7d': h7.get('forecast', 0),
+                    'confidence': h7.get('confidence', 0),
+                    'series_length': len(summ.get('series', [])),
+                }
+            except Exception as e:
+                top_product_forecast = {'error': str(e)}
+        
+        return JsonResponse({
+            'timestamp': timezone.now().isoformat(),
+            'today': str(today),
+            'week_ago': str(week_ago),
+            'product_count': product_count,
+            'sale_count': sale_count,
+            'recent_sales_sample': [{'product': r['product__name'], 'date': str(r['date']), 'units': r['total']} for r in recent_sales],
+            'top_product_forecast': top_product_forecast,
+        })
+    except Exception as e:
+        logger.exception('Error in product_forecast_debug: %s', str(e))
+        return JsonResponse({'error': str(e), 'timestamp': timezone.now().isoformat()}, status=500)
+
+
+
+@group_required("Admin")
+@require_http_methods(["POST"])
+def admin_toggle_group(request):
+    user_id = request.POST.get('user_id')
+    group_name = request.POST.get('group')
+    action = request.POST.get('action')  # 'add' or 'remove'
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        group = Group.objects.get(name=group_name)
+    except Group.DoesNotExist:
+        messages.error(request, f"Group '{group_name}' does not exist.")
+        return redirect('admin_user_list')
+
+    # Perform the requested action
+    if action == 'add':
+        user.groups.add(group)
+        msg = f"Added {user.username} to {group.name}."
+        messages.success(request, msg)
+    else:
+        user.groups.remove(group)
+        msg = f"Removed {user.username} from {group.name}."
+        messages.success(request, msg)
+
+    # If AJAX request, return JSON for client-side updates
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'ok',
+            'message': msg,
+            'user_id': user.id,
+            'group': group.name,
+            'is_admin': user.groups.filter(name='Admin').exists(),
+            'is_cashier': user.groups.filter(name='Cashier').exists(),
+        })
+
+    return redirect('admin_user_list')
+
+
+# Record sales by period (week/month) - Auto-summarize and printable
+@group_required("Admin")
+def record_sales_period(request):
+    """Record sales summary for a week or month with printable option"""
+    from datetime import timedelta
+    
+    if request.method == 'POST':
+        # Get period from form and determine action
+        period = request.POST.get('period', 'week')
+        action = request.POST.get('action', 'view')  # 'view' or 'print'
+        
+        # Get the date range
+        today = timezone.now().date()
+        if period == 'week':
+            start_date = today - timedelta(days=today.weekday())  # Monday of this week
+            end_date = start_date + timedelta(days=6)  # Sunday
+        else:  # month
+            start_date = today.replace(day=1)
+            if today.month == 12:
+                end_date = start_date.replace(year=today.year + 1, month=1) - timedelta(days=1)
+            else:
+                end_date = start_date.replace(month=today.month + 1) - timedelta(days=1)
+        
+        # Get sales for the period
+        sales = Sale.objects.filter(date__gte=start_date, date__lte=end_date)
+        
+        # Calculate totals
+        total_units = sales.aggregate(Sum('units_sold'))['units_sold__sum'] or 0
+        total_revenue = sales.aggregate(Sum('revenue'))['revenue__sum'] or 0
+        
+        # Group by product
+        sales_by_product = sales.values('product__name').annotate(
+            units=Sum('units_sold'),
+            revenue=Sum('revenue')
+        ).order_by('-revenue')
+        
+        context = {
+            'period': period,
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_units': total_units,
+            'total_revenue': total_revenue,
+            'sales_by_product': list(sales_by_product),
+            'sales_count': sales.count(),
+            'now': timezone.now(),
+        }
+        
+        if action == 'print':
+            # Return printable version
+            return render(request, 'pages/sales_report_print.html', context)
+        else:
+            return render(request, 'pages/sales_report.html', context)
+    
+    return render(request, 'pages/sales_period_form.html')
+
+@group_required("Admin")
+def api_record_sales_summary(request):
+    """API endpoint to record sales summary and return as JSON for printing"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            period = data.get('period', 'week')  # 'week' or 'month'
+            
+            from datetime import timedelta
+            today = timezone.now().date()
+            if period == 'week':
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+            else:  # month
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = start_date.replace(year=today.year + 1, month=1) - timedelta(days=1)
+                else:
+                    end_date = start_date.replace(month=today.month + 1) - timedelta(days=1)
+            
+            sales = Sale.objects.filter(date__gte=start_date, date__lte=end_date)
+            
+            total_units = sales.aggregate(Sum('units_sold'))['units_sold__sum'] or 0
+            total_revenue = sales.aggregate(Sum('revenue'))['revenue__sum'] or 0
+            
+            sales_by_product = list(sales.values('product__name').annotate(
+                units=Sum('units_sold'),
+                revenue=Sum('revenue')
+            ).order_by('-revenue'))
+            
+            return JsonResponse({
+                'success': True,
+                'period': period,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'total_units': total_units,
+                'total_revenue': float(total_revenue),
+                'sales_by_product': sales_by_product,
+                'sales_count': sales.count(),
+            })
+        except Exception as e:
+            logging.error('Error in api_record_sales_summary: %s', str(e))
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+# Owner: Approve/Reject pending cashier signups
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_approve(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        pending = Group.objects.get(name='PendingCashier')
+    except Group.DoesNotExist:
+        pending = None
+    cashier_grp, _ = Group.objects.get_or_create(name='Cashier')
+    # Move user from pending to cashier and activate
+    if pending:
+        user.groups.remove(pending)
+    user.groups.add(cashier_grp)
+    user.is_active = True
+    user.save()
+    messages.success(request, f"Approved cashier: {user.username}")
+    return redirect('pending_cashiers')
+
+
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_reject(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    # Delete the user (reject)
+    username = user.username
+    user.delete()
+    messages.success(request, f"Rejected and removed user: {username}")
+    return redirect('pending_cashiers')
+
+@csrf_exempt
+def create_sale(request):
+    """API endpoint to create a sale transaction"""
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'POST':
+        logger.warning(f'create_sale: Invalid method {request.method}')
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        # Check if body is empty
+        if not request.body:
+            logger.error('create_sale: Empty request body')
+            return JsonResponse({'error': 'Empty request body'}, status=400)
+        
+        data = json.loads(request.body)
+        logger.info('create_sale payload: %s', data)
+        items = data.get('items', [])
+        
+        if not items:
+            logger.warning('create_sale: No items in cart')
+            return JsonResponse({'error': 'No items in cart'}, status=400)
+        
+        # First, validate all items have sufficient inventory
+        for item in items:
+            try:
+                product = Product.objects.get(pk=item['id'])
+                inv = product.inventory_items.first()
+                
+                if inv and inv.quantity < item['quantity']:
+                    logger.warning(f'create_sale: Insufficient inventory for {product.name}')
+                    return JsonResponse({'error': f'Insufficient inventory for {product.name}. Available: {inv.quantity}, Requested: {item["quantity"]}'}, status=400)
+                
+                # Validate quantity is positive
+                if item['quantity'] <= 0:
+                    logger.warning(f'create_sale: Invalid quantity for {product.name}')
+                    return JsonResponse({'error': f'Invalid quantity for {product.name}'}, status=400)
+            except Product.DoesNotExist:
+                logger.error(f'create_sale: Product not found with id {item["id"]}')
+                return JsonResponse({'error': f'Product not found (id: {item["id"]})'}, status=404)
+        
+        # All validations passed, create sale records for each item
+        # Use a small retry for transient DB errors (e.g., SSL decryption failures)
+        from django.db import close_old_connections
+        from django.db.utils import InterfaceError, DatabaseError
+
+        for item in items:
+            product = Product.objects.get(pk=item['id'])
+            attempt = 0
+            while True:
+                try:
+                    sale = Sale.objects.create(
+                        product=product,
+                        units_sold=item['quantity'],
+                        revenue=float(item['price']) * item['quantity']
+                    )
+
+                    # Update inventory
+                    inv = product.inventory_items.first()
+                    if inv:
+                        inv.quantity -= item['quantity']
+                        inv.save()
+                        logger.info(f'create_sale: Updated inventory for {product.name}, new qty: {inv.quantity}')
+
+                    # success -> break retry loop
+                    break
+
+                except (InterfaceError, DatabaseError) as db_exc:
+                    # transient DB error (could be SSL/decryption); attempt to recover once
+                    logger.warning('create_sale: DB error on write (attempt %s): %s', attempt + 1, str(db_exc))
+                    # Close old connections and retry once
+                    try:
+                        close_old_connections()
+                    except Exception:
+                        logger.exception('create_sale: close_old_connections failed')
+                    attempt += 1
+                    if attempt >= 2:
+                        logger.exception('create_sale: DB write failed after retry: %s', str(db_exc))
+                        raise
+        
+        logger.info('create_sale: Sale recorded successfully')
+        return JsonResponse({'success': True, 'message': 'Sale recorded successfully'})
+    except json.JSONDecodeError as e:
+        logger.error('create_sale: JSON decode error: %s', str(e))
+        logger.error(f'Request body: {request.body}')
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error('='*60)
+        logger.error('UNHANDLED EXCEPTION in create_sale')
+        logger.error('Error: %s', str(e))
+        logger.error('Traceback:\n%s', traceback.format_exc())
+        logger.error('='*60)
+        return JsonResponse({'error': f'Server error: {str(e)[:100]}'}, status=500)
+
+
+# Owner: Approve/Reject pending cashier signups
+@group_required("Owner")
+def pending_cashiers(request):
+    try:
+        pending_group = Group.objects.get(name='PendingCashier')
+        users = pending_group.user_set.all().order_by('username')
+    except Group.DoesNotExist:
+        users = []
+    return render(request, 'pages/pending_cashiers.html', {'users': users})
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_approve(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    try:
+        pending = Group.objects.get(name='PendingCashier')
+    except Group.DoesNotExist:
+        pending = None
+    cashier_grp, _ = Group.objects.get_or_create(name='Cashier')
+    # Move user from pending to cashier and activate
+    if pending:
+        user.groups.remove(pending)
+    user.groups.add(cashier_grp)
+    user.is_active = True
+    user.save()
+    messages.success(request, f"Approved cashier: {user.username}")
+    return redirect('pending_cashiers')
+
+
+@group_required("Owner")
+@require_http_methods(["POST"])
+def pending_cashier_reject(request):
+    user_id = request.POST.get('user_id')
+    user = get_object_or_404(User, pk=user_id)
+    # Delete the user (reject)
+    username = user.username
+    user.delete()
+    messages.success(request, f"Rejected and removed user: {username}")
+    return redirect('pending_cashiers')
+
+@login_required
+def recent_orders_api(request):
+    """Return recent sales (last 50 orders) with product details, ordered by most recent first."""
+    try:
+        # Get the 50 most recent sales, ordered by date (newest first)
+        recent_sales = Sale.objects.select_related('product').order_by('-date')[:50]
+        
+        orders = []
+        for sale in recent_sales:
+            orders.append({
+                'id': sale.id,
+                'product_name': sale.product.name,
+                'category': sale.product.category,
+                'units_sold': sale.units_sold,
+                'revenue': float(sale.revenue),
+                'date': sale.date.isoformat(),
+                'date_formatted': sale.date.strftime('%b %d, %I:%M %p')
+            })
+        
+        return JsonResponse({'success': True, 'orders': orders})
+    except Exception as e:
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error('Error in recent_orders_api: %s', str(e))
+        logger.error('Traceback:\n%s', traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
