@@ -1724,6 +1724,8 @@ def product_forecast_api(request):
         if in_stock_only in ('1', 'true', 'True'):
             qs = qs.filter(inventory_items__quantity__gt=0).distinct()
 
+        logger.debug('product_forecast_api: Processing %d products for horizon %d', qs.count(), horizon)
+        
         # Compute per-product summaries
         for p in qs:
             try:
@@ -1790,6 +1792,12 @@ def product_forecast_api(request):
                 projected_revenue = round(forecast_h * price, 2)
 
                 in_stock = p.inventory_items.filter(quantity__gt=0).exists()
+                
+                # Log the first few products to help debug
+                if len(products_payload) < 3:
+                    logger.info('Product %s: forecast_h=%d, last_7=%d, past_30=%d, confidence=%f', 
+                               p.name, forecast_h, last_7, past_30, hinfo.get('confidence', 0))
+                
                 products_payload.append({
                     'product_id': p.id,
                     'product': p.name,
@@ -1822,6 +1830,9 @@ def product_forecast_api(request):
 
     # Trending: sort by growth_rate descending
     trending_sorted = sorted(products_payload, key=lambda x: x.get('growth_rate', 0.0), reverse=True)
+    
+    logger.info('product_forecast_api returning %d/%d top products for horizon %d, total forecast=%d', 
+               len(products_sorted[:top_n]), len(products_sorted), horizon, total_forecast_units)
 
     result = {
         'horizon': horizon,
