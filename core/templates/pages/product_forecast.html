@@ -606,46 +606,56 @@
         try{
           const params = new URLSearchParams();
           params.set('horizon', '7');
-          params.set('top', '1000');
+          params.set('top', '200');
 
           const apiUrl = '/product-forecast/api/';
-          console.log('[Product Performance] Fetching with URL:', apiUrl + '?' + params.toString());
-          const res = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', cache: 'no-store' });
+          const fullUrl = apiUrl + '?' + params.toString();
+          console.log('[FetchData] Request URL:', fullUrl);
+          
+          const res = await fetch(fullUrl, { 
+            credentials: 'same-origin', 
+            cache: 'no-store',
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          
+          console.log('[FetchData] Response Status:', res.status);
           
           if(!res.ok){ 
-            console.warn('[Product Performance] API error status:', res.status);
-            const errText = await res.text();
-            console.error('[Product Performance] Error response:', errText);
+            const text = await res.text();
+            console.error('[FetchData] API error', res.status, ':', text);
             return; 
           }
 
           const json = await res.json();
-          console.log('[Product Performance] Full API response:', json);
+          console.log('[FetchData] Full Response:', json);
+          console.log('[FetchData] Top array length:', json.top ? json.top.length : 0);
+          console.log('[FetchData] Summary:', json.summary);
           
-          if(json && json.error){ 
-            console.warn('[Product Performance] API error:', json.error);
-            return; 
-          }
-
-          const top = json.top || [];
-          console.log('[Product Performance] Got', top.length, 'products from top array');
-          console.log('[Product Performance] Summary:', json.summary);
-          
-          if(top.length === 0) {
-            console.warn('[Product Performance] No products returned - API returned empty top array');
+          if(!json.top || json.top.length === 0) {
+            console.warn('[FetchData] WARNING: No products in response');
+            // Still update UI with empty state
+            renderTable([]);
+            updateSummaryStats([]);
+            return;
           }
           
-          renderTable(top);
-          updateSummaryStats(top);
+          console.log('[FetchData] First product:', json.top[0]);
+          renderTable(json.top);
+          updateSummaryStats(json.top);
         }catch(e){ 
-          console.error('[Product Performance] Error:', e); 
-          console.error('[Product Performance] Stack:', e.stack);
+          console.error('[FetchData] Exception:', e.message, e.stack);
         }
       }
 
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function(){ setTimeout(fetchData, 100); });
+        document.addEventListener('DOMContentLoaded', function(){ 
+          console.log('[FetchData] DOM loaded, fetching data...');
+          setTimeout(fetchData, 100); 
+        });
       } else {
+        console.log('[FetchData] DOM already loaded, fetching data...');
         setTimeout(fetchData, 100);
       }
     })();
