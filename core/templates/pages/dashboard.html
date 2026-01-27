@@ -927,6 +927,25 @@
           const customerName = document.querySelector('input[placeholder="Customer name (Optional)"]').value || 'Customer';
           
           // Persist sale to localStorage so Sales Dashboard (which reads localStorage) updates
+          // Calculate discount amount from dropdown BEFORE clearing inputs
+          const discountDropdown = document.getElementById('discountDropdown');
+          const discountValue = discountDropdown.value;
+          let discountPercentage = 0;
+          let discountLabel = 'None';
+          
+          if (discountValue === '20') {
+            discountPercentage = 20;
+            discountLabel = 'Senior Citizen (20%)';
+          } else if (discountValue === '20pwd') {
+            discountPercentage = 20;
+            discountLabel = 'PWD (20%)';
+          } else if (discountValue === '5') {
+            discountPercentage = 5;
+            discountLabel = 'Student (5%)';
+          }
+          
+          const discount = (subtotal * discountPercentage) / 100;
+
           const saleRecord = {
             timestamp: new Date().toLocaleString(),
             total: total,
@@ -953,26 +972,7 @@
           // Display the recent transaction items in order history
           displayRecentTransaction(itemsCopy);
           
-          // Calculate discount amount from dropdown
-          const discountDropdown = document.getElementById('discountDropdown');
-          const discountValue = discountDropdown.value;
-          let discountPercentage = 0;
-          let discountLabel = 'None';
-          
-          if (discountValue === '20') {
-            discountPercentage = 20;
-            discountLabel = 'Senior Citizen (20%)';
-          } else if (discountValue === '20pwd') {
-            discountPercentage = 20;
-            discountLabel = 'PWD (20%)';
-          } else if (discountValue === '5') {
-            discountPercentage = 5;
-            discountLabel = 'Student (5%)';
-          }
-          
-          const discount = (subtotal * discountPercentage) / 100;
-          
-          // Generate and print receipt
+          // Generate and print receipt with discount label
           generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change, discountLabel);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
