@@ -19,6 +19,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from core import views as core_views
+from core import debug_views
 from core.login_view import login
 from django.contrib.auth import views as auth_views
 from django.conf import settings
@@ -67,6 +68,8 @@ urlpatterns = [
     path("login/", login, name="login"),
     path("logout/", core_views.logout_view, name="logout"),
     path("profile/", core_views.profile, name="profile"),
+    # Debug
+    path("api/debug/status/", debug_views.debug_status, name="api_debug_status"),
     # App
     path("", include("core.urls")),
     

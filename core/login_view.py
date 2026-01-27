@@ -34,9 +34,11 @@ def login(request):
                 else:
                     messages.error(request, 'Your account is inactive. Please contact an administrator.')
                     logger.warning(f"Login attempt with inactive account: {username}")
+                    return render(request, 'pages/login.html')
             else:
                 messages.error(request, 'Invalid username or password')
                 logger.info(f"Failed login attempt for username: {username}")
+                return render(request, 'pages/login.html')
         
         except Exception as e:
             # Prefer to not expose internal DB errors or tracebacks to end users.

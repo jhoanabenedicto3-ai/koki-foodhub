@@ -30,8 +30,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-change-me-in-production-now')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Default to False so production environments (that don't set DEBUG) run in safe mode.
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+# Default to True for local development, False in production (when explicitly set).
+DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 # Character encoding settings
 FILE_CHARSET = 'utf-8'

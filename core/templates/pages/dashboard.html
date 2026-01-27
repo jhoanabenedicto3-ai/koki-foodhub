@@ -163,11 +163,23 @@
           <span style="font-weight: 600; color: var(--fg);" id="subtotal">₱0.00</span>
         </div>
         <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--fg);">Discount (Optional):</label>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <span style="color: var(--text-secondary); font-weight: 600;">₱</span>
-            <input type="number" id="discountInput" placeholder="0.00" min="0" step="0.01" value="0" style="flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
-            <span style="color: var(--text-secondary); font-weight: 600;">= <span style="font-weight: 600; color: var(--fg);" id="discount">₱0.00</span></span>
+          <label style="display: block; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--fg);">Discount (Optional):</label>
+          <select id="discountDropdown" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff; cursor: pointer; font-weight: 500;">
+            <option value="0">No Discount (0%)</option>
+            <option value="20">Senior Citizen – 20%</option>
+            <option value="20pwd">PWD – 20%</option>
+            <option value="5">Student – 5%</option>
+          </select>
+          <!-- Discount display -->
+          <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 6px; display: none;" id="discountDetails">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
+              <span style="color: var(--text-secondary);">Discount Label:</span>
+              <span style="font-weight: 600; color: var(--fg);" id="discountLabel">None</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
+              <span style="color: var(--text-secondary);">Discount Amount:</span>
+              <span style="font-weight: 600; color: #16a34a;" id="discountAmount">₱0.00</span>
+            </div>
           </div>
         </div>
         <div style="display: flex; justify-content: space-between; padding: 12px; background: #e8f5f0; border-radius: 8px; margin-bottom: 20px; border-top: 3px solid #16a34a;">
@@ -527,11 +539,42 @@
 
     function updateSummary() {
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-      const total = Math.max(0, subtotal - discount);
-
+      
+      // Get discount from dropdown
+      const discountDropdown = document.getElementById('discountDropdown');
+      const discountValue = discountDropdown.value;
+      let discountPercentage = 0;
+      let discountLabel = 'None';
+      
+      if (discountValue === '20') {
+        discountPercentage = 20;
+        discountLabel = 'Senior Citizen (20%)';
+      } else if (discountValue === '20pwd') {
+        discountPercentage = 20;
+        discountLabel = 'PWD (20%)';
+      } else if (discountValue === '5') {
+        discountPercentage = 5;
+        discountLabel = 'Student (5%)';
+      }
+      
+      // Calculate discount amount
+      const discountAmount = (subtotal * discountPercentage) / 100;
+      const total = Math.max(0, subtotal - discountAmount);
+      
+      // Update subtotal
       document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
-      document.getElementById('discount').textContent = '₱' + discount.toFixed(2);
+      
+      // Update discount details display
+      const discountDetails = document.getElementById('discountDetails');
+      if (discountPercentage > 0) {
+        discountDetails.style.display = 'block';
+        document.getElementById('discountLabel').textContent = discountLabel;
+        document.getElementById('discountAmount').textContent = '₱' + discountAmount.toFixed(2);
+      } else {
+        discountDetails.style.display = 'none';
+      }
+      
+      // Update total
       document.getElementById('total').textContent = '₱' + total.toFixed(2);
       updateChange();
     }
@@ -539,8 +582,22 @@
     function updateChange() {
       const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-      const total = Math.max(0, subtotal - discount);
+      
+      // Get discount from dropdown
+      const discountDropdown = document.getElementById('discountDropdown');
+      const discountValue = discountDropdown.value;
+      let discountPercentage = 0;
+      
+      if (discountValue === '20') {
+        discountPercentage = 20;
+      } else if (discountValue === '20pwd') {
+        discountPercentage = 20;
+      } else if (discountValue === '5') {
+        discountPercentage = 5;
+      }
+      
+      const discountAmount = (subtotal * discountPercentage) / 100;
+      const total = Math.max(0, subtotal - discountAmount);
       const change = Math.max(0, amountPaid - total);
       document.getElementById('change').textContent = '₱' + change.toFixed(2);
     }
@@ -786,7 +843,21 @@
         return;
       }
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+      
+      // Get discount from dropdown
+      const discountDropdown = document.getElementById('discountDropdown');
+      const discountValue = discountDropdown.value;
+      let discountPercentage = 0;
+      
+      if (discountValue === '20') {
+        discountPercentage = 20;
+      } else if (discountValue === '20pwd') {
+        discountPercentage = 20;
+      } else if (discountValue === '5') {
+        discountPercentage = 5;
+      }
+      
+      const discount = (subtotal * discountPercentage) / 100;
       const total = Math.max(0, subtotal - discount);
       const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
       
@@ -875,14 +946,29 @@
           const itemsCopy = [...cart];
           cart = [];
           document.getElementById('amountPaid').value = '';
+          document.getElementById('discountDropdown').value = '0';
           document.querySelector('input[placeholder="Customer name (Optional)"]').value = '';
           updateCart();
 
           // Display the recent transaction items in order history
           displayRecentTransaction(itemsCopy);
           
+          // Calculate discount amount from dropdown
+          const discountDropdown = document.getElementById('discountDropdown');
+          const discountValue = discountDropdown.value;
+          let discountPercentage = 0;
+          
+          if (discountValue === '20') {
+            discountPercentage = 20;
+          } else if (discountValue === '20pwd') {
+            discountPercentage = 20;
+          } else if (discountValue === '5') {
+            discountPercentage = 5;
+          }
+          
+          const discount = (subtotal * discountPercentage) / 100;
+          
           // Generate and print receipt
-          const discount = parseFloat(document.getElementById('discountInput').value) || 0;
           generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
@@ -917,7 +1003,7 @@
     }
 
     document.getElementById('amountPaid').addEventListener('input', updateChange);
-    document.getElementById('discountInput').addEventListener('input', updateSummary);
+    document.getElementById('discountDropdown').addEventListener('change', updateSummary);
     // Wire checkout button
     const checkoutBtn = document.getElementById('checkoutBtn');
     if (checkoutBtn) {
