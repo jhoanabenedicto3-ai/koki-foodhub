@@ -602,7 +602,7 @@
       document.getElementById('change').textContent = '₱' + change.toFixed(2);
     }
 
-    function generateAndPrintReceipt(customerName, items, subtotal, discount, total, amountPaid, change) {
+    function generateAndPrintReceipt(customerName, items, subtotal, discount, total, amountPaid, change, discountLabel = 'None') {
       const receiptNum = Math.floor(Math.random() * 1000000);
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -796,8 +796,8 @@
                 <span class="total-value">₱${subtotal.toFixed(2)}</span>
               </div>
               ${discount > 0 ? `
-                <div class="total-line" style="color: #16a34a; font-weight: bold;">
-                  <span class="total-label">Discount:</span>
+                <div class="total-line" style="color: #16a34a; font-size: 9px; margin-top: 1px; margin-bottom: 3px;">
+                  <span class="total-label">Discount (${discountLabel}):</span>
                   <span class="total-value">-₱${discount.toFixed(2)}</span>
                 </div>
               ` : ''}
@@ -957,19 +957,23 @@
           const discountDropdown = document.getElementById('discountDropdown');
           const discountValue = discountDropdown.value;
           let discountPercentage = 0;
+          let discountLabel = 'None';
           
           if (discountValue === '20') {
             discountPercentage = 20;
+            discountLabel = 'Senior Citizen (20%)';
           } else if (discountValue === '20pwd') {
             discountPercentage = 20;
+            discountLabel = 'PWD (20%)';
           } else if (discountValue === '5') {
             discountPercentage = 5;
+            discountLabel = 'Student (5%)';
           }
           
           const discount = (subtotal * discountPercentage) / 100;
           
           // Generate and print receipt
-          generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change);
+          generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change, discountLabel);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
