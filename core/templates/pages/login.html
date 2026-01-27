@@ -66,9 +66,6 @@
 
         <button class="auth-cta" type="submit">LOGIN</button>
         <p class="auth-footer">Don't have an account? <a href="{% url 'auth_signup' %}">Register</a></p>
-
-        <!-- Helpful quick link: guide users to Product Forecast after they log in -->
-        <p class="auth-footer" style="margin-top:6px;font-size:14px;color:#111">Want to go straight to the <strong>Product Forecast</strong>? <a href="{% url 'login' %}?next={% url 'product_forecast' %}">Continue after login</a></p>
       </form>
     </div>
   </div>
