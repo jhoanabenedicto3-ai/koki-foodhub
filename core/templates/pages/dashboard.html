@@ -478,9 +478,9 @@
               <p style="margin: 0; font-size: 13px; color: ##000000; font-weight: 700;">₱${item.price.toFixed(2)}</p>
             </div>
             <div style="display: flex; align-items: center; gap: 4px;">
-              <button class="qty-minus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #ffffff; border: none; cursor: pointer; font-size: 12px; color: var(--fg); border-radius: 3px; font-weight: 700;">−</button>
-              <input type="number" class="qty-edit" data-id="${item.id}" data-size="${item.size || 'Regular'}" value="${item.quantity}" min="1" style="width: 50px; padding: 4px 6px; font-weight: 600; color: var(--fg); font-size: 12px; text-align: center; background: var(--muted); border: 1px solid var(--border); border-radius: 3px;" />
-              <button class="qty-plus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #ffffff; border: none; cursor: pointer; font-size: 12px; color: var(--fg); border-radius: 3px; font-weight: 700;">+</button>
+              <button class="qty-minus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #FFD700; border: none; cursor: pointer; font-size: 12px; color: #000; border-radius: 3px; font-weight: 700;">−</button>
+              <input type="number" class="qty-edit" data-id="${item.id}" data-size="${item.size || 'Regular'}" value="${item.quantity}" min="1" style="width: 50px; padding: 4px 6px; font-weight: 600; color: #000; font-size: 12px; text-align: center; background: #FFD700; border: 1px solid #FFD700; border-radius: 3px;" />
+              <button class="qty-plus" data-id="${item.id}" data-size="${item.size || 'Regular'}" style="padding: 2px 5px; background: #FFD700; border: none; cursor: pointer; font-size: 12px; color: #000; border-radius: 3px; font-weight: 700;">+</button>
             </div>
           `;
           orderItemsDiv.appendChild(itemDiv);
