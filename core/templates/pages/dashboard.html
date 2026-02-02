@@ -164,21 +164,63 @@
         </div>
         <div style="margin-bottom: 16px;">
           <label style="display: block; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--fg);">Discount (Optional):</label>
-          <select id="discountDropdown" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff; cursor: pointer; font-weight: 500;">
-            <option value="0">No Discount (0%)</option>
-            <option value="20">Senior Citizen – 20%</option>
-            <option value="20pwd">PWD – 20%</option>
-            <option value="5">Student – 5%</option>
-          </select>
-          <!-- Discount display -->
-          <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 6px; display: none;" id="discountDetails">
+          
+          <!-- Discount Type Selector (Toggle/Tabs) -->
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <button type="button" id="discountTypePercent" class="discount-type-btn active" style="flex: 1; padding: 10px 12px; border: 2px solid #dc2626; background: #dc2626; color: white; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+              % Percent
+            </button>
+            <button type="button" id="discountTypePeso" class="discount-type-btn" style="flex: 1; padding: 10px 12px; border: 2px solid var(--border); background: #fff; color: var(--fg); border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+              ₱ Pesos
+            </button>
+          </div>
+
+          <!-- Discount Presets -->
+          <div style="margin-bottom: 10px;">
+            <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Quick Presets:</p>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+              <button type="button" class="discount-preset-btn" data-preset="senior" data-type="percent" data-value="20" style="padding: 8px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--fg); cursor: pointer; transition: all 0.2s ease;">
+                Senior (20%)
+              </button>
+              <button type="button" class="discount-preset-btn" data-preset="pwd" data-type="percent" data-value="20" style="padding: 8px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--fg); cursor: pointer; transition: all 0.2s ease;">
+                PWD (20%)
+              </button>
+              <button type="button" class="discount-preset-btn" data-preset="student" data-type="percent" data-value="5" style="padding: 8px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--fg); cursor: pointer; transition: all 0.2s ease;">
+                Student (5%)
+              </button>
+            </div>
+          </div>
+
+          <!-- Discount Value Input -->
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: var(--text-secondary);">Discount Value:</label>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span id="discountSymbol" style="color: var(--text-secondary); font-weight: 600; font-size: 14px;">%</span>
+              <input type="number" id="discountValue" placeholder="0" min="0" step="0.01" style="flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff;">
+              <span id="discountValueHint" style="font-size: 10px; color: var(--text-secondary); min-width: 60px; text-align: right;"></span>
+            </div>
+            <div id="discountError" style="display: none; margin-top: 6px; padding: 8px; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33; font-size: 11px;"></div>
+          </div>
+
+          <!-- Reason/Notes Field -->
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: var(--text-secondary);">Reason / Notes:</label>
+            <input type="text" id="discountReason" placeholder="e.g., Employee discount, Loyalty, Promotion" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff;">
+          </div>
+
+          <!-- Discount Summary Display -->
+          <div style="padding: 10px; background: #f0f9f7; border-radius: 6px; border: 1px solid #d0f0ea; display: none;" id="discountSummary">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
-              <span style="color: var(--text-secondary);">Discount Label:</span>
-              <span style="font-weight: 600; color: var(--fg);" id="discountLabel">None</span>
+              <span style="color: var(--text-secondary);">Applied Discount:</span>
+              <span style="font-weight: 600; color: var(--fg);" id="discountDisplayType">—</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px;">
               <span style="color: var(--text-secondary);">Discount Amount:</span>
               <span style="font-weight: 600; color: #16a34a;" id="discountAmount">₱0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <span style="color: var(--text-secondary);">Reason:</span>
+              <span style="font-weight: 500; color: var(--fg);" id="discountReasonDisplay">—</span>
             </div>
           </div>
         </div>
@@ -540,38 +582,67 @@
     function updateSummary() {
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Get discount from dropdown
-      const discountDropdown = document.getElementById('discountDropdown');
-      const discountValue = discountDropdown.value;
-      let discountPercentage = 0;
-      let discountLabel = 'None';
+      // Get discount settings
+      const discountType = document.querySelector('.discount-type-btn.active')?.id === 'discountTypePercent' ? 'percent' : 'peso';
+      const discountValueInput = parseFloat(document.getElementById('discountValue').value) || 0;
+      const discountReason = document.getElementById('discountReason').value || '';
       
-      if (discountValue === '20') {
-        discountPercentage = 20;
-        discountLabel = 'Senior Citizen (20%)';
-      } else if (discountValue === '20pwd') {
-        discountPercentage = 20;
-        discountLabel = 'PWD (20%)';
-      } else if (discountValue === '5') {
-        discountPercentage = 5;
-        discountLabel = 'Student (5%)';
+      let discountAmount = 0;
+      let discountDisplayValue = 0;
+      let isValid = true;
+      let errorMessage = '';
+      
+      // Calculate discount based on type
+      if (discountValueInput > 0) {
+        if (discountType === 'percent') {
+          // Percent discount
+          if (discountValueInput > 100) {
+            isValid = false;
+            errorMessage = 'Discount cannot exceed 100%';
+            discountAmount = 0;
+          } else {
+            discountAmount = (subtotal * discountValueInput) / 100;
+            discountDisplayValue = discountValueInput;
+          }
+        } else {
+          // Fixed peso discount
+          if (discountValueInput > subtotal) {
+            isValid = false;
+            errorMessage = '₱ Discount cannot exceed subtotal (₱' + subtotal.toFixed(2) + ')';
+            discountAmount = 0;
+          } else {
+            discountAmount = discountValueInput;
+            discountDisplayValue = discountValueInput;
+          }
+        }
       }
       
-      // Calculate discount amount
-      const discountAmount = (subtotal * discountPercentage) / 100;
       const total = Math.max(0, subtotal - discountAmount);
+      
+      // Update error display
+      const errorDiv = document.getElementById('discountError');
+      if (!isValid && discountValueInput > 0) {
+        errorDiv.textContent = errorMessage;
+        errorDiv.style.display = 'block';
+      } else {
+        errorDiv.style.display = 'none';
+      }
       
       // Update subtotal
       document.getElementById('subtotal').textContent = '₱' + subtotal.toFixed(2);
       
-      // Update discount details display
-      const discountDetails = document.getElementById('discountDetails');
-      if (discountPercentage > 0) {
-        discountDetails.style.display = 'block';
-        document.getElementById('discountLabel').textContent = discountLabel;
+      // Update discount summary display
+      const discountSummary = document.getElementById('discountSummary');
+      if (discountValueInput > 0 && isValid) {
+        discountSummary.style.display = 'block';
+        const displayText = discountType === 'percent' 
+          ? discountValueInput.toFixed(2) + '%' 
+          : '₱' + discountValueInput.toFixed(2);
+        document.getElementById('discountDisplayType').textContent = displayText;
         document.getElementById('discountAmount').textContent = '₱' + discountAmount.toFixed(2);
+        document.getElementById('discountReasonDisplay').textContent = discountReason || '—';
       } else {
-        discountDetails.style.display = 'none';
+        discountSummary.style.display = 'none';
       }
       
       // Update total
@@ -583,30 +654,47 @@
       const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Get discount from dropdown
-      const discountDropdown = document.getElementById('discountDropdown');
-      const discountValue = discountDropdown.value;
-      let discountPercentage = 0;
+      // Get discount settings
+      const discountType = document.querySelector('.discount-type-btn.active')?.id === 'discountTypePercent' ? 'percent' : 'peso';
+      const discountValueInput = parseFloat(document.getElementById('discountValue').value) || 0;
       
-      if (discountValue === '20') {
-        discountPercentage = 20;
-      } else if (discountValue === '20pwd') {
-        discountPercentage = 20;
-      } else if (discountValue === '5') {
-        discountPercentage = 5;
+      let discountAmount = 0;
+      
+      // Calculate discount based on type
+      if (discountValueInput > 0) {
+        if (discountType === 'percent') {
+          if (discountValueInput <= 100) {
+            discountAmount = (subtotal * discountValueInput) / 100;
+          }
+        } else {
+          if (discountValueInput <= subtotal) {
+            discountAmount = discountValueInput;
+          }
+        }
       }
       
-      const discountAmount = (subtotal * discountPercentage) / 100;
       const total = Math.max(0, subtotal - discountAmount);
       const change = Math.max(0, amountPaid - total);
       document.getElementById('change').textContent = '₱' + change.toFixed(2);
     }
 
-    function generateAndPrintReceipt(customerName, items, subtotal, discount, total, amountPaid, change, discountLabel = 'None') {
+    function generateAndPrintReceipt(customerName, items, subtotal, discount, total, amountPaid, change, discountLabel = 'None', discountType = 'percent', discountReason = '') {
       const receiptNum = Math.floor(Math.random() * 1000000);
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+      // Build discount display for receipt
+      let discountDisplayLine = '';
+      if (discount > 0) {
+        discountDisplayLine = `
+          <div class="total-line" style="color: #16a34a; font-size: 9px; margin-top: 1px; margin-bottom: 3px;">
+            <span class="total-label">Discount (${discountLabel}):</span>
+            <span class="total-value">-₱${discount.toFixed(2)}</span>
+          </div>
+          ${discountReason ? `<div class="total-line" style="font-size: 8px; color: #666; margin-bottom: 3px;"><span class="total-label">Reason:</span><span class="total-value">${discountReason}</span></div>` : ''}
+        `;
+      }
 
       const receiptContent = `
         <!DOCTYPE html>
@@ -795,12 +883,7 @@
                 <span class="total-label">Subtotal:</span>
                 <span class="total-value">₱${subtotal.toFixed(2)}</span>
               </div>
-              ${discount > 0 ? `
-                <div class="total-line" style="color: #16a34a; font-size: 9px; margin-top: 1px; margin-bottom: 3px;">
-                  <span class="total-label">Discount (${discountLabel}):</span>
-                  <span class="total-value">-₱${discount.toFixed(2)}</span>
-                </div>
-              ` : ''}
+              ${discountDisplayLine}
               <div class="grand-total">
                 <span>TOTAL:</span>
                 <span>₱${total.toFixed(2)}</span>
@@ -844,21 +927,34 @@
       }
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Get discount from dropdown
-      const discountDropdown = document.getElementById('discountDropdown');
-      const discountValue = discountDropdown.value;
-      let discountPercentage = 0;
+      // Get discount settings
+      const discountType = document.querySelector('.discount-type-btn.active')?.id === 'discountTypePercent' ? 'percent' : 'peso';
+      const discountValueInput = parseFloat(document.getElementById('discountValue').value) || 0;
+      const discountReason = document.getElementById('discountReason').value || '';
       
-      if (discountValue === '20') {
-        discountPercentage = 20;
-      } else if (discountValue === '20pwd') {
-        discountPercentage = 20;
-      } else if (discountValue === '5') {
-        discountPercentage = 5;
+      let discountAmount = 0;
+      let discountLabel = 'None';
+      
+      // Validate and calculate discount
+      if (discountValueInput > 0) {
+        if (discountType === 'percent') {
+          if (discountValueInput > 100) {
+            alert('Discount cannot exceed 100%');
+            return;
+          }
+          discountAmount = (subtotal * discountValueInput) / 100;
+          discountLabel = discountValueInput + '% Off' + (discountReason ? ' (' + discountReason + ')' : '');
+        } else {
+          if (discountValueInput > subtotal) {
+            alert('₱ Discount cannot exceed subtotal (₱' + subtotal.toFixed(2) + ')');
+            return;
+          }
+          discountAmount = discountValueInput;
+          discountLabel = '₱' + discountValueInput.toFixed(2) + ' Off' + (discountReason ? ' (' + discountReason + ')' : '');
+        }
       }
       
-      const discount = (subtotal * discountPercentage) / 100;
-      const total = Math.max(0, subtotal - discount);
+      const total = Math.max(0, subtotal - discountAmount);
       const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
       
       if (amountPaid < total) {
@@ -927,25 +1023,6 @@
           const customerName = document.querySelector('input[placeholder="Customer name (Optional)"]').value || 'Customer';
           
           // Persist sale to localStorage so Sales Dashboard (which reads localStorage) updates
-          // Calculate discount amount from dropdown BEFORE clearing inputs
-          const discountDropdown = document.getElementById('discountDropdown');
-          const discountValue = discountDropdown.value;
-          let discountPercentage = 0;
-          let discountLabel = 'None';
-          
-          if (discountValue === '20') {
-            discountPercentage = 20;
-            discountLabel = 'Senior Citizen (20%)';
-          } else if (discountValue === '20pwd') {
-            discountPercentage = 20;
-            discountLabel = 'PWD (20%)';
-          } else if (discountValue === '5') {
-            discountPercentage = 5;
-            discountLabel = 'Student (5%)';
-          }
-          
-          const discount = (subtotal * discountPercentage) / 100;
-
           const saleRecord = {
             timestamp: new Date().toLocaleString(),
             total: total,
@@ -965,15 +1042,19 @@
           const itemsCopy = [...cart];
           cart = [];
           document.getElementById('amountPaid').value = '';
-          document.getElementById('discountDropdown').value = '0';
+          document.getElementById('discountValue').value = '';
+          document.getElementById('discountReason').value = '';
           document.querySelector('input[placeholder="Customer name (Optional)"]').value = '';
+          document.getElementById('discountTypePeso').classList.remove('active');
+          document.getElementById('discountTypePercent').classList.add('active');
+          document.getElementById('discountSymbol').textContent = '%';
           updateCart();
 
           // Display the recent transaction items in order history
           displayRecentTransaction(itemsCopy);
           
           // Generate and print receipt with discount label
-          generateAndPrintReceipt(customerName, itemsCopy, subtotal, discount, total, amountPaid, change, discountLabel);
+          generateAndPrintReceipt(customerName, itemsCopy, subtotal, discountAmount, total, amountPaid, change, discountLabel, discountType, discountReason);
         } else {
           alert('Error: ' + (data && data.error ? data.error : 'Failed to process payment'));
         }
@@ -1007,7 +1088,86 @@
     }
 
     document.getElementById('amountPaid').addEventListener('input', updateChange);
-    document.getElementById('discountDropdown').addEventListener('change', updateSummary);
+    
+    // NEW: Discount Type Toggle Event Listeners
+    document.getElementById('discountTypePercent').addEventListener('click', function() {
+      document.getElementById('discountTypePercent').classList.add('active');
+      document.getElementById('discountTypePercent').style.background = '#dc2626';
+      document.getElementById('discountTypePercent').style.color = 'white';
+      document.getElementById('discountTypePeso').classList.remove('active');
+      document.getElementById('discountTypePeso').style.background = '#fff';
+      document.getElementById('discountTypePeso').style.color = 'var(--fg)';
+      document.getElementById('discountSymbol').textContent = '%';
+      document.getElementById('discountValue').placeholder = '0';
+      document.getElementById('discountValueHint').textContent = 'Max: 100%';
+      updateSummary();
+    });
+    
+    document.getElementById('discountTypePeso').addEventListener('click', function() {
+      document.getElementById('discountTypePeso').classList.add('active');
+      document.getElementById('discountTypePeso').style.background = '#dc2626';
+      document.getElementById('discountTypePeso').style.color = 'white';
+      document.getElementById('discountTypePercent').classList.remove('active');
+      document.getElementById('discountTypePercent').style.background = '#fff';
+      document.getElementById('discountTypePercent').style.color = 'var(--fg)';
+      document.getElementById('discountSymbol').textContent = '₱';
+      document.getElementById('discountValue').placeholder = '0';
+      document.getElementById('discountValueHint').textContent = 'Max: Subtotal';
+      updateSummary();
+    });
+    
+    // NEW: Discount Preset Buttons
+    document.querySelectorAll('.discount-preset-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const presetValue = this.dataset.value;
+        const presetType = this.dataset.type;
+        const presetName = this.dataset.preset;
+        
+        // Set discount type
+        if (presetType === 'percent') {
+          document.getElementById('discountTypePercent').classList.add('active');
+          document.getElementById('discountTypePercent').style.background = '#dc2626';
+          document.getElementById('discountTypePercent').style.color = 'white';
+          document.getElementById('discountTypePeso').classList.remove('active');
+          document.getElementById('discountTypePeso').style.background = '#fff';
+          document.getElementById('discountTypePeso').style.color = 'var(--fg)';
+          document.getElementById('discountSymbol').textContent = '%';
+        }
+        
+        // Set discount value
+        document.getElementById('discountValue').value = presetValue;
+        
+        // Preset reason
+        const reasonMap = { senior: 'Senior Citizen', pwd: 'PWD', student: 'Student' };
+        document.getElementById('discountReason').value = reasonMap[presetName] || '';
+        
+        // Update summary
+        updateSummary();
+      });
+    });
+    
+    // NEW: Discount Value Input with Real-Time Validation
+    document.getElementById('discountValue').addEventListener('input', function() {
+      updateSummary();
+    });
+    
+    document.getElementById('discountValue').addEventListener('blur', function() {
+      const discountType = document.querySelector('.discount-type-btn.active')?.id === 'discountTypePercent' ? 'percent' : 'peso';
+      const value = parseFloat(this.value) || 0;
+      
+      if (value < 0) {
+        this.value = '0';
+      } else if (discountType === 'percent' && value > 100) {
+        this.value = '100';
+      }
+      updateSummary();
+    });
+    
+    // NEW: Discount Reason Input
+    document.getElementById('discountReason').addEventListener('input', function() {
+      updateSummary();
+    });
+    
     // Wire checkout button
     const checkoutBtn = document.getElementById('checkoutBtn');
     if (checkoutBtn) {
