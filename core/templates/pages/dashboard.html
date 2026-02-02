@@ -10,18 +10,18 @@
       <span style="font-size: 24px;">🍕</span>
       <h1 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--fg);">Koki's Foodhub</h1>
     </div>
-    <a href="{% url 'logout' %}" style="padding: 10px 16px; background: transparent; color: #ff6a00; text-decoration: none; border: 1px solid var(--border); border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#ff6a00'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#ff6a00';'">Logout</a>
+    <a href="{% url 'logout' %}" style="padding: 10px 16px; background: transparent; color: #666; text-decoration: none; border: 1px solid var(--border); border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">Logout</a>
   </div>
 
-  <div style="display: flex; gap: 0; min-height: calc(100vh - 60px); padding: 0; background: #ff6a00;">
+  <div style="display: flex; gap: 0; min-height: calc(100vh - 60px); padding: 0; background: #f5f5f5;">
     <!-- Left: Search & Products Area -->
     <div style="flex: 1; padding: 24px; overflow-y: auto;">
       <!-- Search Box Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: #ff6a00; padding: 20px; border-radius: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: #e8e8f0; padding: 20px; border-radius: 12px;">
         <div style="flex: 1;">
           <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
             <span style="font-size: 24px;">🔍</span>
-            <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: #000;">Search Products</h2>
+            <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--fg);">Search Products</h2>
           </div>
           <input type="text" id="searchInput" placeholder="Search menu items..." style="width: 100%; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: #fff;">
         </div>
@@ -93,7 +93,7 @@
       </div>
 
       <!-- Pagination Controls -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px; background: #ff6a00; border-radius: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">
         <div style="display: flex; gap: 8px;">
           <button id="prevBtn" style="padding: 8px 12px; background: #ffffff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--fg);">← Prev</button>
           <button id="nextBtn" style="padding: 8px 12px; background: #ffffff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--fg);">Next →</button>
@@ -128,7 +128,7 @@
             🖨️ Print
           </button>
         </div>
-        <div id="orderHistory" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: #ff6a00; padding: 10px; font-size: 11px; color: #000;">
+        <div id="orderHistory" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: #f9f9f9; padding: 10px; font-size: 11px;">
           <div style="text-align: center; padding: 16px 8px; color: var(--text-secondary);">
             <p style="margin: 0; font-size: 10px;">No orders yet</p>
           </div>
@@ -145,7 +145,7 @@
       </div>
 
       <!-- Cart Items -->
-      <div style="flex: 1; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #ff6a00; min-height: 200px; color: #000;" id="orderItems">
+      <div style="flex: 1; overflow-y: auto; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: #f9f9f9; min-height: 200px;" id="orderItems">
         <div style="text-align: center; padding: 40px 20px;">
           <div style="font-size: 48px; margin-bottom: 12px;">🛒</div>
           <p style="margin: 0 0 4px 0; color: var(--text-secondary); font-weight: 600;">Cart is empty</p>
@@ -239,13 +239,13 @@
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #ff6a00; border-radius: 8px; margin-bottom: 20px;">
-        <span style="font-weight: 600; color: #000; font-size: 13px;">Change:</span>
-        <span style="font-weight: 700; color: #000; font-size: 18px;" id="change">₱0.00</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f0f0f0; border-radius: 8px; margin-bottom: 20px;">
+        <span style="font-weight: 600; color: var(--fg); font-size: 13px;">Change:</span>
+        <span style="font-weight: 700; color: #000000; font-size: 18px;" id="change">₱0.00</span>
       </div>
 
       <!-- Customer Name -->
-      <input type="text" placeholder="Customer name (Optional)" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; margin-bottom: 16px; background: #ff6a00; color: #000;">
+      <input type="text" placeholder="Customer name (Optional)" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; margin-bottom: 16px; background: #f9f9f9;">
 
       <!-- Process Button -->
       <button id="checkoutBtn" type="button" style="width: 100%; padding: 14px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
@@ -692,7 +692,7 @@
             <span class="total-label">Discount (${discountLabel}):</span>
             <span class="total-value">-₱${discount.toFixed(2)}</span>
           </div>
-          ${discountReason ? `<div class="total-line" style="font-size: 8px; color: #ff6a00; margin-bottom: 3px;"><span class="total-label">Reason:</span><span class="total-value">${discountReason}</span></div>` : ''}
+          ${discountReason ? `<div class="total-line" style="font-size: 8px; color: #666; margin-bottom: 3px;"><span class="total-label">Reason:</span><span class="total-value">${discountReason}</span></div>` : ''}
         `;
       }
 
@@ -771,7 +771,7 @@
               justify-content: space-between;
               font-size: 10px;
               margin: 3px 0;
-              border-bottom: 1px dotted #ff6a00;
+              border-bottom: 1px dotted #ccc;
               padding-bottom: 2px;
             }
             .item-name {
@@ -1297,7 +1297,7 @@
               font-size: 12px;
               font-weight: bold;
               padding: 5px 0;
-              border-bottom: 1px dotted #ff6a00;
+              border-bottom: 1px dotted #ccc;
             }
             .item-name {
               flex: 1;
