@@ -27,7 +27,7 @@
         <tbody>
           {% for i in items %}
             <tr>
-              <td><code style="background: var(--muted); padding: 4px 8px; border-radius: 4px; font-size: 12px;">{{ i.sku }}</code></td>
+              <td><code style="background: #FFD700; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #000;">{{ i.sku }}</code></td>
               <td><strong>{{ i.product.name }}</strong></td>
               <td>
                 {% if i.quantity < i.reorder_point %}
